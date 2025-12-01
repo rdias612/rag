@@ -63,6 +63,13 @@ MIN_SIMILARITY_THRESHOLD = 0.5  # Similaridade mínima para considerar um chunk 
 
 
 # =============================================================================
+# Conversação
+# =============================================================================
+SESSION_TIMEOUT_MINUTES = 30  # Tempo para expirar sessões inativas
+MAX_CONVERSATION_HISTORY = 10  # Máximo de mensagens no histórico
+
+
+# =============================================================================
 # Prompt Template
 # =============================================================================
 RAG_PROMPT_TEMPLATE = """Você é um assistente especializado e deve responder apenas com base no contexto fornecido.
@@ -74,4 +81,24 @@ RAG_PROMPT_TEMPLATE = """Você é um assistente especializado e deve responder a
 {pergunta}
 
 Se a resposta não estiver no contexto, diga: "Não há informações suficientes no contexto."
+"""
+
+
+# Template com histórico de conversa
+RAG_PROMPT_TEMPLATE_WITH_HISTORY = """Você é um assistente especializado e deve responder apenas com base no contexto fornecido.
+Considere o histórico da conversa para entender perguntas de follow-up.
+
+[HISTÓRICO DA CONVERSA]
+{historico}
+
+[CONTEXTO DOS DOCUMENTOS]
+{contexto}
+
+[PERGUNTA ATUAL]
+{pergunta}
+
+Instruções:
+- Use o histórico para entender referências como "ele", "isso", "o mesmo", etc.
+- Responda baseando-se APENAS no contexto fornecido.
+- Se a resposta não estiver no contexto, diga: "Não há informações suficientes no contexto."
 """
