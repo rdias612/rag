@@ -1,221 +1,272 @@
-# Projeto RAG -- Arquitetura Completa (Usando Phi-3.1 Mini)
+# RAG System - Sistema de Recuperação e Geração Aumentada
 
-## 1. Objetivo do Projeto
+Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de documentos PDF.
 
-Construir um sistema RAG (Retrieval-Augmented Generation) local, rápido
-e barato, utilizando: - **pgvector** como mecanismo de busca
-semântica. - **BGE-Large v2** como modelo de embeddings. - **Phi-3.1
-Mini** como LLM principal para geração de respostas. - Todos os
-componentes rodando localmente.
+## 🚀 Tecnologias Utilizadas
 
-Este documento foi estruturado para permitir que um agente de IA
-implemente o projeto de forma clara, direta e reprodutível.
+| Componente | Tecnologia | Descrição |
+|------------|------------|-----------|
+| **Banco de Dados** | PostgreSQL + pgvector | Armazenamento e busca vetorial |
+| **Embeddings** | Nomic Embed v1.5 | Modelo de embeddings via LM Studio |
+| **LLM** | Phi-3.5 Mini | Geração de respostas via LM Studio |
+| **API** | Flask | Backend REST API |
+| **Ingestão** | pypdf | Extração de texto de PDFs |
 
-------------------------------------------------------------------------
+---
 
-## 2. Arquitetura Geral do Sistema
+## 📁 Estrutura do Projeto
 
-### **Fluxo Completo**
+```
+rag/
+├── db/
+│   ├── docker-compose.yml    # PostgreSQL + pgvector + Adminer
+│   └── init.sql              # Script de inicialização do banco
+├── scripts/
+│   └── ingest.py             # CLI para ingestão de documentos
+├── src/
+│   ├── api/
+│   │   └── routes.py         # Endpoints da API
+│   ├── core/
+│   │   ├── embeddings.py     # Geração de embeddings (Nomic)
+│   │   ├── llm.py            # Integração com LLM (Phi-3.5)
+│   │   └── rag.py            # Pipeline RAG completo
+│   ├── data/
+│   │   ├── database.py       # Conexão PostgreSQL + pgvector
+│   │   └── ingestion.py      # Leitura de PDFs + chunking
+│   ├── app.py                # Aplicação Flask principal
+│   └── config.py             # Configurações centralizadas
+├── requirements.txt
+└── README.md
+```
 
-1.  **Ingestão de dados**
-    -   Ler arquivos `.pdf`, `.docx`, `.md`, `.txt`.
-    -   Extrair texto usando libraries como `pypdf`, `python-docx`, etc.
-    -   Fazer chunking do texto.
-2.  **Embedding**
-    -   Gerar embeddings usando **BGE-Large v2** (open-source).
-    -   Armazenar texto + embeddings + metadados no Postgres com
-        pgvector.
-3.  **Query RAG**
-    -   Usuário envia pergunta.
-    -   Pergunta → embedding com o mesmo modelo.
-    -   Buscar `k` vizinhos mais próximos via pgvector.
-    -   Concatenar contexto retornado.
-    -   Enviar contexto para a LLM **Phi-3.1 Mini**.
-    -   Gerar resposta final.
+---
 
-------------------------------------------------------------------------
+## ⚙️ Configuração
 
-## 3. Detalhes Técnicos do Projeto
+### Pré-requisitos
 
-### 3.1 Banco de Dados --- Postgres + pgvector
+1. **Python 3.11+**
+2. **Docker** (para PostgreSQL)
+3. **LM Studio** rodando com:
+   - Modelo de embeddings: `text-embedding-nomic-embed-text-v1.5`
+   - Modelo LLM: `phi-3.5-mini-instruct`
 
--   Criar tabela:
+### 1. Subir o Banco de Dados
 
-``` sql
-CREATE EXTENSION IF NOT EXISTS vector;
+```bash
+cd db
+docker-compose up -d
+```
 
+Isso irá iniciar:
+- **PostgreSQL + pgvector** na porta `5433`
+- **Adminer** (interface web) na porta `8080`
+
+### 2. Instalar Dependências
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+```
+
+### 3. Configurar LM Studio
+
+1. Abrir o LM Studio
+2. Carregar os modelos:
+   - `text-embedding-nomic-embed-text-v1.5` (embeddings)
+   - `phi-3.5-mini-instruct` (LLM)
+3. Iniciar o servidor local (padrão: `http://127.0.0.1:1234`)
+
+### 4. Configurar Diretório de Documentos
+
+Edite `src/config.py` e ajuste o caminho dos documentos:
+
+```python
+DOCUMENTS_DIR = Path(r"C:\caminho\para\seus\documentos")
+```
+
+---
+
+## 🔧 Uso
+
+### Verificar Serviços
+
+```bash
+python -m scripts.ingest --check
+```
+
+### Ver Estatísticas
+
+```bash
+python -m scripts.ingest --stats
+```
+
+### Ingerir Documentos
+
+```bash
+python -m scripts.ingest
+```
+
+Este comando irá:
+1. Ler todos os PDFs do diretório configurado
+2. Dividir em chunks (800 caracteres, 150 overlap)
+3. Gerar embeddings via LM Studio
+4. Armazenar no PostgreSQL com pgvector
+
+### Iniciar a API
+
+```bash
+python -m src.app
+```
+
+A API estará disponível em `http://localhost:5000`
+
+---
+
+## 📡 API Endpoints
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/` | GET | Informações da API |
+| `/api/health` | GET | Health check |
+| `/api/stats` | GET | Estatísticas (contagem de documentos) |
+| `/api/query` | POST | **Query RAG principal** |
+| `/api/query/stream` | POST | Query com streaming |
+| `/api/search` | POST | Apenas busca semântica (sem LLM) |
+
+### Exemplo de Query
+
+```bash
+curl -X POST http://localhost:5000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is GWPRP?"}'
+```
+
+**Resposta:**
+```json
+{
+  "answer": "GWPRP é um protocolo de roteamento...",
+  "chunks_retrieved": 5,
+  "sources": [
+    {"source": "documento.pdf", "page": 1, "similarity": 0.85}
+  ]
+}
+```
+
+### Parâmetros Opcionais
+
+```json
+{
+  "question": "Sua pergunta",
+  "top_k": 5,              // Número de chunks (padrão: 5)
+  "temperature": 0.7,      // Criatividade (padrão: 0.7)
+  "include_sources": true  // Incluir fontes (padrão: true)
+}
+```
+
+---
+
+## 🔄 Pipeline RAG
+
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Pergunta  │────▶│  Embedding   │────▶│   pgvector  │
+│             │     │ (Nomic v1.5) │     │   (busca)   │
+└─────────────┘     └──────────────┘     └──────┬──────┘
+                                                │
+                                                ▼
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Resposta  │◀────│   Phi-3.5    │◀────│  Contexto   │
+│             │     │    Mini      │     │  (top k)    │
+└─────────────┘     └──────────────┘     └─────────────┘
+```
+
+---
+
+## 🗄️ Banco de Dados
+
+### Tabela `documentos`
+
+```sql
 CREATE TABLE documentos (
     id SERIAL PRIMARY KEY,
-    content TEXT,
+    content TEXT NOT NULL,
     metadata JSONB,
-    embedding VECTOR(1024)
+    embedding VECTOR(768),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-### 3.2 Chunking
+### Índice Vetorial
 
-Regras recomendadas: - Tamanho: **500--1200 tokens**. - Overlap:
-**100--200 tokens**. - Cada chunk recebe: - `content` - `source` -
-`page` - `timestamp`
-
-------------------------------------------------------------------------
-
-## 4. Pipeline de Embeddings
-
-### 4.1 Extração de texto
-
--   `.pdf`: `pypdf`\
--   `.docx`: `python-docx`\
--   `.md`: leitura normal\
--   `.txt`: leitura normal
-
-### 4.2 Geração de Embeddings
-
-Modelo: **BGE-Large v2**\
-Dimensão: **1024**\
-Formato salvo no banco: `vector(1024)`.
-
-### 4.3 Inserção no Postgres
-
-Exemplo:
-
-``` python
-cur.execute(
-    "INSERT INTO documentos (content, metadata, embedding) VALUES (%s, %s, %s)",
-    (text, metadata_json, embedding.tolist())
-)
+```sql
+CREATE INDEX idx_documentos_embedding 
+ON documentos 
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
 ```
 
-------------------------------------------------------------------------
+### Acessar via Adminer
 
-## 5. Mecanismo de Busca Semântica
+- URL: http://localhost:8080
+- Sistema: PostgreSQL
+- Servidor: db
+- Usuário: postgres
+- Senha: changeme
+- Base de dados: ragdb
 
-Query SQL típica:
+---
 
-``` sql
-SELECT content, metadata
-FROM documentos
-ORDER BY embedding <-> query_embedding
-LIMIT 5;
+## ⚡ Configurações
+
+Todas as configurações estão em `src/config.py`:
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `DOCUMENTS_DIR` | `C:\Users\Rian\Documents\treinamento` | Diretório dos PDFs |
+| `DATABASE_PORT` | `5433` | Porta do PostgreSQL |
+| `LM_STUDIO_BASE_URL` | `http://127.0.0.1:1234/v1` | URL do LM Studio |
+| `EMBEDDING_DIMENSION` | `768` | Dimensão do Nomic Embed |
+| `CHUNK_SIZE` | `800` | Tamanho do chunk (caracteres) |
+| `CHUNK_OVERLAP` | `150` | Sobreposição entre chunks |
+| `TOP_K_RESULTS` | `5` | Chunks retornados na busca |
+
+---
+
+## 🛠️ Comandos Úteis
+
+```bash
+# Verificar serviços
+python -m scripts.ingest --check
+
+# Ver estatísticas
+python -m scripts.ingest --stats
+
+# Processar documentos
+python -m scripts.ingest
+
+# Limpar banco (cuidado!)
+python -m scripts.ingest --clear
+
+# Iniciar API
+python -m src.app
 ```
 
-Operador `<->` representa **distância vetorial** (cosine ou L2).
+---
 
-------------------------------------------------------------------------
+## 📝 TODO / Próximos Passos
 
-## 6. Modelo LLM --- Phi-3.1 Mini
+- [ ] Interface de chat (frontend)
+- [ ] Suporte a outros formatos (.docx, .md, .txt)
+- [ ] Histórico de conversas
+- [ ] Autenticação na API
+- [ ] Cache de embeddings
+- [ ] Métricas e logs
+- [ ] Testes automatizados
 
-### **Características**
+---
 
--   Muito leve (ideal para 4060 Ti 16GB).
--   Excelente custo/desempenho.
--   Ótimo para:
-    -   explicações
-    -   resumos curtos
-    -   perguntas diretas sobre contexto
-    -   tarefas simples a médias
+## 📄 Licença
 
-### **Limitações**
-
--   Raciocínio complexo.
--   Análise profunda de documentos muito longos.
--   Combinação de múltiplas fontes simultaneamente.
-
-### **Configuração recomendada**
-
-Rodar via: - **Ollama** - **LM Studio** - **Text Generation WebUI**
-
-Formato sugerido: `phi3.1-mini-instruct-Q4_K_M`.
-
-------------------------------------------------------------------------
-
-## 7. Prompt RAG Padrão
-
-``` text
-Você é um assistente especializado e deve responder apenas com base no contexto fornecido.
-
-[CONTEXTO]
-{{contexto}}
-
-[PERGUNTA]
-{{pergunta}}
-
-Se a resposta não estiver no contexto, diga: "Não há informações suficientes no contexto."
-```
-
-------------------------------------------------------------------------
-
-## 8. Processo de Resposta (Pipeline RAG)
-
-1.  Receber pergunta do usuário.
-2.  Gerar embedding da pergunta com BGE-Large v2.
-3.  Buscar os `k` chunks mais relevantes no pgvector.
-4.  Concatenar chunks como contexto.
-5.  Enviar contexto + pergunta para o Phi-3.1 Mini.
-6.  Gerar resposta final.
-7.  (Opcional) Guardar logs e métricas de precisão.
-
-------------------------------------------------------------------------
-
-## 9. Ferramentas Recomendadas
-
-### Backend
-
--   Python 3.11+
--   FastAPI ou Flask
--   psycopg2 ou asyncpg
--   huggingface transformers
--   sentence-transformers
-
-### Frontend (opcional)
-
--   React + Next.js
--   Vite
--   Simple chat UI
-
-------------------------------------------------------------------------
-
-## 10. Considerações de Performance
-
-### Embeddings
-
--   BGE-Large v2 é pesado, mas roda bem na GPU.
--   Processamento dos 50MB deve durar poucos minutos.
-
-### pgvector
-
--   Índices recomendados:
-
-``` sql
-CREATE INDEX idx_embed ON documentos USING ivfflat (embedding vector_cosine_ops);
-```
-
-### LLM
-
--   Phi-3.1 Mini roda tranquilo em GPU 4060 Ti com Chrome + VSCode
-    abertos.
--   Q4_K\_M consome cerca de 3--3.5GB VRAM.
-
-------------------------------------------------------------------------
-
-## 11. Próximos Passos para Implementação
-
-1.  Subir Postgres + pgvector.
-2.  Criar tabela e índices.
-3.  Criar script de ingestão + chunking + embeddings.
-4.  Popular o banco com os embeddings.
-5.  Criar API `/query` que implementa o RAG.
-6.  Integrar com o Phi-3.1 Mini via Ollama/LM Studio.
-7.  Criar interface simples de chat.
-
-------------------------------------------------------------------------
-
-## 12. Conclusão
-
-Este documento fornece as instruções completas para um ambiente RAG
-local usando: - **pgvector**\
-- **BGE-Large v2**\
-- **Phi-3.1 Mini**
-
-Totalmente open-source, rápido, barato e eficiente para sua base de
-conhecimento de \~50MB.
+Projeto pessoal para estudo e uso local.
