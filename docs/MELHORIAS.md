@@ -62,8 +62,8 @@ Coletar métricas para análise e melhoria contínua:
 
 ## 🟢 Baixa Prioridade
 
-### 4. Busca Híbrida (Vetorial + Keyword)
-**Impacto:** ⭐⭐⭐ | **Esforço:** Alto
+### 4. Busca Híbrida (Vetorial + Keyword) ✅
+**Impacto:** ⭐⭐⭐ | **Esforço:** Alto | **Status:** Implementado
 
 Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
 
@@ -72,31 +72,17 @@ Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
 - Melhor para siglas e nomes próprios
 - Resultados mais completos
 
-**Implementação:** PostgreSQL Full-Text Search + pgvector
-
----
-
-### 5. Compressão de Contexto ✅
-**Impacto:** ⭐⭐ | **Esforço:** Médio | **Status:** Implementado
-
-Quando o contexto for muito grande, resumir antes de enviar ao LLM.
-
-**Cenário:**
-```
-5 chunks × 800 chars = 4000 chars de contexto
-↓ Compressão
-2000 chars mantendo informações essenciais
-```
-
 **Implementação:**
-- Módulo `src/core/context_compression.py` com funções de compressão
-- Dois métodos disponíveis: LLM (mais preciso) ou heurístico (mais rápido)
+- Módulo `src/data/hybrid_search.py` com busca híbrida usando RRF (Reciprocal Rank Fusion)
+- PostgreSQL Full-Text Search (tsvector + GIN index) + pgvector
 - Configurações em `src/config.py`:
-  - `ENABLE_CONTEXT_COMPRESSION`: Habilita/desabilita compressão
-  - `CONTEXT_COMPRESSION_THRESHOLD`: Limite de caracteres para ativar
-  - `CONTEXT_COMPRESSION_TARGET_RATIO`: Proporção alvo de redução
-  - `CONTEXT_COMPRESSION_METHOD`: "llm" ou "heuristic"
-- Métricas de compressão incluídas na resposta do RAG
+  - `ENABLE_HYBRID_SEARCH`: Habilita/desabilita busca híbrida
+  - `HYBRID_SEARCH_ALPHA`: Peso da busca vetorial (0.7 = 70% vetorial, 30% FTS)
+- Funções disponíveis:
+  - `init_fulltext_search()`: Inicializa estruturas de FTS
+  - `search_hybrid()`: Busca combinando vetorial + FTS
+  - `search_fulltext()`: Busca apenas por palavras-chave
+- Métricas de busca incluídas na resposta do RAG
 
 ---
 
@@ -155,47 +141,6 @@ Implementar suíte de testes completa:
 | Performance | Tempo de resposta |
 
 **Ferramentas:** `pytest`, `pytest-asyncio`, `pytest-cov`
-
----
-
-## 📊 Matriz de Priorização
-
-| Melhoria | Impacto | Esforço | Prioridade |
-|----------|---------|---------|------------|
-| Re-ranking | ⭐⭐⭐⭐ | Médio | 🔴 Alta |
-| Filtro de Similaridade | ⭐⭐⭐ | Baixo | 🔴 Alta |
-| Cache de Embeddings | ⭐⭐⭐ | Baixo | 🟡 Média |
-| Validação de Input | ⭐⭐ | Baixo | 🟡 Média |
-| Métricas | ⭐⭐⭐ | Médio | 🟡 Média |
-| Busca Híbrida | ⭐⭐⭐ | Alto | 🟢 Baixa |
-| Compressão de Contexto | ⭐⭐ | Médio | 🟢 Baixa |
-| Feedback Loop | ⭐⭐⭐ | Médio | 🟢 Baixa |
-| Modo Debug | ⭐⭐ | Baixo | 🟢 Baixa |
-| Testes | ⭐⭐⭐⭐ | Alto | 🟢 Baixa |
-
----
-
-## 🎯 Roadmap Sugerido
-
-### Fase 1 - Qualidade (Semanas 1-2)
-- [ ] Implementar filtro de similaridade mínima
-- [ ] Melhorar chunking com divisão por sentenças
-- [ ] Adicionar suporte a `.txt` e `.docx`
-
-### Fase 2 - Usabilidade (Semanas 3-4)
-- [ ] Cache de embeddings em memória
-- [ ] Validação de inputs
-- [ ] Endpoint de upload de documentos
-
-### Fase 3 - Avançado (Semanas 5-6)
-- [ ] Re-ranking com cross-encoder
-- [ ] Histórico de conversas
-- [ ] Métricas básicas
-
-### Fase 4 - Refinamento (Semanas 7-8)
-- [ ] Testes automatizados
-- [ ] Modo debug
-- [ ] Sistema de feedback
 
 ---
 

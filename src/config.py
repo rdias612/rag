@@ -63,6 +63,13 @@ MIN_SIMILARITY_THRESHOLD = 0.5  # Similaridade mínima para considerar um chunk 
 
 
 # =============================================================================
+# Busca Híbrida (Vetorial + Full-Text Search)
+# =============================================================================
+ENABLE_HYBRID_SEARCH = True  # Se True, usa busca híbrida ao invés de apenas vetorial
+HYBRID_SEARCH_ALPHA = 0.7  # Peso da busca vetorial (0.0 a 1.0). 0.7 = 70% vetorial, 30% FTS
+
+
+# =============================================================================
 # Compressão de Contexto
 # =============================================================================
 ENABLE_CONTEXT_COMPRESSION = True  # Se True, comprime contexto quando muito grande

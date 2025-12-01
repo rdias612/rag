@@ -18,7 +18,9 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 ## ✨ Funcionalidades
 
 - 📄 **Múltiplos formatos**: PDF, DOCX, TXT, Markdown, HTML
-- 🔍 **Filtro de similaridade**: Descarta resultados irrelevantes automaticamente
+- 🔍 **Busca Híbrida**: Combina busca vetorial (semântica) + Full-Text Search (palavras-chave)
+- 🗜️ **Compressão de Contexto**: Reduz contexto grande automaticamente antes de enviar ao LLM
+- 🔎 **Filtro de similaridade**: Descarta resultados irrelevantes automaticamente
 - 💬 **Histórico de conversas**: Perguntas de follow-up com contexto mantido
 - 📤 **Upload via API**: Ingestão de documentos com processamento assíncrono
 - ✂️ **Chunking semântico**: Divisão inteligente por sentenças (spaCy)
@@ -43,9 +45,11 @@ rag/
 │   │   ├── llm.py            # Integração com LLM (Phi-3.5)
 │   │   ├── rag.py            # Pipeline RAG completo
 │   │   ├── conversation.py   # Gerenciador de histórico de conversas
+│   │   ├── context_compression.py  # Compressão inteligente de contexto
 │   │   └── logger.py         # Sistema de logging
 │   ├── data/
 │   │   ├── database.py       # Conexão PostgreSQL + pgvector
+│   │   ├── hybrid_search.py  # Busca híbrida (vetorial + FTS)
 │   │   ├── ingestion.py      # Leitura de documentos + chunking
 │   │   └── chunking.py       # Chunking semântico com spaCy
 │   ├── app.py                # Aplicação Flask principal
@@ -144,6 +148,58 @@ A API estará disponível em `http://localhost:5000`
 
 ---
 
+## 🔍 Busca Híbrida
+
+O sistema combina dois tipos de busca para melhores resultados:
+
+| Tipo | Tecnologia | Força |
+|------|------------|-------|
+| **Vetorial** | pgvector (cosine similarity) | Encontra conteúdo semanticamente similar |
+| **Full-Text Search** | PostgreSQL tsvector + GIN | Encontra termos exatos, siglas, nomes |
+
+### Reciprocal Rank Fusion (RRF)
+
+Os resultados são combinados usando RRF:
+
+```
+Score_final = α × RRF_vetorial + (1-α) × RRF_FTS
+```
+
+Onde `α` (alpha) controla o peso de cada busca:
+- `α = 1.0` → 100% vetorial (ignora FTS)
+- `α = 0.7` → 70% vetorial, 30% FTS (padrão)
+- `α = 0.5` → 50% cada
+- `α = 0.0` → 100% FTS (ignora vetorial)
+
+### Quando usar cada configuração
+
+| Cenário | Alpha Recomendado |
+|---------|-------------------|
+| Perguntas conceituais | 0.8 - 1.0 |
+| Busca por siglas/códigos | 0.3 - 0.5 |
+| Uso geral | 0.7 (padrão) |
+
+---
+
+## 🗜️ Compressão de Contexto
+
+Quando o contexto recuperado é muito grande (> 3000 chars por padrão), o sistema automaticamente o comprime antes de enviar ao LLM.
+
+### Métodos de Compressão
+
+| Método | Descrição | Quando usar |
+|--------|-----------|-------------|
+| `llm` | Usa o LLM para resumir mantendo informações relevantes | Mais preciso, recomendado |
+| `heuristic` | Extrai sentenças mais relevantes usando sobreposição de palavras | Mais rápido, sem custo extra |
+
+### Benefícios
+
+- ⚡ Reduz tokens enviados ao LLM
+- 💰 Menor custo de processamento
+- 🎯 Foco nas informações relevantes para a pergunta
+
+---
+
 ## 📡 API Endpoints
 
 ### Visão Geral
@@ -181,7 +237,10 @@ Envia uma pergunta e recebe uma resposta baseada nos documentos indexados.
   "question": "O que é GWPRP?",
   "top_k": 5,
   "temperature": 0.7,
-  "include_sources": true
+  "include_sources": true,
+  "use_hybrid_search": true,
+  "hybrid_alpha": 0.7,
+  "enable_compression": true
 }
 ```
 
@@ -191,6 +250,9 @@ Envia uma pergunta e recebe uma resposta baseada nos documentos indexados.
 | `top_k` | int | ❌ | Número de chunks a recuperar (padrão: 5) |
 | `temperature` | float | ❌ | Criatividade do LLM, 0.0-1.0 (padrão: 0.7) |
 | `include_sources` | bool | ❌ | Incluir fontes na resposta (padrão: true) |
+| `use_hybrid_search` | bool | ❌ | Usar busca híbrida vetorial+FTS (padrão: config) |
+| `hybrid_alpha` | float | ❌ | Peso da busca vetorial, 0.0-1.0 (padrão: 0.7) |
+| `enable_compression` | bool | ❌ | Comprimir contexto grande (padrão: config) |
 
 **Response:**
 ```json
@@ -199,8 +261,21 @@ Envia uma pergunta e recebe uma resposta baseada nos documentos indexados.
   "chunks_retrieved": 5,
   "context_used": "...",
   "sources": [
-    {"source": "documento.pdf", "page": 1, "similarity": 0.85}
-  ]
+    {"source": "documento.pdf", "page": 1, "similarity": 0.85, "hybrid_score": 0.012}
+  ],
+  "search": {
+    "search_type": "hybrid",
+    "hybrid_alpha": 0.7,
+    "vector_results": 4,
+    "fts_results": 3
+  },
+  "compression": {
+    "was_compressed": true,
+    "original_size": 4500,
+    "final_size": 2100,
+    "compression_ratio": 53.3,
+    "compression_time_ms": 1200
+  }
 }
 ```
 
@@ -423,21 +498,31 @@ Retorna estatísticas sobre os documentos.
 ## 🔄 Pipeline RAG
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Pergunta  │────▶│  Embedding   │────▶│   pgvector  │
-│             │     │ (Nomic v1.5) │     │   (busca)   │
-└─────────────┘     └──────────────┘     └──────┬──────┘
-                                                │
-                                         ┌──────▼──────┐
-                                         │   Filtro    │
-                                         │ Similaridade│
-                                         │   (≥ 0.5)   │
-                                         └──────┬──────┘
-                                                │
-┌─────────────┐     ┌──────────────┐     ┌──────▼──────┐
-│   Resposta  │◀────│   Phi-3.5    │◀────│  Contexto   │
-│             │     │    Mini      │     │  + Histórico│
-└─────────────┘     └──────────────┘     └─────────────┘
+┌─────────────┐     ┌──────────────┐     ┌─────────────────────────────┐
+│   Pergunta  │────▶│  Embedding   │────▶│      Busca Híbrida          │
+│             │     │ (Nomic v1.5) │     │  ┌─────────┐ ┌───────────┐  │
+└─────────────┘     └──────────────┘     │  │pgvector │ │Full-Text  │  │
+                                         │  │(vetorial)│ │Search(FTS)│  │
+                                         │  └────┬────┘ └─────┬─────┘  │
+                                         │       └─────┬──────┘        │
+                                         │         RRF Fusion          │
+                                         └──────────┬──────────────────┘
+                                                    │
+                                         ┌──────────▼──────────┐
+                                         │   Filtro Similaridade│
+                                         │       (≥ 0.5)        │
+                                         └──────────┬──────────┘
+                                                    │
+                                         ┌──────────▼──────────┐
+                                         │    Compressão de    │
+                                         │      Contexto       │
+                                         │  (se > 3000 chars)  │
+                                         └──────────┬──────────┘
+                                                    │
+┌─────────────┐     ┌──────────────┐     ┌──────────▼──────────┐
+│   Resposta  │◀────│   Phi-3.5    │◀────│      Contexto       │
+│             │     │    Mini      │     │    + Histórico      │
+└─────────────┘     └──────────────┘     └─────────────────────┘
 ```
 
 ---
@@ -452,17 +537,35 @@ CREATE TABLE documentos (
     content TEXT NOT NULL,
     metadata JSONB,
     embedding VECTOR(768),
+    search_vector TSVECTOR,  -- Para Full-Text Search
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-### Índice Vetorial
+### Índices
 
 ```sql
+-- Índice vetorial (busca semântica)
 CREATE INDEX idx_documentos_embedding 
 ON documentos 
 USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100);
+
+-- Índice GIN (Full-Text Search)
+CREATE INDEX idx_documentos_fts 
+ON documentos 
+USING gin(search_vector);
+```
+
+### Trigger Automático (FTS)
+
+O campo `search_vector` é atualizado automaticamente via trigger:
+
+```sql
+CREATE TRIGGER trg_update_search_vector
+BEFORE INSERT OR UPDATE ON documentos
+FOR EACH ROW
+EXECUTE FUNCTION update_search_vector();
 ```
 
 ### Acessar via Adminer
@@ -480,17 +583,50 @@ WITH (lists = 100);
 
 Todas as configurações estão em `src/config.py`:
 
+### Geral
+
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|
 | `DOCUMENTS_DIR` | `C:\Users\...\treinamento` | Diretório dos documentos |
 | `DATABASE_PORT` | `5433` | Porta do PostgreSQL |
 | `LM_STUDIO_BASE_URL` | `http://127.0.0.1:1234/v1` | URL do LM Studio |
 | `EMBEDDING_DIMENSION` | `768` | Dimensão do Nomic Embed |
+
+### Chunking
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
 | `CHUNK_SIZE` | `800` | Tamanho máximo do chunk |
 | `MIN_CHUNK_SIZE` | `200` | Tamanho mínimo do chunk |
+| `USE_SEMANTIC_CHUNKING` | `True` | Usar chunking por sentenças |
+
+### RAG
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
 | `TOP_K_RESULTS` | `5` | Chunks retornados na busca |
 | `MIN_SIMILARITY_THRESHOLD` | `0.5` | Similaridade mínima (0.0-1.0) |
-| `USE_SEMANTIC_CHUNKING` | `True` | Usar chunking por sentenças |
+
+### Busca Híbrida
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `ENABLE_HYBRID_SEARCH` | `True` | Habilitar busca vetorial + FTS |
+| `HYBRID_SEARCH_ALPHA` | `0.7` | Peso vetorial (0.7 = 70% vetorial, 30% FTS) |
+
+### Compressão de Contexto
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `ENABLE_CONTEXT_COMPRESSION` | `True` | Comprimir contexto grande |
+| `CONTEXT_COMPRESSION_THRESHOLD` | `3000` | Limite de chars para comprimir |
+| `CONTEXT_COMPRESSION_TARGET_RATIO` | `0.5` | Alvo de redução (50%) |
+| `CONTEXT_COMPRESSION_METHOD` | `"llm"` | Método: "llm" ou "heuristic" |
+
+### Conversação
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
 | `SESSION_TIMEOUT_MINUTES` | `30` | Timeout de sessões de conversa |
 | `MAX_CONVERSATION_HISTORY` | `10` | Máx mensagens no histórico |
 
@@ -536,6 +672,8 @@ python -m src.app
 - [x] ✅ Suporte a múltiplos formatos (PDF, DOCX, TXT, MD, HTML)
 - [x] ✅ Histórico de conversas
 - [x] ✅ Endpoint de ingestão via API
+- [x] ✅ **Busca Híbrida** - Combina busca vetorial (pgvector) com Full-Text Search (BM25)
+- [x] ✅ **Compressão de Contexto** - Reduz contexto grande antes de enviar ao LLM
 
 ### Próximos Passos
 
@@ -547,6 +685,24 @@ python -m src.app
 - [ ] Testes automatizados
 
 Veja o roadmap completo em [docs/MELHORIAS.md](docs/MELHORIAS.md).
+
+---
+
+## 🔧 Configuração Inicial da Busca Híbrida
+
+Se você já tem documentos indexados e quer ativar a busca híbrida:
+
+```python
+# Execute uma vez para criar as estruturas de FTS
+from src.data.hybrid_search import init_fulltext_search
+init_fulltext_search()
+```
+
+Isso irá:
+1. Adicionar a coluna `search_vector` na tabela
+2. Criar o índice GIN para Full-Text Search
+3. Atualizar os documentos existentes
+4. Criar trigger para atualização automática
 
 ---
 

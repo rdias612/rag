@@ -13,7 +13,9 @@ from src.config import (
     ENABLE_CONTEXT_COMPRESSION,
     CONTEXT_COMPRESSION_THRESHOLD,
     CONTEXT_COMPRESSION_TARGET_RATIO,
-    CONTEXT_COMPRESSION_METHOD
+    CONTEXT_COMPRESSION_METHOD,
+    ENABLE_HYBRID_SEARCH,
+    HYBRID_SEARCH_ALPHA
 )
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
@@ -26,6 +28,77 @@ from src.core.logger import (
 )
 from src.core.conversation import conversation_manager, Conversation
 from src.core.context_compression import smart_compress, extract_key_sentences
+
+
+def _search_documents(
+    question: str,
+    question_embedding: list[float],
+    top_k: int,
+    min_similarity: float = None,
+    use_hybrid: bool = None,
+    hybrid_alpha: float = None
+) -> tuple[list[dict], dict]:
+    """
+    Busca documentos usando busca vetorial ou híbrida.
+    
+    Args:
+        question: Texto da pergunta
+        question_embedding: Embedding da pergunta
+        top_k: Número de resultados
+        min_similarity: Similaridade mínima
+        use_hybrid: Força uso de busca híbrida (usa config se None)
+        hybrid_alpha: Peso da busca vetorial (usa config se None)
+        
+    Returns:
+        Tupla (lista de documentos, métricas de busca)
+    """
+    should_use_hybrid = use_hybrid if use_hybrid is not None else ENABLE_HYBRID_SEARCH
+    
+    search_metrics = {
+        "search_type": "hybrid" if should_use_hybrid else "vector",
+        "hybrid_alpha": None,
+        "vector_results": 0,
+        "fts_results": 0
+    }
+    
+    if should_use_hybrid:
+        try:
+            from src.data.hybrid_search import search_hybrid, check_fulltext_ready
+            
+            # Verificar se FTS está configurado
+            if not check_fulltext_ready():
+                rag_logger.warning("Full-Text Search not ready, falling back to vector search")
+                search_metrics["search_type"] = "vector"
+                search_metrics["fallback_reason"] = "FTS not initialized"
+                return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity), search_metrics
+            
+            alpha = hybrid_alpha if hybrid_alpha is not None else HYBRID_SEARCH_ALPHA
+            search_metrics["hybrid_alpha"] = alpha
+            
+            results = search_hybrid(
+                query=question,
+                query_embedding=question_embedding,
+                top_k=top_k,
+                alpha=alpha,
+                min_similarity=min_similarity
+            )
+            
+            # Extrair métricas dos resultados
+            if results:
+                vector_contrib = sum(1 for r in results if r.get('vector_contribution', 0) > 0)
+                fts_contrib = sum(1 for r in results if r.get('fts_contribution', 0) > 0)
+                search_metrics["vector_results"] = vector_contrib
+                search_metrics["fts_results"] = fts_contrib
+            
+            return results, search_metrics
+            
+        except ImportError as e:
+            rag_logger.warning(f"Hybrid search module not available: {e}")
+            search_metrics["search_type"] = "vector"
+            search_metrics["fallback_reason"] = str(e)
+    
+    # Busca vetorial padrão
+    return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity), search_metrics
 
 
 def _apply_context_compression(
@@ -97,13 +170,15 @@ def query_rag(
     temperature: float = 0.7,
     include_sources: bool = True,
     min_similarity: float = None,
-    enable_compression: bool = None
+    enable_compression: bool = None,
+    use_hybrid_search: bool = None,
+    hybrid_alpha: float = None
 ) -> dict:
     """
     Executa o pipeline RAG completo.
     
     1. Gera embedding da pergunta
-    2. Busca chunks similares no pgvector
+    2. Busca chunks similares (vetorial ou híbrida)
     3. Monta o contexto
     4. Comprime o contexto se necessário
     5. Gera resposta com o LLM
@@ -115,6 +190,8 @@ def query_rag(
         include_sources: Se True, inclui as fontes na resposta
         min_similarity: Similaridade mínima para considerar um chunk (usa config se None)
         enable_compression: Força habilitação/desabilitação da compressão (usa config se None)
+        use_hybrid_search: Força uso de busca híbrida (usa config se None)
+        hybrid_alpha: Peso da busca vetorial na busca híbrida (usa config se None)
         
     Returns:
         Dict com answer, sources e metadata
@@ -126,9 +203,16 @@ def query_rag(
     rag_logger.debug("Generating question embedding...")
     question_embedding = get_embedding(question)
     
-    # 2. Buscar chunks similares (já aplica filtro de similaridade mínima)
+    # 2. Buscar chunks similares (vetorial ou híbrida)
     rag_logger.debug("Searching similar documents...")
-    similar_docs = search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity)
+    similar_docs, search_metrics = _search_documents(
+        question=question,
+        question_embedding=question_embedding,
+        top_k=top_k,
+        min_similarity=min_similarity,
+        use_hybrid=use_hybrid_search,
+        hybrid_alpha=hybrid_alpha
+    )
     
     if not similar_docs:
         rag_logger.warning("No similar documents found (all filtered by similarity threshold)")
@@ -137,7 +221,8 @@ def query_rag(
                       "Tente reformular a pergunta ou verifique se o tema está nos documentos indexados.",
             "sources": [],
             "context_used": "",
-            "chunks_retrieved": 0
+            "chunks_retrieved": 0,
+            "search": search_metrics
         }
     
     # 3. Montar contexto
@@ -152,8 +237,13 @@ def query_rag(
         source_info = {
             "source": doc["metadata"].get("source", "Desconhecido"),
             "page": doc["metadata"].get("page", "N/A"),
-            "similarity": round(doc["similarity"], 4)
+            "similarity": round(doc.get("similarity", 0), 4)
         }
+        
+        # Adicionar info de busca híbrida se disponível
+        if "hybrid_score" in doc:
+            source_info["hybrid_score"] = round(doc["hybrid_score"], 4)
+        
         sources.append(source_info)
     
     context = "\n\n---\n\n".join(context_parts)
@@ -186,6 +276,7 @@ def query_rag(
         "answer": answer,
         "context_used": context,
         "chunks_retrieved": len(similar_docs),
+        "search": search_metrics,
         "compression": {
             "was_compressed": compression_result["was_compressed"],
             "original_size": compression_result["original_size"],
@@ -305,7 +396,9 @@ def query_rag_with_history(
     temperature: float = 0.7,
     include_sources: bool = True,
     min_similarity: float = None,
-    enable_compression: bool = None
+    enable_compression: bool = None,
+    use_hybrid_search: bool = None,
+    hybrid_alpha: float = None
 ) -> dict:
     """
     Executa o pipeline RAG com suporte a histórico de conversas.
@@ -320,6 +413,8 @@ def query_rag_with_history(
         include_sources: Se True, inclui as fontes na resposta
         min_similarity: Similaridade mínima para considerar um chunk
         enable_compression: Força habilitação/desabilitação da compressão (usa config se None)
+        use_hybrid_search: Força uso de busca híbrida (usa config se None)
+        hybrid_alpha: Peso da busca vetorial na busca híbrida (usa config se None)
         
     Returns:
         Dict com answer, sources, session_id e metadata
@@ -339,9 +434,16 @@ def query_rag_with_history(
     rag_logger.debug("Generating question embedding...")
     question_embedding = get_embedding(question)
     
-    # 2. Buscar chunks similares
+    # 2. Buscar chunks similares (vetorial ou híbrida)
     rag_logger.debug("Searching similar documents...")
-    similar_docs = search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity)
+    similar_docs, search_metrics = _search_documents(
+        question=question,
+        question_embedding=question_embedding,
+        top_k=top_k,
+        min_similarity=min_similarity,
+        use_hybrid=use_hybrid_search,
+        hybrid_alpha=hybrid_alpha
+    )
     
     if not similar_docs:
         rag_logger.warning("No similar documents found")
@@ -357,7 +459,8 @@ def query_rag_with_history(
             "context_used": "",
             "chunks_retrieved": 0,
             "session_id": session_id,
-            "message_count": len(conversation.messages)
+            "message_count": len(conversation.messages),
+            "search": search_metrics
         }
     
     # 3. Montar contexto
@@ -371,8 +474,13 @@ def query_rag_with_history(
         source_info = {
             "source": doc["metadata"].get("source", "Desconhecido"),
             "page": doc["metadata"].get("page", "N/A"),
-            "similarity": round(doc["similarity"], 4)
+            "similarity": round(doc.get("similarity", 0), 4)
         }
+        
+        # Adicionar info de busca híbrida se disponível
+        if "hybrid_score" in doc:
+            source_info["hybrid_score"] = round(doc["hybrid_score"], 4)
+        
         sources.append(source_info)
     
     context = "\n\n---\n\n".join(context_parts)
@@ -422,6 +530,7 @@ def query_rag_with_history(
         "chunks_retrieved": len(similar_docs),
         "session_id": session_id,
         "message_count": len(conversation.messages),
+        "search": search_metrics,
         "compression": {
             "was_compressed": compression_result["was_compressed"],
             "original_size": compression_result["original_size"],
