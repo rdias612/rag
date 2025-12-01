@@ -60,9 +60,19 @@ def show_stats():
     
     if DOCUMENTS_DIR.exists():
         stats = get_document_stats()
-        print(f"   Arquivos PDF: {stats['total_files']}")
-        print(f"   Total de páginas: {stats['total_pages']}")
+        print(f"   Total de arquivos: {stats['total_files']}")
+        
+        # Mostrar por tipo
+        if stats.get('files_by_type'):
+            print("   Por formato:")
+            for ext, count in sorted(stats['files_by_type'].items()):
+                print(f"     - {ext}: {count}")
+        
+        if stats.get('total_pdf_pages', 0) > 0:
+            print(f"   Total de páginas (PDFs): {stats['total_pdf_pages']}")
+        
         print(f"   Tamanho total: {stats['total_size_mb']} MB")
+        print(f"   Formatos suportados: {', '.join(stats.get('supported_formats', []))}")
         
         if stats['files']:
             print("\n   Arquivos:")

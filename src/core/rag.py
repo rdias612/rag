@@ -4,7 +4,7 @@ Pipeline RAG completo: busca + geração de resposta.
 import time
 from typing import Optional
 
-from src.config import RAG_PROMPT_TEMPLATE, TOP_K_RESULTS
+from src.config import RAG_PROMPT_TEMPLATE, TOP_K_RESULTS, MIN_SIMILARITY_THRESHOLD
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
 from src.data.database import search_similar
@@ -20,7 +20,8 @@ def query_rag(
     question: str,
     top_k: int = TOP_K_RESULTS,
     temperature: float = 0.7,
-    include_sources: bool = True
+    include_sources: bool = True,
+    min_similarity: float = None
 ) -> dict:
     """
     Executa o pipeline RAG completo.
@@ -35,6 +36,7 @@ def query_rag(
         top_k: Número de chunks a recuperar
         temperature: Temperatura para geração
         include_sources: Se True, inclui as fontes na resposta
+        min_similarity: Similaridade mínima para considerar um chunk (usa config se None)
         
     Returns:
         Dict com answer, sources e metadata
@@ -46,16 +48,18 @@ def query_rag(
     rag_logger.debug("Generating question embedding...")
     question_embedding = get_embedding(question)
     
-    # 2. Buscar chunks similares
+    # 2. Buscar chunks similares (já aplica filtro de similaridade mínima)
     rag_logger.debug("Searching similar documents...")
-    similar_docs = search_similar(question_embedding, top_k=top_k)
+    similar_docs = search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity)
     
     if not similar_docs:
-        rag_logger.warning("No similar documents found")
+        rag_logger.warning("No similar documents found (all filtered by similarity threshold)")
         return {
-            "answer": "Não encontrei documentos relevantes para responder sua pergunta.",
+            "answer": "Não encontrei documentos suficientemente relevantes para responder sua pergunta. "
+                      "Tente reformular a pergunta ou verifique se o tema está nos documentos indexados.",
             "sources": [],
-            "context_used": ""
+            "context_used": "",
+            "chunks_retrieved": 0
         }
     
     # 3. Montar contexto
@@ -163,7 +167,11 @@ def query_rag_stream(
         yield token
 
 
-def search_only(question: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
+def search_only(
+    question: str, 
+    top_k: int = TOP_K_RESULTS,
+    min_similarity: float = None
+) -> list[dict]:
     """
     Apenas busca documentos similares, sem gerar resposta.
     Útil para debug e análise.
@@ -171,6 +179,7 @@ def search_only(question: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
     Args:
         question: Pergunta/query do usuário
         top_k: Número de resultados
+        min_similarity: Similaridade mínima (usa config se None, 0.0 para desabilitar)
         
     Returns:
         Lista de documentos similares com metadata
@@ -178,7 +187,7 @@ def search_only(question: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
     rag_logger.info(f"Search only query: '{question[:50]}...' (top_k={top_k})")
     
     question_embedding = get_embedding(question)
-    similar_docs = search_similar(question_embedding, top_k=top_k)
+    similar_docs = search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity)
     
     rag_logger.info(f"Search returned {len(similar_docs)} documents")
     

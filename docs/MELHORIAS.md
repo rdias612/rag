@@ -6,24 +6,7 @@ Este documento lista as melhorias identificadas para o sistema RAG, organizadas 
 
 ## 🔴 Alta Prioridade
 
-### 1. Chunking Semântico
-**Impacto:** ⭐⭐⭐⭐⭐ | **Esforço:** Médio
-
-O chunking atual é baseado apenas em contagem de caracteres, o que pode resultar em:
-- Frases cortadas no meio
-- Perda de contexto semântico
-- Chunks começando/terminando em locais inadequados
-
-**Solução proposta:**
-- Implementar chunking baseado em sentenças e parágrafos
-- Respeitar limites naturais do texto (pontuação, quebras de linha)
-- Manter a coesão semântica de cada chunk
-
-**Bibliotecas sugeridas:** `langchain`, `spacy`, `nltk`
-
----
-
-### 2. Re-ranking dos Resultados
+### 1. Re-ranking dos Resultados
 **Impacto:** ⭐⭐⭐⭐ | **Esforço:** Médio
 
 Aplicar um modelo de re-ranking após a busca vetorial para melhorar a precisão.
@@ -42,43 +25,9 @@ Query → Busca Vetorial (Top 20) → Re-ranker → Top 5 Finais
 
 ---
 
-### 3. Filtro de Similaridade Mínima
-**Impacto:** ⭐⭐⭐ | **Esforço:** Baixo
-
-Atualmente, o sistema retorna `top_k` resultados independentemente da similaridade.
-
-**Problema:**
-```python
-# Atual: retorna 5 chunks mesmo que tenham baixa similaridade
-similar_docs = search_similar(embedding, top_k=5)
-```
-
-**Solução:**
-```python
-# Proposto: filtrar por threshold
-MIN_SIMILARITY = 0.5
-similar_docs = [doc for doc in results if doc["similarity"] >= MIN_SIMILARITY]
-```
-
----
-
-### 4. Suporte a Mais Formatos de Documentos
-**Impacto:** ⭐⭐⭐ | **Esforço:** Baixo
-
-Expandir além de PDF para suportar:
-
-| Formato | Biblioteca |
-|---------|------------|
-| `.docx` | `python-docx` |
-| `.txt` | nativo |
-| `.md` | `markdown` |
-| `.html` | `beautifulsoup4` |
-
----
-
 ## 🟡 Média Prioridade
 
-### 5. Cache de Embeddings
+### 4. Cache de Embeddings
 **Impacto:** ⭐⭐⭐ | **Esforço:** Baixo
 
 Evitar recalcular embeddings para perguntas repetidas ou similares.
@@ -95,7 +44,7 @@ Evitar recalcular embeddings para perguntas repetidas ou similares.
 
 ---
 
-### 6. Histórico de Conversas
+### 5. Histórico de Conversas
 **Impacto:** ⭐⭐⭐⭐ | **Esforço:** Médio
 
 Permitir perguntas de follow-up mantendo o contexto da conversa.
@@ -121,18 +70,7 @@ Usuário: "Quem desenvolveu?"  ← Entende que se refere ao GWPRP
 
 ---
 
-### 7. Validação e Segurança de Input
-**Impacto:** ⭐⭐ | **Esforço:** Baixo
-
-Implementar validações para:
-- Limitar tamanho máximo da pergunta (ex: 2000 caracteres)
-- Sanitizar inputs contra injeção
-- Rate limiting por IP/sessão
-- Validação de tipos de dados
-
----
-
-### 8. Métricas e Monitoramento
+### 6. Métricas e Monitoramento
 **Impacto:** ⭐⭐⭐ | **Esforço:** Médio
 
 Coletar métricas para análise e melhoria contínua:
@@ -148,7 +86,7 @@ Coletar métricas para análise e melhoria contínua:
 
 ---
 
-### 9. Endpoint de Ingestão via API
+### 7. Endpoint de Ingestão via API
 **Impacto:** ⭐⭐ | **Esforço:** Baixo
 
 Permitir upload de documentos pela API REST.
@@ -170,7 +108,7 @@ file: documento.pdf
 
 ## 🟢 Baixa Prioridade
 
-### 10. Busca Híbrida (Vetorial + Keyword)
+### 8. Busca Híbrida (Vetorial + Keyword)
 **Impacto:** ⭐⭐⭐ | **Esforço:** Alto
 
 Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
@@ -184,7 +122,7 @@ Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
 
 ---
 
-### 11. Compressão de Contexto
+### 9. Compressão de Contexto
 **Impacto:** ⭐⭐ | **Esforço:** Médio
 
 Quando o contexto for muito grande, resumir antes de enviar ao LLM.
@@ -198,7 +136,7 @@ Quando o contexto for muito grande, resumir antes de enviar ao LLM.
 
 ---
 
-### 12. Sistema de Feedback
+### 10. Sistema de Feedback
 **Impacto:** ⭐⭐⭐ | **Esforço:** Médio
 
 Coletar feedback do usuário para melhorar o sistema.
@@ -216,7 +154,7 @@ POST /api/feedback
 
 ---
 
-### 13. Modo Debug Avançado
+### 11. Modo Debug Avançado
 **Impacto:** ⭐⭐ | **Esforço:** Baixo
 
 Endpoint que expõe todo o pipeline para debugging.
@@ -240,7 +178,7 @@ Response:
 
 ---
 
-### 14. Testes Automatizados
+### 12. Testes Automatizados
 **Impacto:** ⭐⭐⭐⭐ | **Esforço:** Alto
 
 Implementar suíte de testes completa:

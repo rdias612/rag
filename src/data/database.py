@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-from src.config import DATABASE_CONFIG, EMBEDDING_DIMENSION, TOP_K_RESULTS
+from src.config import DATABASE_CONFIG, EMBEDDING_DIMENSION, TOP_K_RESULTS, MIN_SIMILARITY_THRESHOLD
 from src.core.logger import (
     db_logger,
     log_db_query,
@@ -146,18 +146,29 @@ def insert_documents_batch(documents: list[dict]) -> int:
     return len(documents)
 
 
-def search_similar(query_embedding: list[float], top_k: int = TOP_K_RESULTS) -> list[dict]:
+def search_similar(
+    query_embedding: list[float], 
+    top_k: int = TOP_K_RESULTS,
+    min_similarity: Optional[float] = None
+) -> list[dict]:
     """
     Busca os documentos mais similares ao embedding da query.
     
     Args:
         query_embedding: Vetor de embedding da pergunta
         top_k: Número de resultados a retornar
+        min_similarity: Similaridade mínima para incluir um resultado (0.0 a 1.0).
+                       Se None, usa MIN_SIMILARITY_THRESHOLD da config.
+                       Se 0.0, desabilita o filtro.
         
     Returns:
         Lista de documentos com content, metadata e score
     """
     start_time = time.time()
+    
+    # Usar threshold da config se não especificado
+    if min_similarity is None:
+        min_similarity = MIN_SIMILARITY_THRESHOLD
     
     # Log do embedding usado na busca
     log_db_search_with_embedding(query_embedding, top_k)
@@ -182,6 +193,17 @@ def search_similar(query_embedding: list[float], top_k: int = TOP_K_RESULTS) -> 
     
     duration = time.time() - start_time
     results_list = [dict(row) for row in results]
+    
+    # Filtrar por similaridade mínima
+    if min_similarity > 0:
+        original_count = len(results_list)
+        results_list = [r for r in results_list if r["similarity"] >= min_similarity]
+        filtered_count = original_count - len(results_list)
+        
+        if filtered_count > 0:
+            db_logger.info(
+                f"Filtered {filtered_count}/{original_count} results below similarity threshold {min_similarity}"
+            )
     
     # Log dos resultados da busca
     log_db_search_results(results_list, duration)

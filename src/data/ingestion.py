@@ -1,12 +1,19 @@
 """
-Módulo de ingestão de documentos: leitura de PDFs e chunking.
+Módulo de ingestão de documentos: leitura de múltiplos formatos e chunking.
+
+Formatos suportados:
+- PDF (.pdf)
+- Word (.docx)
+- Texto (.txt)
+- Markdown (.md)
+- HTML (.html, .htm)
 """
 import os
 import re
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Generator
+from typing import Generator, Callable
 
 import pypdf
 
@@ -21,6 +28,12 @@ from src.config import (
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Formatos suportados
+# =============================================================================
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".html", ".htm"}
 
 
 def clean_pdf_text(text: str) -> str:
@@ -90,6 +103,182 @@ def extract_text_from_pdf(file_path: Path) -> list[dict]:
                 })
     
     return pages
+
+
+def extract_text_from_docx(file_path: Path) -> list[dict]:
+    """
+    Extrai texto de um arquivo Word (.docx).
+    
+    Args:
+        file_path: Caminho para o arquivo .docx
+        
+    Returns:
+        Lista de dicts com text (documento inteiro, page=1)
+    """
+    try:
+        from docx import Document
+    except ImportError:
+        logger.error("python-docx não instalado. Execute: pip install python-docx")
+        raise ImportError("python-docx é necessário para processar arquivos .docx")
+    
+    doc = Document(file_path)
+    
+    # Extrair texto de todos os parágrafos
+    paragraphs = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:
+            paragraphs.append(text)
+    
+    # Extrair texto de tabelas também
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+            if row_text:
+                paragraphs.append(row_text)
+    
+    full_text = "\n\n".join(paragraphs)
+    
+    if not full_text.strip():
+        return []
+    
+    return [{"text": full_text, "page": 1}]
+
+
+def extract_text_from_txt(file_path: Path) -> list[dict]:
+    """
+    Extrai texto de um arquivo de texto plano (.txt).
+    
+    Args:
+        file_path: Caminho para o arquivo .txt
+        
+    Returns:
+        Lista de dicts com text (arquivo inteiro, page=1)
+    """
+    # Tentar diferentes encodings
+    encodings = ["utf-8", "latin-1", "cp1252"]
+    
+    for encoding in encodings:
+        try:
+            with open(file_path, "r", encoding=encoding) as f:
+                text = f.read()
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        logger.error(f"Não foi possível decodificar {file_path}")
+        return []
+    
+    if not text.strip():
+        return []
+    
+    return [{"text": text.strip(), "page": 1}]
+
+
+def extract_text_from_markdown(file_path: Path) -> list[dict]:
+    """
+    Extrai texto de um arquivo Markdown (.md).
+    Converte para HTML e depois extrai texto limpo.
+    
+    Args:
+        file_path: Caminho para o arquivo .md
+        
+    Returns:
+        Lista de dicts com text (arquivo inteiro, page=1)
+    """
+    try:
+        import markdown
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.error("markdown ou beautifulsoup4 não instalado")
+        raise ImportError("markdown e beautifulsoup4 são necessários para processar arquivos .md")
+    
+    # Ler arquivo markdown
+    with open(file_path, "r", encoding="utf-8") as f:
+        md_content = f.read()
+    
+    # Converter para HTML
+    html = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
+    
+    # Extrair texto limpo do HTML
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(separator="\n\n")
+    
+    # Limpar múltiplas quebras de linha
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    if not text.strip():
+        return []
+    
+    return [{"text": text.strip(), "page": 1}]
+
+
+def extract_text_from_html(file_path: Path) -> list[dict]:
+    """
+    Extrai texto de um arquivo HTML (.html, .htm).
+    
+    Args:
+        file_path: Caminho para o arquivo HTML
+        
+    Returns:
+        Lista de dicts com text (arquivo inteiro, page=1)
+    """
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.error("beautifulsoup4 não instalado. Execute: pip install beautifulsoup4")
+        raise ImportError("beautifulsoup4 é necessário para processar arquivos HTML")
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    
+    soup = BeautifulSoup(html_content, "html.parser")
+    
+    # Remover scripts e styles
+    for element in soup(["script", "style", "nav", "footer", "header"]):
+        element.decompose()
+    
+    # Extrair texto
+    text = soup.get_text(separator="\n\n")
+    
+    # Limpar múltiplas quebras de linha e espaços
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r' +', ' ', text)
+    
+    if not text.strip():
+        return []
+    
+    return [{"text": text.strip(), "page": 1}]
+
+
+def get_extractor_for_file(file_path: Path) -> Callable[[Path], list[dict]]:
+    """
+    Retorna a função extratora apropriada para o tipo de arquivo.
+    
+    Args:
+        file_path: Caminho do arquivo
+        
+    Returns:
+        Função extratora de texto
+        
+    Raises:
+        ValueError: Se o formato não for suportado
+    """
+    ext = file_path.suffix.lower()
+    
+    extractors = {
+        ".pdf": extract_text_from_pdf,
+        ".docx": extract_text_from_docx,
+        ".txt": extract_text_from_txt,
+        ".md": extract_text_from_markdown,
+        ".html": extract_text_from_html,
+        ".htm": extract_text_from_html,
+    }
+    
+    if ext not in extractors:
+        raise ValueError(f"Formato não suportado: {ext}. Formatos válidos: {', '.join(extractors.keys())}")
+    
+    return extractors[ext]
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
@@ -165,13 +354,33 @@ def process_pdf(file_path: Path) -> list[dict]:
     """
     Processa um PDF completo: extrai texto e divide em chunks.
     
+    DEPRECATED: Use process_document() para suporte a múltiplos formatos.
+    
     Args:
         file_path: Caminho para o arquivo PDF
         
     Returns:
         Lista de chunks com content e metadata
     """
-    pages = extract_text_from_pdf(file_path)
+    return process_document(file_path)
+
+
+def process_document(file_path: Path) -> list[dict]:
+    """
+    Processa um documento de qualquer formato suportado: extrai texto e divide em chunks.
+    
+    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
+    
+    Args:
+        file_path: Caminho para o arquivo
+        
+    Returns:
+        Lista de chunks com content e metadata
+    """
+    # Obter extrator apropriado
+    extractor = get_extractor_for_file(file_path)
+    pages = extractor(file_path)
+    
     all_chunks = []
     
     for page_data in pages:
@@ -183,6 +392,7 @@ def process_pdf(file_path: Path) -> list[dict]:
                 "metadata": {
                     "source": file_path.name,
                     "source_path": str(file_path),
+                    "file_type": file_path.suffix.lower(),
                     "page": page_data["page"],
                     "chunk_index": i,
                     "timestamp": datetime.now().isoformat()
@@ -196,25 +406,45 @@ def get_all_pdfs(directory: Path = DOCUMENTS_DIR) -> list[Path]:
     """
     Lista todos os arquivos PDF em um diretório (recursivo).
     
+    DEPRECATED: Use get_all_documents() para suporte a múltiplos formatos.
+    
     Args:
         directory: Diretório para buscar PDFs
         
     Returns:
         Lista de caminhos para arquivos PDF
     """
-    pdf_files = []
+    return [f for f in get_all_documents(directory) if f.suffix.lower() == ".pdf"]
+
+
+def get_all_documents(directory: Path = DOCUMENTS_DIR) -> list[Path]:
+    """
+    Lista todos os arquivos suportados em um diretório (recursivo).
+    
+    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
+    
+    Args:
+        directory: Diretório para buscar documentos
+        
+    Returns:
+        Lista de caminhos para arquivos suportados
+    """
+    document_files = []
     
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.lower().endswith(".pdf"):
-                pdf_files.append(Path(root) / file)
+            ext = Path(file).suffix.lower()
+            if ext in SUPPORTED_EXTENSIONS:
+                document_files.append(Path(root) / file)
     
-    return pdf_files
+    return document_files
 
 
 def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, None, None]:
     """
-    Processa todos os PDFs de um diretório, gerando chunks.
+    Processa todos os documentos suportados de um diretório, gerando chunks.
+    
+    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
     
     Args:
         directory: Diretório com os documentos
@@ -222,37 +452,45 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
     Yields:
         Chunks com content e metadata
     """
-    pdf_files = get_all_pdfs(directory)
+    document_files = get_all_documents(directory)
     chunking_mode = "SEMÂNTICO (spaCy)" if USE_SEMANTIC_CHUNKING else "LEGADO (caracteres)"
     
-    print(f"📁 Encontrados {len(pdf_files)} arquivos PDF")
+    # Contar por tipo
+    files_by_type = {}
+    for f in document_files:
+        ext = f.suffix.lower()
+        files_by_type[ext] = files_by_type.get(ext, 0) + 1
+    
+    print(f"📁 Encontrados {len(document_files)} documentos")
+    for ext, count in sorted(files_by_type.items()):
+        print(f"   └─ {ext}: {count} arquivo(s)")
     print(f"🔧 Modo de chunking: {chunking_mode}")
-    logger.info(f"Iniciando processamento: {len(pdf_files)} PDFs, modo={chunking_mode}")
+    logger.info(f"Iniciando processamento: {len(document_files)} documentos, modo={chunking_mode}")
     
     if USE_SEMANTIC_CHUNKING:
         print(f"   └─ max_chunk={CHUNK_SIZE}, min_chunk={MIN_CHUNK_SIZE}, overlap_sentences={CHUNK_OVERLAP_SENTENCES}")
     
     total_chunks = 0
     
-    for i, pdf_path in enumerate(pdf_files, start=1):
-        print(f"📄 [{i}/{len(pdf_files)}] Processando: {pdf_path.name}")
+    for i, doc_path in enumerate(document_files, start=1):
+        print(f"📄 [{i}/{len(document_files)}] Processando: {doc_path.name}")
         
         try:
-            chunks = process_pdf(pdf_path)
+            chunks = process_document(doc_path)
             total_chunks += len(chunks)
             print(f"   ✂️ Gerados {len(chunks)} chunks")
-            logger.info(f"Processado {pdf_path.name}: {len(chunks)} chunks")
+            logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks")
             
             for chunk in chunks:
                 yield chunk
                 
         except Exception as e:
-            print(f"   ❌ Erro ao processar {pdf_path.name}: {e}")
-            logger.error(f"Erro ao processar {pdf_path.name}: {e}")
+            print(f"   ❌ Erro ao processar {doc_path.name}: {e}")
+            logger.error(f"Erro ao processar {doc_path.name}: {e}")
             continue
     
-    print(f"\n✅ Total: {total_chunks} chunks gerados de {len(pdf_files)} arquivos")
-    logger.info(f"Processamento concluído: {total_chunks} chunks de {len(pdf_files)} arquivos")
+    print(f"\n✅ Total: {total_chunks} chunks gerados de {len(document_files)} arquivos")
+    logger.info(f"Processamento concluído: {total_chunks} chunks de {len(document_files)} arquivos")
 
 
 def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
@@ -265,24 +503,31 @@ def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
     Returns:
         Dict com estatísticas
     """
-    pdf_files = get_all_pdfs(directory)
+    document_files = get_all_documents(directory)
     
     total_pages = 0
     total_size = 0
+    files_by_type = {}
     
-    for pdf_path in pdf_files:
-        total_size += pdf_path.stat().st_size
+    for doc_path in document_files:
+        ext = doc_path.suffix.lower()
+        files_by_type[ext] = files_by_type.get(ext, 0) + 1
+        total_size += doc_path.stat().st_size
         
-        try:
-            with open(pdf_path, "rb") as f:
-                reader = pypdf.PdfReader(f)
-                total_pages += len(reader.pages)
-        except:
-            pass
+        # Contar páginas apenas para PDFs
+        if ext == ".pdf":
+            try:
+                with open(doc_path, "rb") as f:
+                    reader = pypdf.PdfReader(f)
+                    total_pages += len(reader.pages)
+            except:
+                pass
     
     return {
-        "total_files": len(pdf_files),
-        "total_pages": total_pages,
+        "total_files": len(document_files),
+        "files_by_type": files_by_type,
+        "total_pdf_pages": total_pages,
         "total_size_mb": round(total_size / (1024 * 1024), 2),
-        "files": [p.name for p in pdf_files]
+        "supported_formats": list(SUPPORTED_EXTENSIONS),
+        "files": [p.name for p in document_files]
     }

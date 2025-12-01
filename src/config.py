@@ -59,6 +59,7 @@ CHUNK_OVERLAP_SENTENCES = 1  # Número de sentenças de overlap
 # RAG
 # =============================================================================
 TOP_K_RESULTS = 5  # Número de chunks retornados na busca
+MIN_SIMILARITY_THRESHOLD = 0.5  # Similaridade mínima para considerar um chunk relevante (0.0 a 1.0)
 
 
 # =============================================================================
