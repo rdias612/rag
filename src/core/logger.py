@@ -142,12 +142,21 @@ def log_with_data(logger: logging.Logger, level: int, message: str, data: dict):
     logger.handle(record)
 
 
+def log_api_input(endpoint: str, method: str, body: dict):
+    """Loga o input completo recebido na API."""
+    log_with_data(api_logger, logging.INFO, "API Input Received", {
+        "endpoint": endpoint,
+        "method": method,
+        "body": body  # Corpo completo da requisição
+    })
+
+
 def log_llm_request(prompt: str, model: str, params: dict):
     """Loga uma requisição para o LLM."""
     log_with_data(llm_logger, logging.INFO, "LLM Request", {
         "model": model,
         "prompt_length": len(prompt),
-        "prompt_preview": prompt[:200] + "..." if len(prompt) > 200 else prompt,
+        "prompt_full": prompt,  # Prompt completo enviado ao LLM
         "parameters": params
     })
 
@@ -156,9 +165,24 @@ def log_llm_response(response: str, duration: float, tokens: Optional[int] = Non
     """Loga uma resposta do LLM."""
     log_with_data(llm_logger, logging.INFO, "LLM Response", {
         "response_length": len(response),
-        "response_preview": response[:300] + "..." if len(response) > 300 else response,
+        "response_full": response,  # Resposta completa do LLM
         "duration_seconds": round(duration, 3),
         "tokens": tokens
+    })
+
+
+def log_llm_full_request(url: str, payload: dict):
+    """Loga a requisição completa enviada ao LLM (URL + payload JSON)."""
+    log_with_data(llm_logger, logging.INFO, "LLM Full Request", {
+        "url": url,
+        "payload": payload  # Payload JSON completo enviado à API
+    })
+
+
+def log_llm_full_response(response_json: dict):
+    """Loga a resposta completa recebida do LLM (JSON original)."""
+    log_with_data(llm_logger, logging.INFO, "LLM Full Response", {
+        "response_json": response_json  # JSON completo retornado pela API
     })
 
 
@@ -178,17 +202,64 @@ def log_db_result(operation: str, rows_affected: int, duration: float):
     })
 
 
-def log_embedding_request(texts_count: int, model: str):
-    """Loga uma requisição de embeddings."""
+def log_db_search_with_embedding(query_embedding: list, top_k: int):
+    """Loga a busca no banco com o embedding usado."""
+    log_with_data(db_logger, logging.INFO, "DB Vector Search", {
+        "embedding_dimension": len(query_embedding),
+        "embedding_sample": query_embedding[:10],  # Primeiros 10 valores do embedding
+        "embedding_full": query_embedding,  # Embedding completo
+        "top_k": top_k
+    })
+
+
+def log_db_search_results(results: list, duration: float):
+    """Loga os resultados da busca no banco."""
+    log_with_data(db_logger, logging.INFO, "DB Search Results", {
+        "results_count": len(results),
+        "results": [
+            {
+                "id": r.get("id"),
+                "content_preview": r.get("content", "")[:200],
+                "content_full": r.get("content"),
+                "metadata": r.get("metadata"),
+                "similarity": round(r.get("similarity", 0), 4)
+            }
+            for r in results
+        ],
+        "duration_seconds": round(duration, 3)
+    })
+
+
+def log_embedding_request(text: str, model: str):
+    """Loga uma requisição de embedding com o texto."""
     log_with_data(embedding_logger, logging.INFO, "Embedding Request", {
+        "text_length": len(text),
+        "text": text,  # Texto completo para gerar embedding
+        "model": model
+    })
+
+
+def log_embedding_response(embedding: list, duration: float):
+    """Loga resposta de embedding com o vetor gerado."""
+    log_with_data(embedding_logger, logging.INFO, "Embedding Response", {
+        "dimension": len(embedding),
+        "embedding_sample": embedding[:10],  # Primeiros 10 valores
+        "embedding_full": embedding,  # Embedding completo
+        "duration_seconds": round(duration, 3)
+    })
+
+
+def log_embedding_batch_request(texts_count: int, model: str):
+    """Loga uma requisição de embeddings em batch."""
+    log_with_data(embedding_logger, logging.INFO, "Embedding Batch Request", {
         "texts_count": texts_count,
         "model": model
     })
 
 
-def log_embedding_response(embeddings_count: int, duration: float, dimension: int):
-    """Loga resposta de embeddings."""
-    log_with_data(embedding_logger, logging.INFO, "Embedding Response", {
+def log_embedding_batch_response(embeddings_count: int, duration: float, dimension: int):
+    """Loga resposta de embeddings em batch."""
+    log_with_data(embedding_logger, logging.INFO, "Embedding Batch Response", {
         "embeddings_count": embeddings_count,
         "dimension": dimension,
         "duration_seconds": round(duration, 3)
@@ -200,6 +271,16 @@ def log_rag_query(question: str, top_k: int):
     log_with_data(rag_logger, logging.INFO, "RAG Query Started", {
         "question": question,
         "top_k": top_k
+    })
+
+
+def log_rag_context(context: str, sources: list):
+    """Loga o contexto montado para o RAG."""
+    log_with_data(rag_logger, logging.INFO, "RAG Context Built", {
+        "context_length": len(context),
+        "context_full": context,  # Contexto completo enviado ao LLM
+        "sources": sources,
+        "chunks_count": len(sources)
     })
 
 

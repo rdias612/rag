@@ -13,7 +13,9 @@ from src.config import DATABASE_CONFIG, EMBEDDING_DIMENSION, TOP_K_RESULTS
 from src.core.logger import (
     db_logger,
     log_db_query,
-    log_db_result
+    log_db_result,
+    log_db_search_with_embedding,
+    log_db_search_results
 )
 
 
@@ -156,8 +158,9 @@ def search_similar(query_embedding: list[float], top_k: int = TOP_K_RESULTS) -> 
         Lista de documentos com content, metadata e score
     """
     start_time = time.time()
-    query = f"SELECT content, metadata, similarity FROM documentos ORDER BY embedding <=> query LIMIT {top_k}"
-    log_db_query("SEARCH", query)
+    
+    # Log do embedding usado na busca
+    log_db_search_with_embedding(query_embedding, top_k)
     
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -178,14 +181,12 @@ def search_similar(query_embedding: list[float], top_k: int = TOP_K_RESULTS) -> 
             results = cur.fetchall()
     
     duration = time.time() - start_time
-    log_db_result("SEARCH", len(results), duration)
+    results_list = [dict(row) for row in results]
     
-    # Log detalhado dos resultados
-    if results:
-        similarities = [round(r["similarity"], 4) for r in results]
-        db_logger.debug(f"Search results: {len(results)} docs, similarities: {similarities}")
+    # Log dos resultados da busca
+    log_db_search_results(results_list, duration)
     
-    return [dict(row) for row in results]
+    return results_list
 
 
 def get_document_count() -> int:

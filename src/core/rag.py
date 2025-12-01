@@ -11,7 +11,8 @@ from src.data.database import search_similar
 from src.core.logger import (
     rag_logger,
     log_rag_query,
-    log_rag_result
+    log_rag_result,
+    log_rag_context
 )
 
 
@@ -72,6 +73,9 @@ def query_rag(
         sources.append(source_info)
     
     context = "\n\n---\n\n".join(context_parts)
+    
+    # Log do contexto montado
+    log_rag_context(context, sources)
     
     # 4. Montar prompt final
     prompt = RAG_PROMPT_TEMPLATE.format(

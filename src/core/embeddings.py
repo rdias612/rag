@@ -9,7 +9,9 @@ from src.config import LM_STUDIO_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSION
 from src.core.logger import (
     embedding_logger,
     log_embedding_request,
-    log_embedding_response
+    log_embedding_response,
+    log_embedding_batch_request,
+    log_embedding_batch_response
 )
 
 
@@ -25,7 +27,8 @@ def get_embedding(text: str) -> list[float]:
     """
     start_time = time.time()
     
-    log_embedding_request(1, EMBEDDING_MODEL)
+    # Log do texto enviado para embedding
+    log_embedding_request(text, EMBEDDING_MODEL)
     
     response = requests.post(
         f"{LM_STUDIO_BASE_URL}/embeddings",
@@ -42,7 +45,8 @@ def get_embedding(text: str) -> list[float]:
     embedding = data["data"][0]["embedding"]
     duration = time.time() - start_time
     
-    log_embedding_response(1, duration, len(embedding))
+    # Log do embedding gerado
+    log_embedding_response(embedding, duration)
     
     return embedding
 
@@ -67,7 +71,7 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         batch = texts[i:i + batch_size]
         batch_start = time.time()
         
-        log_embedding_request(len(batch), EMBEDDING_MODEL)
+        log_embedding_batch_request(len(batch), EMBEDDING_MODEL)
         
         response = requests.post(
             f"{LM_STUDIO_BASE_URL}/embeddings",
@@ -87,7 +91,7 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         all_embeddings.extend(batch_embeddings)
         
         batch_duration = time.time() - batch_start
-        log_embedding_response(len(batch), batch_duration, EMBEDDING_DIMENSION)
+        log_embedding_batch_response(len(batch), batch_duration, EMBEDDING_DIMENSION)
         
         print(f"  📊 Processados {min(i + batch_size, len(texts))}/{len(texts)} embeddings")
     

@@ -9,7 +9,9 @@ from src.config import LM_STUDIO_BASE_URL, LLM_MODEL
 from src.core.logger import (
     llm_logger,
     log_llm_request,
-    log_llm_response
+    log_llm_response,
+    log_llm_full_request,
+    log_llm_full_response
 )
 
 
@@ -44,12 +46,15 @@ def generate_response(
         "stream": stream
     }
     
-    # Log da requisição
+    # Log da requisição (resumo)
     log_llm_request(prompt, LLM_MODEL, {
         "max_tokens": max_tokens,
         "temperature": temperature,
         "stream": stream
     })
+    
+    # Log da requisição completa (detalhado)
+    log_llm_full_request(LM_STUDIO_BASE_URL + "/chat/completions", payload)
     
     if stream:
         return _generate_stream(payload)
@@ -71,8 +76,11 @@ def generate_response(
     # Extrair tokens se disponível
     tokens = data.get("usage", {}).get("completion_tokens")
     
-    # Log da resposta
+    # Log da resposta (resumo)
     log_llm_response(result, duration, tokens)
+    
+    # Log da resposta completa (detalhado - JSON original)
+    log_llm_full_response(data)
     
     return result
 
@@ -149,12 +157,15 @@ def generate_with_system_prompt(
         "temperature": temperature
     }
     
-    # Log da requisição
+    # Log da requisição (resumo)
     full_prompt = f"[SYSTEM] {system_prompt}\n[USER] {user_prompt}"
     log_llm_request(full_prompt, LLM_MODEL, {
         "max_tokens": max_tokens,
         "temperature": temperature
     })
+    
+    # Log da requisição completa (detalhado)
+    log_llm_full_request(LM_STUDIO_BASE_URL + "/chat/completions", payload)
     
     start_time = time.time()
     
@@ -170,9 +181,12 @@ def generate_with_system_prompt(
     result = data["choices"][0]["message"]["content"]
     duration = time.time() - start_time
     
-    # Log da resposta
+    # Log da resposta (resumo)
     tokens = data.get("usage", {}).get("completion_tokens")
     log_llm_response(result, duration, tokens)
+    
+    # Log da resposta completa (detalhado - JSON original)
+    log_llm_full_response(data)
     
     return result
 

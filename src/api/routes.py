@@ -9,7 +9,8 @@ from src.data.database import get_document_count, check_connection
 from src.core.logger import (
     api_logger,
     log_api_request,
-    log_api_response
+    log_api_response,
+    log_api_input
 )
 
 api = Blueprint("api", __name__)
@@ -69,7 +70,8 @@ def query():
     start_time = time.time()
     data = request.get_json()
     
-    log_api_request("/api/query", "POST", data)
+    # Log do input completo recebido
+    log_api_input("/api/query", "POST", data)
     
     if not data or "question" not in data:
         api_logger.warning("Query request missing 'question' field")
@@ -113,7 +115,8 @@ def query_stream():
     """
     data = request.get_json()
     
-    log_api_request("/api/query/stream", "POST", data)
+    # Log do input completo recebido
+    log_api_input("/api/query/stream", "POST", data)
     
     if not data or "question" not in data:
         api_logger.warning("Stream query request missing 'question' field")
@@ -154,7 +157,8 @@ def search():
     start_time = time.time()
     data = request.get_json()
     
-    log_api_request("/api/search", "POST", data)
+    # Log do input completo recebido
+    log_api_input("/api/search", "POST", data)
     
     if not data or "question" not in data:
         api_logger.warning("Search request missing 'question' field")
