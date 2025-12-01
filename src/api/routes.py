@@ -1,10 +1,16 @@
 """
 Rotas da API Flask.
 """
+import time
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 
 from src.core.rag import query_rag, query_rag_stream, search_only
 from src.data.database import get_document_count, check_connection
+from src.core.logger import (
+    api_logger,
+    log_api_request,
+    log_api_response
+)
 
 api = Blueprint("api", __name__)
 
@@ -12,25 +18,38 @@ api = Blueprint("api", __name__)
 @api.route("/health", methods=["GET"])
 def health_check():
     """Endpoint de health check."""
+    start_time = time.time()
+    log_api_request("/api/health", "GET")
+    
     db_ok = check_connection()
+    status_code = 200 if db_ok else 503
+    
+    log_api_response("/api/health", status_code, time.time() - start_time)
     
     return jsonify({
         "status": "healthy" if db_ok else "unhealthy",
         "database": "connected" if db_ok else "disconnected"
-    }), 200 if db_ok else 503
+    }), status_code
 
 
 @api.route("/stats", methods=["GET"])
 def get_stats():
     """Retorna estatísticas do sistema."""
+    start_time = time.time()
+    log_api_request("/api/stats", "GET")
+    
     try:
         doc_count = get_document_count()
+        
+        log_api_response("/api/stats", 200, time.time() - start_time)
         
         return jsonify({
             "documents_count": doc_count,
             "status": "ok"
         })
     except Exception as e:
+        api_logger.error(f"Error in /stats: {e}")
+        log_api_response("/api/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -47,9 +66,14 @@ def query():
             "include_sources": true  // opcional
         }
     """
+    start_time = time.time()
     data = request.get_json()
     
+    log_api_request("/api/query", "POST", data)
+    
     if not data or "question" not in data:
+        api_logger.warning("Query request missing 'question' field")
+        log_api_response("/api/query", 400, time.time() - start_time)
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
     question = data["question"]
@@ -65,9 +89,13 @@ def query():
             include_sources=include_sources
         )
         
+        log_api_response("/api/query", 200, time.time() - start_time)
+        
         return jsonify(result)
     
     except Exception as e:
+        api_logger.error(f"Error in /query: {e}")
+        log_api_response("/api/query", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -85,7 +113,10 @@ def query_stream():
     """
     data = request.get_json()
     
+    log_api_request("/api/query/stream", "POST", data)
+    
     if not data or "question" not in data:
+        api_logger.warning("Stream query request missing 'question' field")
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
     question = data["question"]
@@ -96,7 +127,9 @@ def query_stream():
         try:
             for token in query_rag_stream(question, top_k, temperature):
                 yield token
+            api_logger.info("Stream query completed successfully")
         except Exception as e:
+            api_logger.error(f"Error in stream query: {e}")
             yield f"\n\n[Erro: {str(e)}]"
     
     return Response(
@@ -118,9 +151,14 @@ def search():
             "top_k": 5
         }
     """
+    start_time = time.time()
     data = request.get_json()
     
+    log_api_request("/api/search", "POST", data)
+    
     if not data or "question" not in data:
+        api_logger.warning("Search request missing 'question' field")
+        log_api_response("/api/search", 400, time.time() - start_time)
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
     question = data["question"]
@@ -129,10 +167,14 @@ def search():
     try:
         results = search_only(question, top_k)
         
+        log_api_response("/api/search", 200, time.time() - start_time)
+        
         return jsonify({
             "results": results,
             "count": len(results)
         })
     
     except Exception as e:
+        api_logger.error(f"Error in /search: {e}")
+        log_api_response("/api/search", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500

@@ -1,12 +1,18 @@
 """
 Pipeline RAG completo: busca + geração de resposta.
 """
+import time
 from typing import Optional
 
 from src.config import RAG_PROMPT_TEMPLATE, TOP_K_RESULTS
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
 from src.data.database import search_similar
+from src.core.logger import (
+    rag_logger,
+    log_rag_query,
+    log_rag_result
+)
 
 
 def query_rag(
@@ -32,13 +38,19 @@ def query_rag(
     Returns:
         Dict com answer, sources e metadata
     """
+    start_time = time.time()
+    log_rag_query(question, top_k)
+    
     # 1. Gerar embedding da pergunta
+    rag_logger.debug("Generating question embedding...")
     question_embedding = get_embedding(question)
     
     # 2. Buscar chunks similares
+    rag_logger.debug("Searching similar documents...")
     similar_docs = search_similar(question_embedding, top_k=top_k)
     
     if not similar_docs:
+        rag_logger.warning("No similar documents found")
         return {
             "answer": "Não encontrei documentos relevantes para responder sua pergunta.",
             "sources": [],
@@ -68,6 +80,7 @@ def query_rag(
     )
     
     # 5. Gerar resposta
+    rag_logger.debug("Generating LLM response...")
     answer = generate_response(prompt, temperature=temperature)
     
     result = {
@@ -78,6 +91,11 @@ def query_rag(
     
     if include_sources:
         result["sources"] = sources
+    
+    # Log final
+    total_duration = time.time() - start_time
+    source_names = [s["source"] for s in sources]
+    log_rag_result(len(similar_docs), source_names, total_duration)
     
     return result
 
@@ -96,6 +114,9 @@ def query_rag_stream(
     from src.core.llm import _generate_stream
     from src.config import LLM_MODEL, LM_STUDIO_BASE_URL
     
+    log_rag_query(question, top_k)
+    rag_logger.info("Starting RAG stream query")
+    
     # 1. Gerar embedding da pergunta
     question_embedding = get_embedding(question)
     
@@ -103,6 +124,7 @@ def query_rag_stream(
     similar_docs = search_similar(question_embedding, top_k=top_k)
     
     if not similar_docs:
+        rag_logger.warning("No similar documents found for stream query")
         yield "Não encontrei documentos relevantes para responder sua pergunta."
         return
     
@@ -125,6 +147,7 @@ def query_rag_stream(
         "stream": True
     }
     
+    rag_logger.debug("Starting LLM stream generation")
     for token in _generate_stream(payload):
         yield token
 
@@ -141,8 +164,12 @@ def search_only(question: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
     Returns:
         Lista de documentos similares com metadata
     """
+    rag_logger.info(f"Search only query: '{question[:50]}...' (top_k={top_k})")
+    
     question_embedding = get_embedding(question)
     similar_docs = search_similar(question_embedding, top_k=top_k)
+    
+    rag_logger.info(f"Search returned {len(similar_docs)} documents")
     
     return [
         {
