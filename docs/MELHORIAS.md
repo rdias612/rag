@@ -27,7 +27,7 @@ Query → Busca Vetorial (Top 20) → Re-ranker → Top 5 Finais
 
 ## 🟡 Média Prioridade
 
-### 4. Cache de Embeddings
+### 2. Cache de Embeddings
 **Impacto:** ⭐⭐⭐ | **Esforço:** Baixo
 
 Evitar recalcular embeddings para perguntas repetidas ou similares.
@@ -44,33 +44,7 @@ Evitar recalcular embeddings para perguntas repetidas ou similares.
 
 ---
 
-### 5. Histórico de Conversas
-**Impacto:** ⭐⭐⭐⭐ | **Esforço:** Médio
-
-Permitir perguntas de follow-up mantendo o contexto da conversa.
-
-**Exemplo de uso:**
-```
-Usuário: "O que é GWPRP?"
-Sistema: "GWPRP é um protocolo de roteamento..."
-Usuário: "Quem desenvolveu?"  ← Entende que se refere ao GWPRP
-```
-
-**Estrutura proposta:**
-```json
-{
-  "session_id": "uuid",
-  "messages": [
-    {"role": "user", "content": "..."},
-    {"role": "assistant", "content": "..."}
-  ],
-  "created_at": "timestamp"
-}
-```
-
----
-
-### 6. Métricas e Monitoramento
+### 3. Métricas e Monitoramento
 **Impacto:** ⭐⭐⭐ | **Esforço:** Médio
 
 Coletar métricas para análise e melhoria contínua:
@@ -86,29 +60,9 @@ Coletar métricas para análise e melhoria contínua:
 
 ---
 
-### 7. Endpoint de Ingestão via API
-**Impacto:** ⭐⭐ | **Esforço:** Baixo
-
-Permitir upload de documentos pela API REST.
-
-```http
-POST /api/ingest
-Content-Type: multipart/form-data
-
-file: documento.pdf
-```
-
-**Funcionalidades:**
-- Upload de arquivos
-- Processamento assíncrono
-- Status de ingestão
-- Listagem de documentos
-
----
-
 ## 🟢 Baixa Prioridade
 
-### 8. Busca Híbrida (Vetorial + Keyword)
+### 4. Busca Híbrida (Vetorial + Keyword)
 **Impacto:** ⭐⭐⭐ | **Esforço:** Alto
 
 Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
@@ -122,7 +76,7 @@ Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
 
 ---
 
-### 9. Compressão de Contexto
+### 5. Compressão de Contexto
 **Impacto:** ⭐⭐ | **Esforço:** Médio
 
 Quando o contexto for muito grande, resumir antes de enviar ao LLM.
@@ -136,7 +90,7 @@ Quando o contexto for muito grande, resumir antes de enviar ao LLM.
 
 ---
 
-### 10. Sistema de Feedback
+### 6. Sistema de Feedback
 **Impacto:** ⭐⭐⭐ | **Esforço:** Médio
 
 Coletar feedback do usuário para melhorar o sistema.
@@ -154,7 +108,7 @@ POST /api/feedback
 
 ---
 
-### 11. Modo Debug Avançado
+### 7. Modo Debug Avançado
 **Impacto:** ⭐⭐ | **Esforço:** Baixo
 
 Endpoint que expõe todo o pipeline para debugging.
@@ -178,7 +132,7 @@ Response:
 
 ---
 
-### 12. Testes Automatizados
+### 8. Testes Automatizados
 **Impacto:** ⭐⭐⭐⭐ | **Esforço:** Alto
 
 Implementar suíte de testes completa:
