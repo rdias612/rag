@@ -63,7 +63,9 @@ def query_rag(
     sources = []
     
     for doc in similar_docs:
-        context_parts.append(doc["content"])
+        # Normalizar quebras de linha dentro do chunk para exibição
+        content = doc["content"].replace("\n\n", " ").replace("\n", " ")
+        context_parts.append(content)
         
         source_info = {
             "source": doc["metadata"].get("source", "Desconhecido"),
@@ -133,7 +135,12 @@ def query_rag_stream(
         return
     
     # 3. Montar contexto
-    context_parts = [doc["content"] for doc in similar_docs]
+    context_parts = []
+    for doc in similar_docs:
+        # Normalizar quebras de linha dentro do chunk para exibição
+        content = doc["content"].replace("\n\n", " ").replace("\n", " ")
+        context_parts.append(content)
+    
     context = "\n\n---\n\n".join(context_parts)
     
     # 4. Montar prompt final
@@ -177,7 +184,7 @@ def search_only(question: str, top_k: int = TOP_K_RESULTS) -> list[dict]:
     
     return [
         {
-            "content": doc["content"],
+            "content": doc["content"].replace("\n\n", " ").replace("\n", " "),
             "source": doc["metadata"].get("source", "Desconhecido"),
             "page": doc["metadata"].get("page", "N/A"),
             "similarity": round(doc["similarity"], 4)

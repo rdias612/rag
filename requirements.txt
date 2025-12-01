@@ -13,5 +13,9 @@ pypdf>=4.0.0
 # HTTP Client
 requests>=2.31.0
 
+# NLP - Chunking Semântico
+spacy>=3.7.0
+# Modelo português: python -m spacy download pt_core_news_sm
+
 # Development
 python-dotenv>=1.0.0

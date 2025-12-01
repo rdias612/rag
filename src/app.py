@@ -12,6 +12,9 @@ def create_app() -> Flask:
     """Factory function para criar a aplicação Flask."""
     app = Flask(__name__)
     
+    # Configurar JSON para não escapar caracteres Unicode (acentos, ç, etc)
+    app.json.ensure_ascii = False
+    
     # Habilitar CORS para futura integração com frontend
     CORS(app)
     

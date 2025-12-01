@@ -47,7 +47,12 @@ LLM_MODEL = "phi-3.5-mini-instruct"
 # Chunking
 # =============================================================================
 CHUNK_SIZE = 800  # Tamanho do chunk em caracteres (~200 tokens)
-CHUNK_OVERLAP = 150  # Overlap entre chunks
+CHUNK_OVERLAP = 150  # Overlap entre chunks (usado no modo legado)
+
+# Chunking Semântico (novo)
+USE_SEMANTIC_CHUNKING = True  # Se True, usa chunking por sentenças
+MIN_CHUNK_SIZE = 200  # Tamanho mínimo do chunk
+CHUNK_OVERLAP_SENTENCES = 1  # Número de sentenças de overlap
 
 
 # =============================================================================
