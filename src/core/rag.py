@@ -9,7 +9,11 @@ from src.config import (
     RAG_PROMPT_TEMPLATE_WITH_HISTORY,
     TOP_K_RESULTS, 
     MIN_SIMILARITY_THRESHOLD,
-    MAX_CONVERSATION_HISTORY
+    MAX_CONVERSATION_HISTORY,
+    ENABLE_CONTEXT_COMPRESSION,
+    CONTEXT_COMPRESSION_THRESHOLD,
+    CONTEXT_COMPRESSION_TARGET_RATIO,
+    CONTEXT_COMPRESSION_METHOD
 )
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
@@ -21,6 +25,70 @@ from src.core.logger import (
     log_rag_context
 )
 from src.core.conversation import conversation_manager, Conversation
+from src.core.context_compression import smart_compress, extract_key_sentences
+
+
+def _apply_context_compression(
+    context: str, 
+    question: str,
+    enable_compression: bool = None
+) -> dict:
+    """
+    Aplica compressão de contexto se habilitado e necessário.
+    
+    Args:
+        context: Contexto original
+        question: Pergunta do usuário
+        enable_compression: Força habilitação/desabilitação (usa config se None)
+        
+    Returns:
+        Dict com contexto (comprimido ou não) e métricas
+    """
+    # Verificar se compressão está habilitada
+    should_compress = enable_compression if enable_compression is not None else ENABLE_CONTEXT_COMPRESSION
+    
+    if not should_compress:
+        return {
+            "context": context,
+            "was_compressed": False,
+            "original_size": len(context),
+            "final_size": len(context),
+            "compression_ratio": 0.0,
+            "compression_time_ms": 0
+        }
+    
+    # Aplicar compressão baseada no método configurado
+    if CONTEXT_COMPRESSION_METHOD == "heuristic":
+        # Método rápido usando heurísticas
+        original_size = len(context)
+        if original_size > CONTEXT_COMPRESSION_THRESHOLD:
+            # Calcular número de sentenças alvo baseado na razão
+            max_sentences = max(5, int(10 * CONTEXT_COMPRESSION_TARGET_RATIO))
+            compressed = extract_key_sentences(context, question, max_sentences)
+            return {
+                "context": compressed,
+                "was_compressed": True,
+                "original_size": original_size,
+                "final_size": len(compressed),
+                "compression_ratio": (1 - len(compressed) / original_size) * 100,
+                "compression_time_ms": 0
+            }
+        return {
+            "context": context,
+            "was_compressed": False,
+            "original_size": original_size,
+            "final_size": original_size,
+            "compression_ratio": 0.0,
+            "compression_time_ms": 0
+        }
+    else:
+        # Método LLM (padrão) - mais preciso
+        return smart_compress(
+            context=context,
+            question=question,
+            compression_threshold=CONTEXT_COMPRESSION_THRESHOLD,
+            target_ratio=CONTEXT_COMPRESSION_TARGET_RATIO
+        )
 
 
 def query_rag(
@@ -28,7 +96,8 @@ def query_rag(
     top_k: int = TOP_K_RESULTS,
     temperature: float = 0.7,
     include_sources: bool = True,
-    min_similarity: float = None
+    min_similarity: float = None,
+    enable_compression: bool = None
 ) -> dict:
     """
     Executa o pipeline RAG completo.
@@ -36,7 +105,8 @@ def query_rag(
     1. Gera embedding da pergunta
     2. Busca chunks similares no pgvector
     3. Monta o contexto
-    4. Gera resposta com o LLM
+    4. Comprime o contexto se necessário
+    5. Gera resposta com o LLM
     
     Args:
         question: Pergunta do usuário
@@ -44,6 +114,7 @@ def query_rag(
         temperature: Temperatura para geração
         include_sources: Se True, inclui as fontes na resposta
         min_similarity: Similaridade mínima para considerar um chunk (usa config se None)
+        enable_compression: Força habilitação/desabilitação da compressão (usa config se None)
         
     Returns:
         Dict com answer, sources e metadata
@@ -90,20 +161,38 @@ def query_rag(
     # Log do contexto montado
     log_rag_context(context, sources)
     
-    # 4. Montar prompt final
+    # 4. Aplicar compressão de contexto se necessário
+    compression_result = _apply_context_compression(context, question, enable_compression)
+    context = compression_result["context"]
+    
+    if compression_result["was_compressed"]:
+        rag_logger.info(
+            f"Context compressed: {compression_result['original_size']} -> "
+            f"{compression_result['final_size']} chars "
+            f"({compression_result['compression_ratio']:.1f}% reduction)"
+        )
+    
+    # 5. Montar prompt final
     prompt = RAG_PROMPT_TEMPLATE.format(
         contexto=context,
         pergunta=question
     )
     
-    # 5. Gerar resposta
+    # 6. Gerar resposta
     rag_logger.debug("Generating LLM response...")
     answer = generate_response(prompt, temperature=temperature)
     
     result = {
         "answer": answer,
         "context_used": context,
-        "chunks_retrieved": len(similar_docs)
+        "chunks_retrieved": len(similar_docs),
+        "compression": {
+            "was_compressed": compression_result["was_compressed"],
+            "original_size": compression_result["original_size"],
+            "final_size": compression_result["final_size"],
+            "compression_ratio": compression_result["compression_ratio"],
+            "compression_time_ms": compression_result["compression_time_ms"]
+        }
     }
     
     if include_sources:
@@ -215,7 +304,8 @@ def query_rag_with_history(
     top_k: int = TOP_K_RESULTS,
     temperature: float = 0.7,
     include_sources: bool = True,
-    min_similarity: float = None
+    min_similarity: float = None,
+    enable_compression: bool = None
 ) -> dict:
     """
     Executa o pipeline RAG com suporte a histórico de conversas.
@@ -229,6 +319,7 @@ def query_rag_with_history(
         temperature: Temperatura para geração
         include_sources: Se True, inclui as fontes na resposta
         min_similarity: Similaridade mínima para considerar um chunk
+        enable_compression: Força habilitação/desabilitação da compressão (usa config se None)
         
     Returns:
         Dict com answer, sources, session_id e metadata
@@ -289,10 +380,21 @@ def query_rag_with_history(
     # Log do contexto montado
     log_rag_context(context, sources)
     
-    # 4. Obter histórico da conversa
+    # 4. Aplicar compressão de contexto se necessário
+    compression_result = _apply_context_compression(context, question, enable_compression)
+    context = compression_result["context"]
+    
+    if compression_result["was_compressed"]:
+        rag_logger.info(
+            f"Context compressed: {compression_result['original_size']} -> "
+            f"{compression_result['final_size']} chars "
+            f"({compression_result['compression_ratio']:.1f}% reduction)"
+        )
+    
+    # 5. Obter histórico da conversa
     history = conversation.get_history_for_prompt(max_messages=MAX_CONVERSATION_HISTORY)
     
-    # 5. Montar prompt final (com ou sem histórico)
+    # 6. Montar prompt final (com ou sem histórico)
     if history:
         rag_logger.debug(f"Using conversation history ({len(history)} chars)")
         prompt = RAG_PROMPT_TEMPLATE_WITH_HISTORY.format(
@@ -307,11 +409,11 @@ def query_rag_with_history(
             pergunta=question
         )
     
-    # 6. Gerar resposta
+    # 7. Gerar resposta
     rag_logger.debug("Generating LLM response...")
     answer = generate_response(prompt, temperature=temperature)
     
-    # 7. Adicionar resposta ao histórico
+    # 8. Adicionar resposta ao histórico
     conversation.add_message("assistant", answer)
     
     result = {
@@ -319,7 +421,14 @@ def query_rag_with_history(
         "context_used": context,
         "chunks_retrieved": len(similar_docs),
         "session_id": session_id,
-        "message_count": len(conversation.messages)
+        "message_count": len(conversation.messages),
+        "compression": {
+            "was_compressed": compression_result["was_compressed"],
+            "original_size": compression_result["original_size"],
+            "final_size": compression_result["final_size"],
+            "compression_ratio": compression_result["compression_ratio"],
+            "compression_time_ms": compression_result["compression_time_ms"]
+        }
     }
     
     if include_sources:

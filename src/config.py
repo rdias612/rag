@@ -63,6 +63,15 @@ MIN_SIMILARITY_THRESHOLD = 0.5  # Similaridade mínima para considerar um chunk 
 
 
 # =============================================================================
+# Compressão de Contexto
+# =============================================================================
+ENABLE_CONTEXT_COMPRESSION = True  # Se True, comprime contexto quando muito grande
+CONTEXT_COMPRESSION_THRESHOLD = 3000  # Caracteres acima dos quais ativar compressão
+CONTEXT_COMPRESSION_TARGET_RATIO = 0.5  # Proporção alvo (0.5 = reduzir pela metade)
+CONTEXT_COMPRESSION_METHOD = "llm"  # "llm" (mais preciso) ou "heuristic" (mais rápido)
+
+
+# =============================================================================
 # Conversação
 # =============================================================================
 SESSION_TIMEOUT_MINUTES = 30  # Tempo para expirar sessões inativas

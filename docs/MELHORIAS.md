@@ -76,8 +76,8 @@ Combinar busca semântica (vetorial) com busca por palavras-chave (BM25).
 
 ---
 
-### 5. Compressão de Contexto
-**Impacto:** ⭐⭐ | **Esforço:** Médio
+### 5. Compressão de Contexto ✅
+**Impacto:** ⭐⭐ | **Esforço:** Médio | **Status:** Implementado
 
 Quando o contexto for muito grande, resumir antes de enviar ao LLM.
 
@@ -87,6 +87,16 @@ Quando o contexto for muito grande, resumir antes de enviar ao LLM.
 ↓ Compressão
 2000 chars mantendo informações essenciais
 ```
+
+**Implementação:**
+- Módulo `src/core/context_compression.py` com funções de compressão
+- Dois métodos disponíveis: LLM (mais preciso) ou heurístico (mais rápido)
+- Configurações em `src/config.py`:
+  - `ENABLE_CONTEXT_COMPRESSION`: Habilita/desabilita compressão
+  - `CONTEXT_COMPRESSION_THRESHOLD`: Limite de caracteres para ativar
+  - `CONTEXT_COMPRESSION_TARGET_RATIO`: Proporção alvo de redução
+  - `CONTEXT_COMPRESSION_METHOD`: "llm" ou "heuristic"
+- Métricas de compressão incluídas na resposta do RAG
 
 ---
 
@@ -152,15 +162,11 @@ Implementar suíte de testes completa:
 
 | Melhoria | Impacto | Esforço | Prioridade |
 |----------|---------|---------|------------|
-| Chunking Semântico | ⭐⭐⭐⭐⭐ | Médio | 🔴 Alta |
 | Re-ranking | ⭐⭐⭐⭐ | Médio | 🔴 Alta |
 | Filtro de Similaridade | ⭐⭐⭐ | Baixo | 🔴 Alta |
-| Mais Formatos | ⭐⭐⭐ | Baixo | 🔴 Alta |
 | Cache de Embeddings | ⭐⭐⭐ | Baixo | 🟡 Média |
-| Histórico de Conversas | ⭐⭐⭐⭐ | Médio | 🟡 Média |
 | Validação de Input | ⭐⭐ | Baixo | 🟡 Média |
 | Métricas | ⭐⭐⭐ | Médio | 🟡 Média |
-| Upload via API | ⭐⭐ | Baixo | 🟡 Média |
 | Busca Híbrida | ⭐⭐⭐ | Alto | 🟢 Baixa |
 | Compressão de Contexto | ⭐⭐ | Médio | 🟢 Baixa |
 | Feedback Loop | ⭐⭐⭐ | Médio | 🟢 Baixa |
