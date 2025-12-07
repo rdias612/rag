@@ -375,31 +375,69 @@ def process_document(file_path: Path) -> list[dict]:
         file_path: Caminho para o arquivo
         
     Returns:
-        Lista de chunks com content e metadata
+        Lista de chunks com content e metadata enriquecido (Contextual Chunking)
     """
     # Obter extrator apropriado
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)
     
-    all_chunks = []
+    # 1. Gerar todos os chunks brutos primeiro
+    raw_chunks = []
+    global_chunk_index = 0
     
     for page_data in pages:
         chunks = chunk_text(page_data["text"])
         
-        for i, chunk in enumerate(chunks):
-            all_chunks.append({
+        for chunk in chunks:
+            raw_chunks.append({
                 "content": chunk,
                 "metadata": {
                     "source": file_path.name,
                     "source_path": str(file_path),
                     "file_type": file_path.suffix.lower(),
                     "page": page_data["page"],
-                    "chunk_index": i,
+                    "chunk_index": global_chunk_index,
                     "timestamp": datetime.now().isoformat()
                 }
             })
+            global_chunk_index += 1
+            
+    # 2. Enriquecer com contexto (Contextual Chunking)
+    enriched_chunks = []
+    total_chunks = len(raw_chunks)
     
-    return all_chunks
+    for i, chunk_data in enumerate(raw_chunks):
+        metadata = chunk_data["metadata"]
+        
+        # Adicionar contexto do chunk anterior e posterior
+        # Limitamos o tamanho para não explodir o metadata
+        if i > 0:
+            prev_content = raw_chunks[i-1]["content"]
+            metadata["prev_chunk_text"] = prev_content[-500:] # Últimos 500 chars
+        else:
+            metadata["prev_chunk_text"] = None
+            
+        if i < total_chunks - 1:
+            next_content = raw_chunks[i+1]["content"]
+            metadata["next_chunk_text"] = next_content[:500] # Primeiros 500 chars
+        else:
+            metadata["next_chunk_text"] = None
+            
+        # Tentar identificar possível título de seção (heurística simples)
+        # Pega a primeira linha se for curta e parecer um título
+        lines = chunk_data["content"].split('\n')
+        if lines:
+            first_line = lines[0].strip()
+            # Heurística: linha curta, não termina com pontuação comum de frase (exceto :)
+            if len(first_line) < 100 and len(first_line) > 3:
+                if first_line.isupper() or first_line.endswith(':'):
+                    metadata["possible_section"] = first_line
+                elif len(lines) > 1 and lines[1].strip() == "": # Linha isolada
+                    metadata["possible_section"] = first_line
+
+        enriched_chunks.append(chunk_data)
+    
+    return enriched_chunks
 
 
 def get_all_pdfs(directory: Path = DOCUMENTS_DIR) -> list[Path]:

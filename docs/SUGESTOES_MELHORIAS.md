@@ -101,7 +101,7 @@ RAG_PROMPT_TEMPLATE_ENHANCED = """Você é um assistente especializado. Analise 
 
 ---
 
-### 4. Contextual Chunking com Metadados Enriquecidos
+### 4. Contextual Chunking com Metadados Enriquecidos (IMPLEMENTADA)
 
 **Problema:** Os chunks perdem contexto do documento original (seção, título, vizinhos).
 

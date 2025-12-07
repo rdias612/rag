@@ -507,7 +507,35 @@ def query_rag(
     for doc in similar_docs:
         # Normalizar quebras de linha dentro do chunk para exibição
         content = doc["content"].replace("\n\n", " ").replace("\n", " ")
-        context_parts.append(content)
+        
+        # Enriquecer com metadados contextuais (Contextual Chunking)
+        metadata = doc.get("metadata", {})
+        chunk_context = []
+        
+        # Adicionar título da seção se disponível
+        if metadata.get("possible_section"):
+            chunk_context.append(f"Seção: {metadata['possible_section']}")
+            
+        # Adicionar contexto anterior (se disponível)
+        if metadata.get("prev_chunk_text"):
+            prev_text = metadata["prev_chunk_text"][-200:] # Últimos 200 chars
+            chunk_context.append(f"[Contexto Anterior: ...{prev_text}]")
+            
+        # Conteúdo principal
+        chunk_context.append(f"Conteúdo: {content}")
+        
+        # Adicionar contexto posterior (se disponível)
+        if metadata.get("next_chunk_text"):
+            next_text = metadata["next_chunk_text"][:200] # Primeiros 200 chars
+            chunk_context.append(f"[Contexto Posterior: {next_text}...]")
+            
+        # Juntar tudo
+        if len(chunk_context) > 1:
+            full_chunk_text = "\n".join(chunk_context)
+        else:
+            full_chunk_text = content
+            
+        context_parts.append(full_chunk_text)
         
         source_info = {
             "source": doc["metadata"].get("source", "Desconhecido"),
@@ -608,7 +636,30 @@ def query_rag_stream(
     for doc in similar_docs:
         # Normalizar quebras de linha dentro do chunk para exibição
         content = doc["content"].replace("\n\n", " ").replace("\n", " ")
-        context_parts.append(content)
+        
+        # Enriquecer com metadados contextuais (Contextual Chunking)
+        metadata = doc.get("metadata", {})
+        chunk_context = []
+        
+        if metadata.get("possible_section"):
+            chunk_context.append(f"Seção: {metadata['possible_section']}")
+            
+        if metadata.get("prev_chunk_text"):
+            prev_text = metadata["prev_chunk_text"][-200:]
+            chunk_context.append(f"[Contexto Anterior: ...{prev_text}]")
+            
+        chunk_context.append(f"Conteúdo: {content}")
+        
+        if metadata.get("next_chunk_text"):
+            next_text = metadata["next_chunk_text"][:200]
+            chunk_context.append(f"[Contexto Posterior: {next_text}...]")
+            
+        if len(chunk_context) > 1:
+            full_chunk_text = "\n".join(chunk_context)
+        else:
+            full_chunk_text = content
+            
+        context_parts.append(full_chunk_text)
     
     context = "\n\n---\n\n".join(context_parts)
     
