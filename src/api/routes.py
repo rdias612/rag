@@ -18,7 +18,7 @@ from src.core.rag import (
     clear_conversation
 )
 from src.core.conversation import conversation_manager
-from src.data.database import get_document_count, check_connection, insert_documents_batch
+from src.data.database import get_document_count, check_connection, insert_documents_batch, list_collections
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS, 
     process_document, 
@@ -260,6 +260,7 @@ def chat():
     top_k = data.get("top_k", 5)
     temperature = data.get("temperature", 0.7)
     include_sources = data.get("include_sources", True)
+    collection_id = data.get("collection")
     
     try:
         result = query_rag_with_history(
@@ -267,7 +268,8 @@ def chat():
             session_id=session_id,
             top_k=top_k,
             temperature=temperature,
-            include_sources=include_sources
+            include_sources=include_sources,
+            collection_id=collection_id
         )
         
         log_api_response("/api/chat", 200, time.time() - start_time)
@@ -402,6 +404,22 @@ def new_session():
     except Exception as e:
         api_logger.error(f"Error creating session: {e}")
         log_api_response("/api/chat/new", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/collections", methods=["GET"])
+def get_collections():
+    """Lista collections disponíveis para seleção no frontend."""
+    start_time = time.time()
+    log_api_request("/api/collections", "GET")
+
+    try:
+        collections = list_collections()
+        log_api_response("/api/collections", 200, time.time() - start_time)
+        return jsonify({"collections": collections})
+    except Exception as e:
+        api_logger.error(f"Error in /collections: {e}")
+        log_api_response("/api/collections", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 

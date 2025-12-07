@@ -738,7 +738,8 @@ def query_rag_with_history(
     min_similarity: float = None,
     enable_compression: bool = None,
     use_hybrid_search: bool = None,
-    hybrid_alpha: float = None
+    hybrid_alpha: float = None,
+    collection_id: str = None
 ) -> dict:
     """
     Executa o pipeline RAG com suporte a histórico de conversas.
@@ -782,7 +783,8 @@ def query_rag_with_history(
         top_k=top_k,
         min_similarity=min_similarity,
         use_hybrid=use_hybrid_search,
-        hybrid_alpha=hybrid_alpha
+        hybrid_alpha=hybrid_alpha,
+        collection_id=collection_id
     )
     
     if not similar_docs:

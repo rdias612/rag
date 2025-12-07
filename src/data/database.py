@@ -35,54 +35,40 @@ def get_connection():
 
 
 def init_database():
-    """Inicializa o banco de dados com a extensão pgvector e tabela de documentos."""
-    db_logger.info("Initializing database...")
+    """
+    Verifica a conexão e se o esquema está presente.
+
+    A criação/alteração de schema agora é gerenciada por migrações Alembic.
+    Caso a tabela principal não exista, orienta a rodar as migrações.
+    """
+    db_logger.info("Checking database readiness (migrations managed via Alembic)...")
     start_time = time.time()
-    
+
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Habilitar extensão pgvector
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            log_db_query("CREATE EXTENSION", "CREATE EXTENSION IF NOT EXISTS vector")
-            
-            # Criar tabela de documentos
-            create_table_query = f"""
-                CREATE TABLE IF NOT EXISTS documentos (
-                    id SERIAL PRIMARY KEY,
-                    content TEXT NOT NULL,
-                    metadata JSONB,
-                    embedding VECTOR({EMBEDDING_DIMENSION}),
-                    collection_id VARCHAR(100) DEFAULT 'default',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            # Verificar se tabela principal existe
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'documentos'
                 );
-            """
-            cur.execute(create_table_query)
-            log_db_query("CREATE TABLE", create_table_query)
-            
-            # Migração: Adicionar coluna collection_id se não existir (para bancos existentes)
-            try:
-                cur.execute("ALTER TABLE documentos ADD COLUMN IF NOT EXISTS collection_id VARCHAR(100) DEFAULT 'default';")
-                log_db_query("ALTER TABLE", "Added collection_id column")
-            except Exception as e:
-                db_logger.warning(f"Could not alter table (might already exist): {e}")
-            
-            # Criar índice para busca vetorial (IVFFlat)
-            create_index_query = """
-                CREATE INDEX IF NOT EXISTS idx_documentos_embedding 
-                ON documentos 
-                USING ivfflat (embedding vector_cosine_ops)
-                WITH (lists = 100);
-            """
-            cur.execute(create_index_query)
-            log_db_query("CREATE INDEX", create_index_query)
-            
-            # Criar índice para collection_id
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_documentos_collection ON documentos(collection_id);")
-            log_db_query("CREATE INDEX", "idx_documentos_collection")
-    
+                """
+            )
+            exists = cur.fetchone()[0]
+
+    if not exists:
+        msg = (
+            "Esquema não encontrado. Rode as migrações antes de continuar: "
+            "alembic upgrade head"
+        )
+        db_logger.error(msg)
+        raise RuntimeError(msg)
+
     duration = time.time() - start_time
-    db_logger.info(f"Database initialized in {duration:.2f}s")
-    print("✅ Banco de dados inicializado com sucesso!")
+    db_logger.info(f"Database ready check completed in {duration:.2f}s")
+    print("✅ Banco de dados pronto (schema gerenciado pelo Alembic)")
 
 
 def insert_document(content: str, metadata: dict, embedding: list[float], collection_id: str = "default") -> int:
@@ -197,8 +183,8 @@ def search_similar(
             
             if collection_id:
                 where_clause = "WHERE collection_id = %s"
-                # Inserir collection_id antes do top_k nos params
-                params.insert(2, collection_id)
+                # Ordem esperada: embedding (para WHERE), collection_id, embedding (para ORDER BY), top_k
+                params = [query_embedding, collection_id, query_embedding, top_k]
             
             query = f"""
                 SELECT 
@@ -245,6 +231,22 @@ def get_document_count() -> int:
             count = cur.fetchone()[0]
             db_logger.debug(f"Document count: {count}")
             return count
+
+
+def list_collections() -> list[str]:
+    """Retorna a lista de collection_id distintos existentes."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT collection_id
+                FROM documentos
+                WHERE collection_id IS NOT NULL
+                ORDER BY collection_id;
+                """
+            )
+            rows = cur.fetchall()
+            return [row[0] for row in rows]
 
 
 def clear_documents():

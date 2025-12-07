@@ -108,6 +108,19 @@ pip install -r requirements.txt
 
 # Baixar modelo spaCy para português
 python -m spacy download pt_core_news_sm
+### 3. Configurar LM Studio
+
+3. Iniciar o servidor local (padrão: `http://127.0.0.1:1234`)
+
+### 4. Aplicar Migrações do Banco (Alembic)
+
+Em um terminal (na raiz do projeto):
+
+```bash
+alembic upgrade head
+```
+
+Isso cria a tabela `documentos`, índices vetoriais e a coluna `collection_id`.
 ```
 
 #### Frontend (Node.js)

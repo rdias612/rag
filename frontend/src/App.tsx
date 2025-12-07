@@ -5,7 +5,7 @@ import { UploadModal } from "./components/UploadModal";
 import { Toast } from "./components/Toast";
 import { useToast } from "./hooks/useToast";
 import type { Message, Session } from "./types";
-import { fetchSessions, streamChat, createSession, deleteSession, fetchHistory } from "./api";
+import { fetchSessions, streamChat, createSession, deleteSession, fetchHistory, fetchCollections } from "./api";
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -14,11 +14,14 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [collections, setCollections] = useState<string[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const { toast, showToast, hideToast } = useToast();
 
   // Load initial sessions
   useEffect(() => {
     loadSessions();
+    loadCollections();
   }, []);
 
   async function loadSessions() {
@@ -48,6 +51,16 @@ function App() {
     }
   }
 
+  async function loadCollections() {
+    try {
+      const data = await fetchCollections();
+      setCollections(data.collections || []);
+    } catch (error) {
+      console.error("Failed to load collections", error);
+      showToast("Não foi possível carregar as coleções.", "error");
+    }
+  }
+
   async function handleNewChat() {
     try {
       const newSession = await createSession();
@@ -73,7 +86,7 @@ function App() {
     try {
       let currentText = "";
 
-      const res = await streamChat(content, currentSessionId, (token) => {
+      const res = await streamChat(content, currentSessionId, selectedCollection, (token) => {
         currentText = token; // Token contains full text from typewriter effect
         setMessages(prev => {
           const newMessages = [...prev];
@@ -180,6 +193,9 @@ function App() {
         isLoading={isLoading}
         onSend={handleSendMessage}
         onOpenUpload={() => setIsUploadOpen(true)}
+        collections={collections}
+        selectedCollection={selectedCollection}
+        onSelectCollection={setSelectedCollection}
       />
       <UploadModal
         isOpen={isUploadOpen}

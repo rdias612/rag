@@ -6,6 +6,12 @@ export async function fetchSessions() {
     return res.json();
 }
 
+export async function fetchCollections() {
+    const res = await fetch(`${API_URL}/collections`);
+    if (!res.ok) throw new Error("Failed to fetch collections");
+    return res.json();
+}
+
 export async function createSession() {
     const res = await fetch(`${API_URL}/chat/new`, { method: "POST" });
     if (!res.ok) throw new Error("Failed to create session");
@@ -27,6 +33,7 @@ export async function fetchHistory(sessionId: string) {
 export async function streamChat(
     question: string,
     sessionId: string | null,
+    collectionId: string | null,
     onToken: (token: string) => void
 ) {
     const res = await fetch(`${API_URL}/chat`, {
@@ -34,7 +41,8 @@ export async function streamChat(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             question,
-            session_id: sessionId
+            session_id: sessionId,
+            collection: collectionId || undefined
         })
     });
 
