@@ -46,16 +46,29 @@ rag/
 │   │   ├── rag.py            # Pipeline RAG completo
 │   │   ├── conversation.py   # Gerenciador de histórico de conversas
 │   │   ├── context_compression.py  # Compressão inteligente de contexto
-│   │   └── logger.py         # Sistema de logging
+│   │   ├── logger.py         # Sistema de logging
+│   │   ├── embedding_cache.py     # Cache LRU de embeddings (Phase 1)
+│   │   ├── question_classifier.py # Classificador de perguntas (Phase 1)
+│   │   ├── reranker.py       # Re-ranking com Cross-Encoder (Phase 2)
+│   │   ├── query_expansion.py # Expansão de queries (Phase 2)
+│   │   ├── mmr.py            # Diversificação MMR (Phase 2)
+│   │   ├── hyde.py           # Hypothetical Document Embeddings (Phase 3)
+│   │   ├── evaluation.py     # Métricas RAGAS (Phase 3)
+│   │   ├── adaptive_retrieval.py  # Parâmetros adaptativos (Phase 4)
+│   │   └── self_rag.py       # Auto-reflexão de respostas (Phase 4)
 │   ├── data/
 │   │   ├── database.py       # Conexão PostgreSQL + pgvector
 │   │   ├── hybrid_search.py  # Busca híbrida (vetorial + FTS)
 │   │   ├── ingestion.py      # Leitura de documentos + chunking
-│   │   └── chunking.py       # Chunking semântico com spaCy
+│   │   ├── chunking.py       # Chunking semântico com spaCy
+│   │   ├── hierarchical_chunking.py  # Parent-Child chunks (Phase 3)
+│   │   └── sentence_window.py # Busca por janela de sentenças (Phase 4)
 │   ├── app.py                # Aplicação Flask principal
 │   └── config.py             # Configurações centralizadas
 ├── docs/
-│   └── MELHORIAS.md          # Roadmap de melhorias
+│   ├── MELHORIAS.md          # Roadmap de melhorias
+│   ├── SUGESTOES_MELHORIAS.md    # Sugestões detalhadas v1
+│   └── SUGESTOES_MELHORIAS_V2.md # Sugestões detalhadas v2
 ├── requirements.txt
 └── README.md
 ```
@@ -667,24 +680,46 @@ python -m src.app
 
 ## 📝 Melhorias Implementadas
 
+### Base
 - [x] ✅ Filtro de similaridade mínima
 - [x] ✅ Chunking semântico com spaCy
 - [x] ✅ Suporte a múltiplos formatos (PDF, DOCX, TXT, MD, HTML)
 - [x] ✅ Histórico de conversas
 - [x] ✅ Endpoint de ingestão via API
-- [x] ✅ **Busca Híbrida** - Combina busca vetorial (pgvector) com Full-Text Search (BM25)
+- [x] ✅ **Busca Híbrida** - Combina busca vetorial (pgvector) com Full-Text Search
 - [x] ✅ **Compressão de Contexto** - Reduz contexto grande antes de enviar ao LLM
 
-### Próximos Passos
+### Phase 1 - Quick Wins
+- [x] ✅ **Cache de Embeddings** - Cache LRU para evitar recálculos
+- [x] ✅ **Classificador de Perguntas** - Detecta tipo de pergunta (definição, comparação, etc.)
+- [x] ✅ **Prompts Melhorados** - Chain-of-Thought com instruções por tipo
+- [x] ✅ **Fallback Inteligente** - Sugestões quando não há resultados
 
-- [ ] Re-ranking com cross-encoder
-- [ ] Cache de embeddings
-- [ ] Métricas e monitoramento
-- [ ] Interface de chat (frontend)
-- [ ] Autenticação na API
-- [ ] Testes automatizados
+### Phase 2 - Core Improvements
+- [x] ✅ **Re-ranking com Cross-Encoder** - Reordena chunks por relevância real
+- [x] ✅ **Query Expansion** - Gera variações da pergunta para melhor recall
+- [x] ✅ **MMR (Diversidade)** - Evita chunks redundantes
 
-Veja o roadmap completo em [docs/MELHORIAS.md](docs/MELHORIAS.md).
+### Phase 3 - Advanced
+- [x] ✅ **HyDE** - Hypothetical Document Embeddings para busca melhorada
+- [x] ✅ **RAGAS Evaluation** - Métricas de qualidade (faithfulness, relevancy)
+- [x] ✅ **Hierarchical Chunking** - Chunks parent-child
+- [x] ✅ **Contextual Metadata** - Metadados enriquecidos (seção, vizinhos)
+
+### Phase 4 - Final
+- [x] ✅ **Adaptive Retrieval** - Ajuste dinâmico de top_k e min_similarity
+- [x] ✅ **Self-RAG** - Auto-avaliação e refinamento de respostas
+- [x] ✅ **Sentence Window** - Busca por sentença com janela expandida
+
+### Próximas Sugestões (v2)
+- [ ] Multi-tenancy (coleções separadas)
+- [ ] Suporte multi-modal (imagens)
+- [ ] Re-ingestão incremental
+- [ ] Cache Redis (persistente)
+- [ ] Fine-tuning de embeddings
+
+Veja detalhes em [docs/SUGESTOES_MELHORIAS_V2.md](docs/SUGESTOES_MELHORIAS_V2.md).
+
 
 ---
 

@@ -15,8 +15,8 @@ def create_app() -> Flask:
     # Configurar JSON para não escapar caracteres Unicode (acentos, ç, etc)
     app.json.ensure_ascii = False
     
-    # Habilitar CORS para futura integração com frontend
-    CORS(app)
+    # Habilitar CORS para frontend (Vite default port 5173) e localhost
+    CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://localhost:3000"]}})
     
     # Registrar blueprint da API
     app.register_blueprint(api, url_prefix="/api")
