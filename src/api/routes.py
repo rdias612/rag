@@ -94,7 +94,8 @@ def query():
             "question": "Sua pergunta aqui",
             "top_k": 5,  // opcional
             "temperature": 0.7,  // opcional
-            "include_sources": true  // opcional
+            "include_sources": true,  // opcional
+            "collection": "nome_do_projeto" // opcional
         }
     """
     start_time = time.time()
@@ -112,13 +113,15 @@ def query():
     top_k = data.get("top_k", 5)
     temperature = data.get("temperature", 0.7)
     include_sources = data.get("include_sources", True)
+    collection_id = data.get("collection", None)
     
     try:
         result = query_rag(
             question=question,
             top_k=top_k,
             temperature=temperature,
-            include_sources=include_sources
+            include_sources=include_sources,
+            collection_id=collection_id
         )
         
         log_api_response("/api/query", 200, time.time() - start_time)

@@ -134,7 +134,8 @@ def run_ingestion():
         documents_to_insert.append({
             "content": chunk["content"],
             "metadata": chunk["metadata"],
-            "embedding": embedding
+            "embedding": embedding,
+            "collection_id": chunk.get("collection_id", "default")
         })
     
     # Inserir em batches

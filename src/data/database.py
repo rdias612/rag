@@ -52,11 +52,19 @@ def init_database():
                     content TEXT NOT NULL,
                     metadata JSONB,
                     embedding VECTOR({EMBEDDING_DIMENSION}),
+                    collection_id VARCHAR(100) DEFAULT 'default',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """
             cur.execute(create_table_query)
             log_db_query("CREATE TABLE", create_table_query)
+            
+            # Migração: Adicionar coluna collection_id se não existir (para bancos existentes)
+            try:
+                cur.execute("ALTER TABLE documentos ADD COLUMN IF NOT EXISTS collection_id VARCHAR(100) DEFAULT 'default';")
+                log_db_query("ALTER TABLE", "Added collection_id column")
+            except Exception as e:
+                db_logger.warning(f"Could not alter table (might already exist): {e}")
             
             # Criar índice para busca vetorial (IVFFlat)
             create_index_query = """
@@ -67,13 +75,17 @@ def init_database():
             """
             cur.execute(create_index_query)
             log_db_query("CREATE INDEX", create_index_query)
+            
+            # Criar índice para collection_id
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_documentos_collection ON documentos(collection_id);")
+            log_db_query("CREATE INDEX", "idx_documentos_collection")
     
     duration = time.time() - start_time
     db_logger.info(f"Database initialized in {duration:.2f}s")
     print("✅ Banco de dados inicializado com sucesso!")
 
 
-def insert_document(content: str, metadata: dict, embedding: list[float]) -> int:
+def insert_document(content: str, metadata: dict, embedding: list[float], collection_id: str = "default") -> int:
     """
     Insere um documento com seu embedding no banco de dados.
     
@@ -81,23 +93,24 @@ def insert_document(content: str, metadata: dict, embedding: list[float]) -> int
         content: Texto do chunk
         metadata: Metadados (source, page, etc.)
         embedding: Vetor de embedding
+        collection_id: ID da coleção/projeto
         
     Returns:
         ID do documento inserido
     """
     start_time = time.time()
-    query = "INSERT INTO documentos (content, metadata, embedding) VALUES (%s, %s, %s) RETURNING id"
-    log_db_query("INSERT", query, (content[:100], metadata, f"[{len(embedding)} dims]"))
+    query = "INSERT INTO documentos (content, metadata, embedding, collection_id) VALUES (%s, %s, %s, %s) RETURNING id"
+    log_db_query("INSERT", query, (content[:100], metadata, f"[{len(embedding)} dims]", collection_id))
     
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO documentos (content, metadata, embedding)
-                VALUES (%s, %s, %s)
+                INSERT INTO documentos (content, metadata, embedding, collection_id)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id;
                 """,
-                (content, json.dumps(metadata), embedding)
+                (content, json.dumps(metadata), embedding, collection_id)
             )
             doc_id = cur.fetchone()[0]
     
@@ -112,7 +125,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
     Insere múltiplos documentos em batch para melhor performance.
     
     Args:
-        documents: Lista de dicts com keys: content, metadata, embedding
+        documents: Lista de dicts com keys: content, metadata, embedding, collection_id (opcional)
         
     Returns:
         Número de documentos inseridos
@@ -128,14 +141,15 @@ def insert_documents_batch(documents: list[dict]) -> int:
                 values.append((
                     doc["content"],
                     json.dumps(doc["metadata"]),
-                    doc["embedding"]
+                    doc["embedding"],
+                    doc.get("collection_id", "default")
                 ))
             
             # Inserção em batch usando executemany
             cur.executemany(
                 """
-                INSERT INTO documentos (content, metadata, embedding)
-                VALUES (%s, %s, %s);
+                INSERT INTO documentos (content, metadata, embedding, collection_id)
+                VALUES (%s, %s, %s, %s);
                 """,
                 values
             )
@@ -149,7 +163,8 @@ def insert_documents_batch(documents: list[dict]) -> int:
 def search_similar(
     query_embedding: list[float], 
     top_k: int = TOP_K_RESULTS,
-    min_similarity: Optional[float] = None
+    min_similarity: Optional[float] = None,
+    collection_id: Optional[str] = None
 ) -> list[dict]:
     """
     Busca os documentos mais similares ao embedding da query.
@@ -160,6 +175,7 @@ def search_similar(
         min_similarity: Similaridade mínima para incluir um resultado (0.0 a 1.0).
                        Se None, usa MIN_SIMILARITY_THRESHOLD da config.
                        Se 0.0, desabilita o filtro.
+        collection_id: Filtrar por coleção específica (opcional)
         
     Returns:
         Lista de documentos com content, metadata e score
@@ -175,19 +191,29 @@ def search_similar(
     
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
+            # Construir query dinamicamente baseada no filtro de coleção
+            where_clause = ""
+            params = [query_embedding, query_embedding, top_k]
+            
+            if collection_id:
+                where_clause = "WHERE collection_id = %s"
+                # Inserir collection_id antes do top_k nos params
+                params.insert(2, collection_id)
+            
+            query = f"""
                 SELECT 
                     id,
                     content,
                     metadata,
+                    collection_id,
                     1 - (embedding <=> %s::vector) as similarity
                 FROM documentos
+                {where_clause}
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s;
-                """,
-                (query_embedding, query_embedding, top_k)
-            )
+            """
+            
+            cur.execute(query, tuple(params))
             
             results = cur.fetchall()
     

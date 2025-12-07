@@ -10,6 +10,8 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **Embeddings** | Nomic Embed v1.5 | Modelo de embeddings via LM Studio |
 | **LLM** | Phi-3.5 Mini | Geração de respostas via LM Studio |
 | **API** | Flask | Backend REST API |
+| **Frontend** | React + Vite | Interface moderna e responsiva |
+| **Estilização** | Tailwind CSS | Design system e componentes |
 | **NLP** | spaCy | Chunking semântico por sentenças |
 | **Ingestão** | pypdf, python-docx, beautifulsoup4 | Extração de múltiplos formatos |
 
@@ -37,6 +39,12 @@ rag/
 │   └── init.sql              # Script de inicialização do banco
 ├── scripts/
 │   └── ingest.py             # CLI para ingestão de documentos
+├── frontend/                 # Interface Web (React)
+│   ├── src/
+│   │   ├── components/       # Componentes UI (Chat, Upload, etc)
+│   │   ├── hooks/            # Hooks customizados
+│   │   └── api.ts            # Cliente da API
+│   └── vite.config.ts        # Configuração do Vite
 ├── src/
 │   ├── api/
 │   │   └── routes.py         # Endpoints da API
@@ -90,18 +98,25 @@ rag/
 ```bash
 cd db
 docker-compose up -d
-```
-
-Isso irá iniciar:
-- **PostgreSQL + pgvector** na porta `5433`
-- **Adminer** (interface web) na porta `8080`
-
 ### 2. Instalar Dependências
 
+#### Backend (Python)
 ```bash
 python -m venv .venv
 .\.venv\Scripts\activate  # Windows
 pip install -r requirements.txt
+
+# Baixar modelo spaCy para português
+python -m spacy download pt_core_news_sm
+```
+
+#### Frontend (Node.js)
+```bash
+cd frontend
+npm install
+```
+
+### 3. Configurar LM Studio.txt
 
 # Baixar modelo spaCy para português
 python -m spacy download pt_core_news_sm
@@ -144,17 +159,28 @@ python -m scripts.ingest --stats
 ```bash
 python -m scripts.ingest
 ```
-
-Este comando irá:
-1. Ler todos os documentos suportados (PDF, DOCX, TXT, MD, HTML)
-2. Dividir em chunks usando chunking semântico
-3. Gerar embeddings via LM Studio
-4. Armazenar no PostgreSQL com pgvector
-
 ### Iniciar a API
 
 ```bash
 python -m src.app
+```
+
+A API estará disponível em `http://localhost:5000`
+
+### Iniciar o Frontend
+
+Em outro terminal:
+
+```bash
+cd frontend
+npm run dev
+```
+
+A interface estará disponível em `http://localhost:5173`
+
+---
+
+## 🔍 Busca Híbrida
 ```
 
 A API estará disponível em `http://localhost:5000`

@@ -73,7 +73,8 @@ def _search_documents(
     top_k: int,
     min_similarity: float = None,
     use_hybrid: bool = None,
-    hybrid_alpha: float = None
+    hybrid_alpha: float = None,
+    collection_id: str = None
 ) -> tuple[list[dict], dict]:
     """
     Busca documentos usando busca vetorial ou híbrida.
@@ -85,6 +86,7 @@ def _search_documents(
         min_similarity: Similaridade mínima
         use_hybrid: Força uso de busca híbrida (usa config se None)
         hybrid_alpha: Peso da busca vetorial (usa config se None)
+        collection_id: Filtrar por coleção específica
         
     Returns:
         Tupla (lista de documentos, métricas de busca)
@@ -107,11 +109,17 @@ def _search_documents(
                 rag_logger.warning("Full-Text Search not ready, falling back to vector search")
                 search_metrics["search_type"] = "vector"
                 search_metrics["fallback_reason"] = "FTS not initialized"
-                return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity), search_metrics
+                return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
             
             alpha = hybrid_alpha if hybrid_alpha is not None else HYBRID_SEARCH_ALPHA
             search_metrics["hybrid_alpha"] = alpha
             
+            # TODO: Atualizar search_hybrid para suportar collection_id
+            # Por enquanto, fallback para busca vetorial se collection_id for usado
+            if collection_id:
+                 rag_logger.warning("Hybrid search does not support collection_id yet, falling back to vector search")
+                 return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
+
             results = search_hybrid(
                 query=question,
                 query_embedding=question_embedding,
@@ -135,7 +143,7 @@ def _search_documents(
             search_metrics["fallback_reason"] = str(e)
     
     # Busca vetorial padrão
-    return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity), search_metrics
+    return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
 
 
 def _apply_phase2_pipeline(
@@ -418,7 +426,8 @@ def query_rag(
     min_similarity: float = None,
     enable_compression: bool = None,
     use_hybrid_search: bool = None,
-    hybrid_alpha: float = None
+    hybrid_alpha: float = None,
+    collection_id: str = None
 ) -> dict:
     """
     Executa o pipeline RAG completo.
@@ -438,6 +447,7 @@ def query_rag(
         enable_compression: Força habilitação/desabilitação da compressão (usa config se None)
         use_hybrid_search: Força uso de busca híbrida (usa config se None)
         hybrid_alpha: Peso da busca vetorial na busca híbrida (usa config se None)
+        collection_id: Filtrar por coleção específica (opcional)
         
     Returns:
         Dict com answer, sources e metadata
@@ -474,7 +484,8 @@ def query_rag(
         top_k=initial_top_k,
         min_similarity=min_similarity,
         use_hybrid=use_hybrid_search,
-        hybrid_alpha=hybrid_alpha
+        hybrid_alpha=hybrid_alpha,
+        collection_id=collection_id
     )
     
     # Adicionar métricas HyDE

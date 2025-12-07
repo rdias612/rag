@@ -488,7 +488,7 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
         directory: Diretório com os documentos
         
     Yields:
-        Chunks com content e metadata
+        Chunks com content, metadata e collection_id
     """
     document_files = get_all_documents(directory)
     chunking_mode = "SEMÂNTICO (spaCy)" if USE_SEMANTIC_CHUNKING else "LEGADO (caracteres)"
@@ -511,15 +511,30 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
     total_chunks = 0
     
     for i, doc_path in enumerate(document_files, start=1):
-        print(f"📄 [{i}/{len(document_files)}] Processando: {doc_path.name}")
+        # Determinar collection_id baseado no subdiretório
+        # Ex: DOCUMENTS_DIR/projeto_A/doc.pdf -> collection_id = "projeto_A"
+        # Ex: DOCUMENTS_DIR/doc.pdf -> collection_id = "default"
+        try:
+            relative_path = doc_path.relative_to(directory)
+            if len(relative_path.parts) > 1:
+                # O primeiro componente do caminho relativo é o nome da coleção
+                collection_id = relative_path.parts[0]
+            else:
+                collection_id = "default"
+        except ValueError:
+            collection_id = "default"
+            
+        print(f"📄 [{i}/{len(document_files)}] Processando: {doc_path.name} (Coleção: {collection_id})")
         
         try:
             chunks = process_document(doc_path)
             total_chunks += len(chunks)
             print(f"   ✂️ Gerados {len(chunks)} chunks")
-            logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks")
+            logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks (Coleção: {collection_id})")
             
             for chunk in chunks:
+                # Adicionar collection_id ao chunk
+                chunk["collection_id"] = collection_id
                 yield chunk
                 
         except Exception as e:
