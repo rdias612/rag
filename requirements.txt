@@ -20,5 +20,8 @@ requests>=2.31.0
 spacy>=3.7.0
 # Modelo português: python -m spacy download pt_core_news_sm
 
+# Phase 2 - Re-ranking
+sentence-transformers>=2.2.0
+
 # Development
 python-dotenv>=1.0.0

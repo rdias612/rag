@@ -349,6 +349,144 @@ def check_spacy_available() -> dict:
     }
 
 
+# =============================================================================
+# Phase 3 - Contextual Chunking (Metadados Enriquecidos)
+# =============================================================================
+
+def extract_section_title(text: str) -> Optional[str]:
+    """
+    Tenta detectar o título da seção a partir do texto.
+    
+    Procura por padrões de títulos no início do texto.
+    
+    Args:
+        text: Texto do chunk
+        
+    Returns:
+        Título da seção ou None
+    """
+    lines = text.strip().split('\n')
+    if not lines:
+        return None
+    
+    first_line = lines[0].strip()
+    
+    # Padrões de títulos
+    # 1. Linha curta no início (provavelmente título)
+    if len(first_line) < 100 and first_line:
+        # Remover numeração de seções
+        title = re.sub(r'^[\d.]+\s*', '', first_line)
+        title = re.sub(r'^[#*-]+\s*', '', title)
+        
+        # Verificar se parece um título (sem ponto final, capitalizado)
+        if title and not title.endswith('.') and len(title) < 100:
+            return title.strip()
+    
+    # 2. Markdown headers
+    match = re.match(r'^#+\s+(.+)$', first_line)
+    if match:
+        return match.group(1).strip()
+    
+    return None
+
+
+def summarize_text(text: str, max_length: int = 100) -> str:
+    """
+    Cria resumo curto do texto (primeiras N caracteres).
+    
+    Args:
+        text: Texto a resumir
+        max_length: Comprimento máximo
+        
+    Returns:
+        Texto resumido
+    """
+    if not text:
+        return ""
+    
+    text = text.strip()
+    
+    if len(text) <= max_length:
+        return text
+    
+    # Cortar em limite de palavra
+    truncated = text[:max_length]
+    last_space = truncated.rfind(' ')
+    
+    if last_space > max_length // 2:
+        truncated = truncated[:last_space]
+    
+    return truncated.strip() + "..."
+
+
+def add_contextual_metadata(
+    chunks: List[dict],
+    add_neighbor_summaries: bool = True,
+    add_section_titles: bool = True,
+    summary_length: int = 80
+) -> List[dict]:
+    """
+    Enriquece chunks com metadados contextuais.
+    
+    Adiciona:
+    - section_title: título detectado da seção
+    - prev_summary: resumo do chunk anterior
+    - next_summary: resumo do chunk seguinte
+    - chunk_index: posição na lista
+    
+    Args:
+        chunks: Lista de chunks com 'content' e 'metadata'
+        add_neighbor_summaries: Se True, adiciona resumos dos vizinhos
+        add_section_titles: Se True, detecta títulos de seção
+        summary_length: Comprimento máximo dos resumos
+        
+    Returns:
+        Chunks com metadados enriquecidos
+    """
+    if not chunks:
+        return chunks
+    
+    enriched = []
+    
+    for i, chunk in enumerate(chunks):
+        # Copiar chunk
+        new_chunk = chunk.copy()
+        if "metadata" not in new_chunk:
+            new_chunk["metadata"] = {}
+        else:
+            new_chunk["metadata"] = chunk["metadata"].copy()
+        
+        content = chunk.get("content", "")
+        
+        # Adicionar índice
+        new_chunk["metadata"]["chunk_index"] = i
+        new_chunk["metadata"]["total_chunks"] = len(chunks)
+        
+        # Detectar título da seção
+        if add_section_titles:
+            section_title = extract_section_title(content)
+            if section_title:
+                new_chunk["metadata"]["section_title"] = section_title
+        
+        # Adicionar resumos dos vizinhos
+        if add_neighbor_summaries:
+            # Chunk anterior
+            if i > 0:
+                prev_content = chunks[i - 1].get("content", "")
+                new_chunk["metadata"]["prev_summary"] = summarize_text(prev_content, summary_length)
+            
+            # Próximo chunk
+            if i < len(chunks) - 1:
+                next_content = chunks[i + 1].get("content", "")
+                new_chunk["metadata"]["next_summary"] = summarize_text(next_content, summary_length)
+        
+        enriched.append(new_chunk)
+    
+    logger.info(f"Contextual metadata added to {len(enriched)} chunks")
+    
+    return enriched
+
+
 if __name__ == "__main__":
     # Teste rápido do módulo
     print("=== Teste do Chunking Semântico ===\n")
@@ -380,3 +518,4 @@ if __name__ == "__main__":
     
     quality = analyze_chunk_quality(chunks)
     print(f"Qualidade: {quality}")
+

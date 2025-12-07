@@ -715,3 +715,207 @@ def documents_stats():
         api_logger.error(f"Error in /documents/stats: {e}")
         log_api_response("/api/documents/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Endpoints Phase 1 - Cache e Classificador
+# =============================================================================
+
+@api.route("/cache/stats", methods=["GET"])
+def cache_stats():
+    """
+    Retorna estatísticas do cache de embeddings.
+    
+    Response:
+        {
+            "size": 50,
+            "max_size": 1000,
+            "hits": 100,
+            "misses": 25,
+            "hit_rate_percent": 80.0,
+            "uptime_seconds": 3600.5
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/cache/stats", "GET")
+    
+    try:
+        from src.core.embedding_cache import get_cache_stats
+        stats = get_cache_stats()
+        
+        log_api_response("/api/cache/stats", 200, time.time() - start_time)
+        return jsonify(stats)
+        
+    except Exception as e:
+        api_logger.error(f"Error in /cache/stats: {e}")
+        log_api_response("/api/cache/stats", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/cache/clear", methods=["POST"])
+def cache_clear():
+    """
+    Limpa o cache de embeddings.
+    
+    Response:
+        {"message": "Cache limpo com sucesso"}
+    """
+    start_time = time.time()
+    log_api_request("/api/cache/clear", "POST")
+    
+    try:
+        from src.core.embedding_cache import clear_embedding_cache
+        clear_embedding_cache()
+        
+        log_api_response("/api/cache/clear", 200, time.time() - start_time)
+        return jsonify({"message": "Cache limpo com sucesso"})
+        
+    except Exception as e:
+        api_logger.error(f"Error in /cache/clear: {e}")
+        log_api_response("/api/cache/clear", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/classify", methods=["POST"])
+def classify_question_endpoint():
+    """
+    Classifica uma pergunta em um tipo.
+    
+    Body:
+        {"question": "O que é GWPRP?"}
+        
+    Response:
+        {
+            "question": "O que é GWPRP?",
+            "type": "definition",
+            "description": "Pergunta de definição/explicação"
+        }
+    """
+    start_time = time.time()
+    data = request.get_json()
+    
+    log_api_input("/api/classify", "POST", data)
+    
+    if not data or "question" not in data:
+        log_api_response("/api/classify", 400, time.time() - start_time)
+        return jsonify({"error": "Campo 'question' é obrigatório"}), 400
+    
+    try:
+        from src.core.question_classifier import (
+            classify_question,
+            get_question_type_description
+        )
+        
+        question = data["question"]
+        question_type = classify_question(question)
+        description = get_question_type_description(question_type)
+        
+        log_api_response("/api/classify", 200, time.time() - start_time)
+        return jsonify({
+            "question": question,
+            "type": question_type,
+            "description": description
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error in /classify: {e}")
+        log_api_response("/api/classify", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Endpoints Phase 3 - Avaliação
+# =============================================================================
+
+@api.route("/evaluate", methods=["POST"])
+def evaluate_response():
+    """
+    Avalia qualidade de uma resposta RAG usando métricas RAGAS.
+    
+    Body:
+        {
+            "question": "Pergunta original",
+            "answer": "Resposta gerada",
+            "context": "Contexto usado"
+        }
+        
+    Response:
+        {
+            "faithfulness": 0.85,
+            "answer_relevancy": 0.90,
+            "context_precision": 0.80,
+            "overall_score": 0.85,
+            "summary": "Qualidade: Excelente (Score: 85%)"
+        }
+    """
+    start_time = time.time()
+    data = request.get_json()
+    
+    log_api_input("/api/evaluate", "POST", data)
+    
+    required = ["question", "answer", "context"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        log_api_response("/api/evaluate", 400, time.time() - start_time)
+        return jsonify({"error": f"Campos obrigatórios: {', '.join(missing)}"}), 400
+    
+    try:
+        from src.core.evaluation import evaluate_rag_response, get_evaluation_summary
+        
+        scores = evaluate_rag_response(
+            question=data["question"],
+            answer=data["answer"],
+            context=data["context"],
+            chunks=data.get("chunks")
+        )
+        
+        scores["summary"] = get_evaluation_summary(scores)
+        
+        log_api_response("/api/evaluate", 200, time.time() - start_time)
+        return jsonify(scores)
+        
+    except Exception as e:
+        api_logger.error(f"Error in /evaluate: {e}")
+        log_api_response("/api/evaluate", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/hyde/test", methods=["POST"])
+def test_hyde():
+    """
+    Testa geração de documento hipotético (HyDE).
+    
+    Body:
+        {"question": "O que é GWPRP?"}
+        
+    Response:
+        {
+            "question": "O que é GWPRP?",
+            "hypothetical_document": "GWPRP é um protocolo..."
+        }
+    """
+    start_time = time.time()
+    data = request.get_json()
+    
+    log_api_input("/api/hyde/test", "POST", data)
+    
+    if not data or "question" not in data:
+        log_api_response("/api/hyde/test", 400, time.time() - start_time)
+        return jsonify({"error": "Campo 'question' é obrigatório"}), 400
+    
+    try:
+        from src.core.hyde import generate_hypothetical_document
+        
+        question = data["question"]
+        hypothetical_doc = generate_hypothetical_document(question)
+        
+        log_api_response("/api/hyde/test", 200, time.time() - start_time)
+        return jsonify({
+            "question": question,
+            "hypothetical_document": hypothetical_doc
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error in /hyde/test: {e}")
+        log_api_response("/api/hyde/test", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500

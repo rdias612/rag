@@ -7,6 +7,8 @@ from typing import Optional
 from src.config import (
     RAG_PROMPT_TEMPLATE, 
     RAG_PROMPT_TEMPLATE_WITH_HISTORY,
+    RAG_PROMPT_ENHANCED,
+    RAG_PROMPT_ENHANCED_WITH_HISTORY,
     TOP_K_RESULTS, 
     MIN_SIMILARITY_THRESHOLD,
     MAX_CONVERSATION_HISTORY,
@@ -15,7 +17,19 @@ from src.config import (
     CONTEXT_COMPRESSION_TARGET_RATIO,
     CONTEXT_COMPRESSION_METHOD,
     ENABLE_HYBRID_SEARCH,
-    HYBRID_SEARCH_ALPHA
+    HYBRID_SEARCH_ALPHA,
+    USE_QUESTION_CLASSIFIER,
+    USE_ENHANCED_PROMPTS,
+    # Phase 2
+    ENABLE_RERANKING,
+    RERANKING_TOP_K_INITIAL,
+    ENABLE_QUERY_EXPANSION,
+    QUERY_EXPANSION_COUNT,
+    ENABLE_MMR,
+    MMR_LAMBDA,
+    # Phase 3
+    ENABLE_HYDE,
+    HYDE_WEIGHT
 )
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
@@ -28,6 +42,29 @@ from src.core.logger import (
 )
 from src.core.conversation import conversation_manager, Conversation
 from src.core.context_compression import smart_compress, extract_key_sentences
+from src.core.question_classifier import (
+    classify_question,
+    get_instructions_for_type,
+    get_question_type_description
+)
+
+# Phase 2 imports (lazy loaded quando necessário)
+def _get_reranker():
+    from src.core.reranker import rerank_chunks, CROSS_ENCODER_AVAILABLE
+    return rerank_chunks, CROSS_ENCODER_AVAILABLE
+
+def _get_query_expansion():
+    from src.core.query_expansion import expand_query, merge_search_results
+    return expand_query, merge_search_results
+
+def _get_mmr():
+    from src.core.mmr import mmr_rerank
+    return mmr_rerank
+
+# Phase 3 imports
+def _get_hyde():
+    from src.core.hyde import hyde_enhanced_query
+    return hyde_enhanced_query
 
 
 def _search_documents(
@@ -101,6 +138,113 @@ def _search_documents(
     return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity), search_metrics
 
 
+def _apply_phase2_pipeline(
+    question: str,
+    question_embedding: list[float],
+    initial_results: list[dict],
+    final_top_k: int,
+    search_metrics: dict
+) -> tuple[list[dict], dict]:
+    """
+    Aplica pipeline Phase 2: Query Expansion, MMR e Re-ranking.
+    
+    Args:
+        question: Pergunta do usuário
+        question_embedding: Embedding da pergunta
+        initial_results: Resultados da busca inicial
+        final_top_k: Número final de resultados desejados
+        search_metrics: Métricas da busca para atualização
+        
+    Returns:
+        Tupla (resultados processados, métricas atualizadas)
+    """
+    results = initial_results
+    phase2_metrics = {
+        "query_expanded": False,
+        "mmr_applied": False,
+        "reranking_applied": False
+    }
+    
+    # 1. Query Expansion (busca adicional com variações)
+    if ENABLE_QUERY_EXPANSION and len(results) > 0:
+        try:
+            expand_query, merge_search_results = _get_query_expansion()
+            
+            # Gerar variações da query
+            query_variations = expand_query(question, QUERY_EXPANSION_COUNT)
+            
+            if len(query_variations) > 1:
+                rag_logger.info(f"Query expanded to {len(query_variations)} variations")
+                phase2_metrics["query_expanded"] = True
+                phase2_metrics["query_variations"] = len(query_variations)
+                
+                # Buscar com cada variação (além da original já buscada)
+                all_results = [results]  # Resultados originais
+                
+                for variation in query_variations[1:]:  # Pular original
+                    var_embedding = get_embedding(variation)
+                    var_results, _ = _search_documents(
+                        question=variation,
+                        question_embedding=var_embedding,
+                        top_k=RERANKING_TOP_K_INITIAL if ENABLE_RERANKING else final_top_k,
+                        use_hybrid=ENABLE_HYBRID_SEARCH
+                    )
+                    if var_results:
+                        all_results.append(var_results)
+                
+                # Merge resultados com RRF
+                results = merge_search_results(all_results, top_k=len(results) * 2)
+                
+        except Exception as e:
+            rag_logger.warning(f"Query expansion failed: {e}")
+    
+    # 2. MMR para diversidade
+    if ENABLE_MMR and len(results) > final_top_k:
+        try:
+            mmr_rerank = _get_mmr()
+            
+            results = mmr_rerank(
+                query_embedding=question_embedding,
+                chunks=results,
+                top_k=RERANKING_TOP_K_INITIAL if ENABLE_RERANKING else final_top_k,
+                lambda_param=MMR_LAMBDA
+            )
+            
+            phase2_metrics["mmr_applied"] = True
+            rag_logger.info(f"MMR applied: {len(initial_results)} -> {len(results)} chunks")
+            
+        except Exception as e:
+            rag_logger.warning(f"MMR failed: {e}")
+    
+    # 3. Re-ranking com Cross-Encoder
+    if ENABLE_RERANKING and len(results) > 0:
+        try:
+            rerank_chunks, CROSS_ENCODER_AVAILABLE = _get_reranker()
+            
+            if CROSS_ENCODER_AVAILABLE:
+                results = rerank_chunks(
+                    query=question,
+                    chunks=results,
+                    top_k=final_top_k
+                )
+                
+                phase2_metrics["reranking_applied"] = True
+                rag_logger.info(f"Reranking applied: top {final_top_k} selected")
+            else:
+                rag_logger.warning("Cross-encoder not available, skipping reranking")
+                results = results[:final_top_k]
+                
+        except Exception as e:
+            rag_logger.warning(f"Reranking failed: {e}")
+            results = results[:final_top_k]
+    else:
+        results = results[:final_top_k]
+    
+    # Atualizar métricas
+    search_metrics["phase2"] = phase2_metrics
+    
+    return results, search_metrics
+
 def _apply_context_compression(
     context: str, 
     question: str,
@@ -160,8 +304,110 @@ def _apply_context_compression(
             context=context,
             question=question,
             compression_threshold=CONTEXT_COMPRESSION_THRESHOLD,
-            target_ratio=CONTEXT_COMPRESSION_TARGET_RATIO
         )
+
+
+def _build_prompt(
+    context: str,
+    question: str,
+    question_type: str = None,
+    history: str = None
+) -> str:
+    """
+    Constrói o prompt final baseado no tipo de pergunta e configurações.
+    
+    Args:
+        context: Contexto dos documentos
+        question: Pergunta do usuário
+        question_type: Tipo da pergunta (de classify_question)
+        history: Histórico da conversa (opcional)
+        
+    Returns:
+        Prompt formatado para o LLM
+    """
+    # Obter instruções específicas para o tipo de pergunta
+    instrucoes_tipo = ""
+    if question_type and USE_ENHANCED_PROMPTS:
+        instrucoes_tipo = get_instructions_for_type(question_type)
+    
+    # Escolher template baseado nas configurações
+    if USE_ENHANCED_PROMPTS:
+        if history:
+            return RAG_PROMPT_ENHANCED_WITH_HISTORY.format(
+                historico=history,
+                contexto=context,
+                pergunta=question,
+                instrucoes_tipo=instrucoes_tipo
+            )
+        else:
+            return RAG_PROMPT_ENHANCED.format(
+                contexto=context,
+                pergunta=question,
+                instrucoes_tipo=instrucoes_tipo
+            )
+    else:
+        # Templates originais (sem instruções por tipo)
+        if history:
+            return RAG_PROMPT_TEMPLATE_WITH_HISTORY.format(
+                historico=history,
+                contexto=context,
+                pergunta=question
+            )
+        else:
+            return RAG_PROMPT_TEMPLATE.format(
+                contexto=context,
+                pergunta=question
+            )
+
+
+def _build_no_results_response(
+    question: str,
+    question_type: str,
+    search_metrics: dict
+) -> dict:
+    """
+    Constrói resposta inteligente quando não há documentos relevantes.
+    
+    Args:
+        question: Pergunta original do usuário
+        question_type: Tipo da pergunta classificada
+        search_metrics: Métricas da busca realizada
+        
+    Returns:
+        Dict com resposta de fallback e metadata
+    """
+    # Mensagem base
+    base_message = "Não encontrei documentos suficientemente relevantes para responder sua pergunta."
+    
+    # Sugestões baseadas no tipo de pergunta
+    suggestions = []
+    
+    if question_type == "definition":
+        suggestions.append("Tente usar termos mais específicos ou o nome completo do conceito.")
+    elif question_type == "comparison":
+        suggestions.append("Verifique se ambos os itens comparados estão nos documentos indexados.")
+    elif question_type == "listing":
+        suggestions.append("Tente perguntar sobre categorias ou tópicos específicos.")
+    elif question_type == "procedure":
+        suggestions.append("Verifique se há documentação de processos ou tutoriais indexados.")
+    
+    # Sugestões gerais
+    suggestions.append("Reformule a pergunta usando palavras-chave diferentes.")
+    suggestions.append("Verifique se o tema está coberto nos documentos indexados.")
+    
+    # Montar mensagem final
+    suggestion_text = "\n".join(f"• {s}" for s in suggestions)
+    full_message = f"{base_message}\n\n**Sugestões:**\n{suggestion_text}"
+    
+    return {
+        "answer": full_message,
+        "sources": [],
+        "context_used": "",
+        "chunks_retrieved": 0,
+        "question_type": question_type,
+        "search": search_metrics,
+        "fallback": True
+    }
 
 
 def query_rag(
@@ -203,27 +449,56 @@ def query_rag(
     rag_logger.debug("Generating question embedding...")
     question_embedding = get_embedding(question)
     
+    # Phase 3: HyDE - usar embedding de documento hipotético
+    hyde_metrics = {"hyde_applied": False}
+    if ENABLE_HYDE:
+        try:
+            hyde_enhanced_query = _get_hyde()
+            question_embedding, hyde_metrics = hyde_enhanced_query(
+                question=question,
+                original_embedding=question_embedding,
+                hyde_weight=HYDE_WEIGHT
+            )
+            rag_logger.info("HyDE embedding applied")
+        except Exception as e:
+            rag_logger.warning(f"HyDE failed, using original embedding: {e}")
+    
     # 2. Buscar chunks similares (vetorial ou híbrida)
-    rag_logger.debug("Searching similar documents...")
+    # Phase 2: Buscar mais chunks inicialmente se re-ranking estiver habilitado
+    initial_top_k = RERANKING_TOP_K_INITIAL if ENABLE_RERANKING else top_k
+    
+    rag_logger.debug(f"Searching similar documents (initial top_k={initial_top_k})...")
     similar_docs, search_metrics = _search_documents(
         question=question,
         question_embedding=question_embedding,
-        top_k=top_k,
+        top_k=initial_top_k,
         min_similarity=min_similarity,
         use_hybrid=use_hybrid_search,
         hybrid_alpha=hybrid_alpha
     )
     
+    # Adicionar métricas HyDE
+    search_metrics["hyde"] = hyde_metrics
+    
+    # Phase 2: Aplicar Query Expansion, MMR e Re-ranking
+    if similar_docs and (ENABLE_QUERY_EXPANSION or ENABLE_MMR or ENABLE_RERANKING):
+        similar_docs, search_metrics = _apply_phase2_pipeline(
+            question=question,
+            question_embedding=question_embedding,
+            initial_results=similar_docs,
+            final_top_k=top_k,
+            search_metrics=search_metrics
+        )
+    
+    # Classificar tipo de pergunta (Phase 1)
+    question_type = None
+    if USE_QUESTION_CLASSIFIER:
+        question_type = classify_question(question)
+        rag_logger.debug(f"Question classified as: {question_type}")
+    
     if not similar_docs:
         rag_logger.warning("No similar documents found (all filtered by similarity threshold)")
-        return {
-            "answer": "Não encontrei documentos suficientemente relevantes para responder sua pergunta. "
-                      "Tente reformular a pergunta ou verifique se o tema está nos documentos indexados.",
-            "sources": [],
-            "context_used": "",
-            "chunks_retrieved": 0,
-            "search": search_metrics
-        }
+        return _build_no_results_response(question, question_type, search_metrics)
     
     # 3. Montar contexto
     context_parts = []
@@ -262,10 +537,12 @@ def query_rag(
             f"({compression_result['compression_ratio']:.1f}% reduction)"
         )
     
-    # 5. Montar prompt final
-    prompt = RAG_PROMPT_TEMPLATE.format(
-        contexto=context,
-        pergunta=question
+    # 5. Montar prompt final (com suporte a prompts melhorados Phase 1)
+    prompt = _build_prompt(
+        context=context,
+        question=question,
+        question_type=question_type,
+        history=None
     )
     
     # 6. Gerar resposta
@@ -277,6 +554,7 @@ def query_rag(
         "context_used": context,
         "chunks_retrieved": len(similar_docs),
         "search": search_metrics,
+        "question_type": question_type,
         "compression": {
             "was_compressed": compression_result["was_compressed"],
             "original_size": compression_result["original_size"],

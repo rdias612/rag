@@ -15,16 +15,27 @@ from src.core.logger import (
 )
 
 
-def get_embedding(text: str) -> list[float]:
+def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     """
     Gera o embedding de um texto usando o modelo Nomic Embed v1.5.
     
     Args:
         text: Texto para gerar embedding
+        use_cache: Se True, usa cache para evitar recálculo (default: True)
         
     Returns:
         Lista de floats representando o embedding
     """
+    from src.config import EMBEDDING_CACHE_ENABLED
+    from src.core.embedding_cache import embedding_cache
+    
+    # Verificar cache primeiro (se habilitado)
+    if use_cache and EMBEDDING_CACHE_ENABLED:
+        cached = embedding_cache.get(text)
+        if cached is not None:
+            embedding_logger.debug(f"Embedding retrieved from cache")
+            return cached
+    
     start_time = time.time()
     
     # Log do texto enviado para embedding
@@ -47,6 +58,10 @@ def get_embedding(text: str) -> list[float]:
     
     # Log do embedding gerado
     log_embedding_response(embedding, duration)
+    
+    # Armazenar no cache (se habilitado)
+    if use_cache and EMBEDDING_CACHE_ENABLED:
+        embedding_cache.set(text, embedding)
     
     return embedding
 
