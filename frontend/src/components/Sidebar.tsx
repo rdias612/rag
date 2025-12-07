@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, Trash2, Menu } from "lucide-react";
+import { Plus, MessageSquare, Trash2, X, History } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Session } from "../types";
@@ -24,81 +24,112 @@ export function Sidebar({
 }: SidebarProps) {
     return (
         <>
-            <button
-                className="fixed top-4 left-4 z-50 md:hidden p-2 bg-gray-800 rounded-md text-white"
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <Menu size={24} />
-            </button>
-
-            {/* Backdrop for mobile */}
+            {/* Mobile Toggle & Overlay */}
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.5 }}
+                        animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setIsOpen(false)}
-                        className="fixed inset-0 bg-black z-40 md:hidden"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
                     />
                 )}
             </AnimatePresence>
 
-            <motion.div
+            {/* Sidebar Container */}
+            <motion.aside
+                initial={false}
+                animate={{ x: isOpen ? 0 : "-100%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-gray-900/90 to-gray-800/90 backdrop-blur-xl border-r border-white/10 flex flex-col transition-transform duration-300 md:relative md:translate-x-0",
-                    isOpen ? "translate-x-0" : "-translate-x-full"
+                    "fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-white/5 flex flex-col md:translate-x-0 transition-transform duration-300 ease-in-out",
+                    // On desktop, we always want it visible if the layout allows, but for now we follow the isOpen prop for mobile
+                    // Actually, let's force it visible on desktop via CSS override if needed, or better, trust the parent layout.
+                    "md:relative md:translate-x-0"
                 )}
+                style={{ position: 'fixed', transform: undefined }} // Let CSS classes handle desktop reset
             >
-                <div className="p-4 border-b border-white/10">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-6">
-                        RAG Assistant
-                    </h1>
+                {/* Mobile Close Button */}
+                <div className="md:hidden absolute -right-10 top-4">
+                    {isOpen && (
+                        <button
+                            onClick={() => setIsOpen(false)}
+                            className="p-2 text-white/70 hover:text-white"
+                        >
+                            <X size={24} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-8">
+                        <div className="h-8 w-8 rounded-lg bg-accent-primary flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25">
+                            R
+                        </div>
+                        <span className="font-semibold text-lg tracking-tight">RAG Assistant</span>
+                    </div>
+
                     <button
                         onClick={onNewChat}
-                        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition-all shadow-lg shadow-blue-900/20 font-medium"
+                        className="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 text-zinc-100 px-4 py-3 rounded-xl transition-all border border-white/5 hover:border-white/10 group"
                     >
-                        <Plus size={20} />
-                        New Chat
+                        <div className="p-1 rounded-md bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white transition-colors">
+                            <Plus size={18} />
+                        </div>
+                        <span className="font-medium text-sm">New Chat</span>
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700">
-                    <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-2">
-                        History
-                    </h2>
+                <div className="flex-1 overflow-y-auto px-4 pb-4">
+                    <div className="text-xs font-medium text-zinc-500 mb-3 px-2 flex items-center gap-2">
+                        <History size={12} />
+                        RECENT ACTIVITY
+                    </div>
+
                     <div className="space-y-1">
                         {sessions.map((session) => (
                             <div
                                 key={session.session_id}
                                 onClick={() => onSelectSession(session.session_id)}
                                 className={cn(
-                                    "group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:bg-white/5",
-                                    currentSessionId === session.session_id ? "bg-white/10 text-white" : "text-gray-400"
+                                    "group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all",
+                                    currentSessionId === session.session_id
+                                        ? "bg-accent-primary/10 text-accent-primary border border-accent-primary/10"
+                                        : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200 border border-transparent"
                                 )}
                             >
-                                <MessageSquare size={18} />
-                                <div className="flex-1 truncate text-sm">
-                                    {session.last_activity ? new Date(session.last_activity).toLocaleString() : `Session ${session.session_id.slice(0, 8)}`}
+                                <MessageSquare size={16} className={cn(
+                                    "shrink-0",
+                                    currentSessionId === session.session_id ? "text-accent-primary" : "text-zinc-600 group-hover:text-zinc-500"
+                                )} />
+                                <div className="flex-1 truncate text-xs font-medium">
+                                    {session.last_activity
+                                        ? new Date(session.last_activity).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                        : `Session ${session.session_id.slice(0, 8)}`}
                                 </div>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onDeleteSession(e, session.session_id);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"
+                                    className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-md transition-all"
                                 >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={13} />
                                 </button>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-white/10 text-xs text-gray-500 text-center">
-                    Powered by Deepmind RAG
+                <div className="p-4 border-t border-white/5">
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-white/5">
+                        <p className="text-xs text-zinc-400 font-medium text-center">
+                            Powered by <span className="text-indigo-400">Deepmind RAG</span>
+                        </p>
+                    </div>
                 </div>
-            </motion.div>
+            </motion.aside>
         </>
     );
 }

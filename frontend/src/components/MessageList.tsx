@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown';
-import { Bot, User, ArrowDown } from "lucide-react";
-import { motion } from "framer-motion";
+import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Message } from "../types";
 import { useEffect, useRef, useState } from 'react';
@@ -16,14 +16,14 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [userScrolled, setUserScrolled] = useState(false);
 
-    // Auto-scroll quando novas mensagens chegam (apenas se usuário não scrollou manualmente)
+    // Auto-scroll when new messages arrive (only if user hasn't scrolled manually)
     useEffect(() => {
         if (!userScrolled && bottomRef.current) {
             bottomRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [messages.length, userScrolled]);
 
-    // Reset scroll state quando loading termina
+    // Reset scroll state when loading ends
     useEffect(() => {
         if (!isLoading && !userScrolled && bottomRef.current) {
             bottomRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -31,14 +31,12 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
         }
     }, [isLoading, userScrolled]);
 
-    // Detectar se usuário scrollou para cima
     const handleScroll = () => {
         if (containerRef.current) {
             const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
             setShowScrollButton(!isNearBottom);
 
-            // Marcar que usuário scrollou se não estiver no fim
             if (!isNearBottom) {
                 setUserScrolled(true);
             } else {
@@ -56,87 +54,121 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
         <div
             ref={containerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 relative"
+            className="flex-1 overflow-y-auto w-full pt-8 pb-32 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent"
         >
-            {messages.length === 0 && !isLoading && (
-                <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50">
-                    <Bot size={64} className="mb-4" />
-                    <p className="text-lg">How can I help you today?</p>
-                </div>
-            )}
-
-            {messages.map((msg, idx) => (
-                <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                        "flex gap-4 max-w-4xl mx-auto",
-                        msg.role === 'user' ? "flex-row-reverse" : "flex-row"
-                    )}
-                >
-                    <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-lg",
-                        msg.role === 'user' ? "bg-blue-600" : "bg-emerald-600"
-                    )}>
-                        {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
-                    </div>
-
-                    <div className={cn(
-                        "rounded-2xl p-4 shadow-md max-w-[80%]",
-                        msg.role === 'user'
-                            ? "bg-blue-600/20 border border-blue-500/30 text-blue-50 rounded-tr-sm"
-                            : "bg-gray-800/80 border border-white/5 text-gray-100 rounded-tl-sm backdrop-blur-md"
-                    )}>
-                        <div className="prose prose-invert prose-sm max-w-none leading-relaxed">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+            <div className="max-w-3xl mx-auto px-4 space-y-8">
+                {messages.length === 0 && (
+                    <div className="h-[70vh] flex flex-col items-center justify-center text-center px-4 animate-fade-in">
+                        <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-500 p-[1px] mb-8 shadow-2xl shadow-indigo-500/20">
+                            <div className="w-full h-full rounded-[23px] bg-zinc-900 flex items-center justify-center">
+                                <Sparkles className="w-8 h-8 text-indigo-400" />
+                            </div>
                         </div>
 
-                        {msg.sources && msg.sources.length > 0 && (
-                            <div className="mt-4 pt-3 border-t border-white/10">
-                                <p className="text-xs font-semibold text-gray-400 mb-2">Sources:</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {msg.sources.map((source, i) => (
-                                        <span key={i} className="text-xs bg-black/30 px-2 py-1 rounded border border-white/5 text-gray-300">
-                                            {source.filename}
-                                        </span>
-                                    ))}
-                                </div>
+                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-3">
+                            Hello, Rian.
+                        </h1>
+                        <p className="text-zinc-500 text-lg max-w-md mb-12">
+                            I'm your intelligent RAG assistant. How can I help you explore your documents today?
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
+                            {[
+                                { icon: Zap, label: "Deep Dive", text: "Analyze complex documents" },
+                                { icon: BookOpen, label: "Summarize", text: "Get quick overviews" },
+                            ].map((item, i) => (
+                                <button key={i} className="flex flex-col items-start p-4 rounded-xl bg-[#18181b] border border-white/5 hover:border-indigo-500/30 hover:bg-white/5 transition-all text-left group">
+                                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
+                                        <item.icon size={20} />
+                                    </div>
+                                    <span className="text-sm font-semibold text-zinc-200 mb-1">{item.label}</span>
+                                    <span className="text-xs text-zinc-500">{item.text}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {messages.map((msg, idx) => (
+                    <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={cn(
+                            "flex gap-4 w-full",
+                            msg.role === 'user' ? "justify-end" : "justify-start"
+                        )}
+                    >
+                        {msg.role === 'assistant' && (
+                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 mt-1">
+                                <Bot size={18} />
                             </div>
                         )}
-                    </div>
-                </motion.div>
-            ))}
 
-            {isLoading && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex gap-4 max-w-4xl mx-auto"
-                >
-                    <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 animate-pulse">
-                        <Bot size={18} />
-                    </div>
-                    <div className="bg-gray-800/50 p-4 rounded-2xl rounded-tl-sm flex gap-1 items-center h-12">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    </div>
-                </motion.div>
-            )}
+                        <div className={cn("flex flex-col gap-2 max-w-[85%]", msg.role === 'user' && "items-end")}>
+                            {msg.role === 'user' ? (
+                                <div className="bg-accent-primary text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-lg shadow-indigo-500/10">
+                                    <p className="leading-relaxed text-[15px]">{msg.content}</p>
+                                </div>
+                            ) : (
+                                <div className="prose prose-invert prose-zinc max-w-none prose-p:leading-relaxed prose-pre:bg-[#18181b] prose-pre:border prose-pre:border-white/5 prose-pre:rounded-xl">
+                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
+                            )}
 
-            {/* Elemento invisível para scroll */}
-            <div ref={bottomRef} />
+                            {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                                <div className="flex gap-2 flex-wrap mt-2">
+                                    {msg.sources.map((source, i) => (
+                                        <div
+                                            key={i}
+                                            className="bg-[#18181b] border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-lg p-2.5 text-xs flex items-center gap-2 cursor-help"
+                                            title={source.filename}
+                                        >
+                                            <FileText size={14} className="text-indigo-400" />
+                                            <span className="text-zinc-300 max-w-[150px] truncate">
+                                                {source.filename}
+                                                {source.page ? <span className="opacity-50 ml-1">· P{source.page}</span> : null}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                ))}
 
-            {/* Botão para voltar ao fim */}
+                <AnimatePresence>
+                    {isLoading && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="flex gap-4 items-start"
+                        >
+                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 mt-1">
+                                <Bot size={18} />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex gap-1 h-6 items-center px-2">
+                                    <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                    <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                    <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce"></span>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <div ref={bottomRef} />
+            </div>
+
             {showScrollButton && (
                 <motion.button
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     onClick={scrollToBottom}
-                    className="fixed bottom-24 right-8 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10"
-                    title="Ir para o fim"
+                    className="fixed bottom-32 right-8 bg-zinc-800 text-zinc-200 p-2.5 rounded-full shadow-xl border border-white/10 hover:bg-white/10 transition-colors z-30"
                 >
                     <ArrowDown size={20} />
                 </motion.button>

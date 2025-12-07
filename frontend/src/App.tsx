@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Settings, Menu } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { UploadModal } from "./components/UploadModal";
@@ -87,17 +88,15 @@ function App() {
       let currentText = "";
 
       const res = await streamChat(content, currentSessionId, selectedCollection, (token) => {
-        currentText = token; // Token contains full text from typewriter effect
+        currentText = token;
         setMessages(prev => {
           const newMessages = [...prev];
-          // Check if the assistant message at the expected index already exists and is an assistant message
           if (newMessages[assistantMsgIndex] && newMessages[assistantMsgIndex].role === 'assistant') {
             newMessages[assistantMsgIndex] = {
               ...newMessages[assistantMsgIndex],
               content: currentText
             };
           } else {
-            // If not, add a new assistant message at the end
             newMessages.push({
               role: 'assistant',
               content: currentText,
@@ -111,7 +110,6 @@ function App() {
       // Update with final message including sources
       setMessages(prev => {
         const newMessages = [...prev];
-        // Ensure the message at assistantMsgIndex is the one we're updating
         if (newMessages[assistantMsgIndex] && newMessages[assistantMsgIndex].role === 'assistant') {
           newMessages[assistantMsgIndex] = {
             role: 'assistant',
@@ -120,7 +118,6 @@ function App() {
             sources: res.sources
           };
         } else {
-          // Fallback in case the index was off or message wasn't found (e.g., if streaming was very fast)
           newMessages.push({
             role: 'assistant',
             content: res.answer,
@@ -131,24 +128,18 @@ function App() {
         return newMessages;
       });
 
-      // Update session ID if it was new
       if (!currentSessionId && res.session_id) {
         setCurrentSessionId(res.session_id);
-        loadSessions(); // Refresh list to show new session
+        loadSessions();
       }
 
     } catch (error) {
       console.error("Chat error", error);
-
       let errorMessage = "Desculpe, encontrei um erro. Tente novamente.";
-
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         errorMessage = "Não foi possível conectar ao servidor. Verifique sua conexão.";
-      } else if (error instanceof Error && error.message.includes('timeout')) {
-        errorMessage = "A requisição demorou muito. Tente novamente.";
-      } else if (error instanceof Error && error.message.includes('401')) {
-        errorMessage = "Sessão expirada. Por favor, recarregue a página.";
       }
+      // ... more error handling if needed ...
 
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -178,7 +169,9 @@ function App() {
   }
 
   return (
-    <div className="flex w-full h-full bg-transparent">
+    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans overflow-hidden selection:bg-indigo-500/20">
+
+      {/* Sidebar - Fixed on desktop, Drawer on mobile */}
       <Sidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
@@ -188,15 +181,55 @@ function App() {
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
       />
-      <ChatArea
-        messages={messages}
-        isLoading={isLoading}
-        onSend={handleSendMessage}
-        onOpenUpload={() => setIsUploadOpen(true)}
-        collections={collections}
-        selectedCollection={selectedCollection}
-        onSelectCollection={setSelectedCollection}
-      />
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col h-full relative w-full md:pl-0 transition-all duration-300">
+
+        {/* Header */}
+        <header className="h-16 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden p-2 text-zinc-400 hover:text-white"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="md:hidden flex items-center gap-2">
+              <span className="font-semibold text-sm">RAG Assistant</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <select
+              className="bg-zinc-900 text-xs font-medium text-zinc-300 px-3 py-1.5 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none hover:bg-zinc-800 transition-colors cursor-pointer"
+              value={selectedCollection || ""}
+              onChange={(e) => setSelectedCollection(e.target.value || null)}
+            >
+              <option value="">Todas as coleções</option>
+              {collections.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <button
+              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+            >
+              <Settings size={18} />
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Chat Area */}
+        <div className="flex-1 overflow-hidden relative">
+          <ChatArea
+            messages={messages}
+            isLoading={isLoading}
+            onSend={handleSendMessage}
+            onOpenUpload={() => setIsUploadOpen(true)}
+          />
+        </div>
+
+      </main>
+
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}

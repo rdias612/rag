@@ -1,53 +1,70 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@theme {
+  --color-sidebar: #09090b;
+  --color-chat: #09090b;
+  --color-card: #18181b;
+  --color-accent-primary: #6366f1;
+  --color-accent-hover: #4f46e5;
+  --color-surface: #27272a;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  --animate-fade-in: fadeIn 0.3s ease-out;
+  --animate-slide-up: slideUp 0.4s ease-out;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
 
-body {
-  margin: 0;
-  display: flex;
-  min-width: 320px;
-  min-height: 100vh;
-  background: radial-gradient(circle at top left, #1a1a2e, #16213e, #0f3460);
-  background-size: 400% 400%;
-  animation: gradientBG 15s ease infinite;
-  color: #e0e0e0;
-  overflow: hidden;
-  /* Prevent body scroll, handle inside components */
-}
-
-@keyframes gradientBG {
-  0% {
-    background-position: 0% 50%;
+    100% {
+      opacity: 1;
+    }
   }
 
-  50% {
-    background-position: 100% 50%;
-  }
+  @keyframes slideUp {
+    0% {
+      transform: translateY(20px);
+      opacity: 0;
+    }
 
-  100% {
-    background-position: 0% 50%;
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 }
 
-#root {
-  width: 100%;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  display: flex;
+/* Base styles & Scrollbar */
+@layer base {
+  :root {
+    --sidebar-width: 18rem;
+  }
+
+  body {
+    @apply bg-sidebar text-zinc-100 antialiased selection:bg-indigo-500/30 selection:text-indigo-200;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800/50 rounded-full hover:bg-zinc-700/80 transition-colors;
+}
+
+/* Utils */
+.glass {
+  @apply bg-zinc-900/60 backdrop-blur-xl border border-white/5;
+}
+
+.glass-hover {
+  @apply hover:bg-white/5 hover:border-white/10 transition-all duration-200;
 }
