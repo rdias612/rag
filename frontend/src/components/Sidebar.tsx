@@ -43,7 +43,7 @@ export function Sidebar({
                 animate={{ x: isOpen ? 0 : "-100%" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-white/5 flex flex-col md:translate-x-0 transition-transform duration-300 ease-in-out",
+                    "fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-border flex flex-col md:translate-x-0 transition-transform duration-300 ease-in-out",
                     // On desktop, we always want it visible if the layout allows, but for now we follow the isOpen prop for mobile
                     // Actually, let's force it visible on desktop via CSS override if needed, or better, trust the parent layout.
                     "md:relative md:translate-x-0"
@@ -72,7 +72,7 @@ export function Sidebar({
 
                     <button
                         onClick={onNewChat}
-                        className="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 text-zinc-100 px-4 py-3 rounded-xl transition-all border border-white/5 hover:border-white/10 group"
+                        className="w-full flex items-center gap-3 bg-surface hover:bg-surface/80 text-text-primary px-4 py-3 rounded-xl transition-all border border-border group"
                     >
                         <div className="p-1 rounded-md bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white transition-colors">
                             <Plus size={18} />
@@ -82,7 +82,7 @@ export function Sidebar({
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-4 pb-4">
-                    <div className="text-xs font-medium text-zinc-500 mb-3 px-2 flex items-center gap-2">
+                    <div className="text-xs font-medium text-text-secondary mb-3 px-2 flex items-center gap-2">
                         <History size={12} />
                         RECENT ACTIVITY
                     </div>
@@ -96,12 +96,12 @@ export function Sidebar({
                                     "group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all",
                                     currentSessionId === session.session_id
                                         ? "bg-accent-primary/10 text-accent-primary border border-accent-primary/10"
-                                        : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200 border border-transparent"
+                                        : "text-text-secondary hover:bg-surface hover:text-text-primary border border-transparent"
                                 )}
                             >
                                 <MessageSquare size={16} className={cn(
                                     "shrink-0",
-                                    currentSessionId === session.session_id ? "text-accent-primary" : "text-zinc-600 group-hover:text-zinc-500"
+                                    currentSessionId === session.session_id ? "text-accent-primary" : "text-text-secondary"
                                 )} />
                                 <div className="flex-1 truncate text-xs font-medium">
                                     {session.last_activity
@@ -122,10 +122,10 @@ export function Sidebar({
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-white/5">
-                    <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-white/5">
-                        <p className="text-xs text-zinc-400 font-medium text-center">
-                            Powered by <span className="text-indigo-400">Deepmind RAG</span>
+                <div className="p-4 border-t border-border">
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-border">
+                        <p className="text-xs text-text-secondary font-medium text-center">
+                            Powered by <span className="text-accent-primary">Deepmind RAG</span>
                         </p>
                     </div>
                 </div>
