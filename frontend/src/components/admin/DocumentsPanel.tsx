@@ -80,37 +80,26 @@ export function DocumentsPanel() {
     };
 
     const fetchData = async () => {
-        console.log('[DocumentsPanel] fetchData started');
-        console.log('[DocumentsPanel] API_URL:', API_URL);
         setLoading(true);
-        console.log('[DocumentsPanel] About to call Promise.allSettled');
         try {
-            // Use Promise.allSettled so individual failures don't break everything
-            console.log('[DocumentsPanel] Inside try block');
             const results = await Promise.allSettled([
                 fetchWithTimeout(`${API_URL}/documents/stats`).then(r => {
-                    console.log('[DocumentsPanel] documents/stats status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
                 fetchWithTimeout(`${API_URL}/collections`).then(r => {
-                    console.log('[DocumentsPanel] collections status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
                 fetchWithTimeout(`${API_URL}/documents/ingested`).then(r => {
-                    console.log('[DocumentsPanel] documents/ingested status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
                 fetchWithTimeout(`${API_URL}/documents/ingest-status`).then(r => {
-                    console.log('[DocumentsPanel] documents/ingest-status status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 })
             ]);
-
-            console.log('[DocumentsPanel] All fetches completed:', results.map(r => r.status));
 
             // Extract data from settled promises
             const [docsResult, collectionsResult, ingestedResult, statusResult] = results;
