@@ -16,11 +16,8 @@ def create_app() -> Flask:
     app.json.ensure_ascii = False
     
     # Habilitar CORS para frontend (aceita preflight OPTIONS para todos endpoints)
-    CORS(app, 
-         resources={r"/api/*": {"origins": ["http://localhost:5173", "http://localhost:3000"]}},
-         supports_credentials=True,
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-         allow_headers=["Content-Type", "Authorization", "X-Requested-With"])
+    # Habilitar CORS totalmente permissivo para debug
+    CORS(app, resources={r"/*": {"origins": "*"}})
     
     # Registrar blueprint da API
     app.register_blueprint(api, url_prefix="/api")

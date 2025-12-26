@@ -64,22 +64,43 @@ export function DocumentsPanel() {
     const [showReprocessModal, setShowReprocessModal] = useState(false);
 
     const fetchData = async () => {
+        console.log('[DocumentsPanel] fetchData started');
         setLoading(true);
         try {
-            const [docsRes, collectionsRes, ingestedRes, statusRes] = await Promise.all([
-                fetch(`${API_URL}/documents/stats`).then(r => r.json()),
-                fetch(`${API_URL}/collections`).then(r => r.json()),
-                fetch(`${API_URL}/documents/ingested`).then(r => r.json()),
-                fetch(`${API_URL}/documents/ingest-status`).then(r => r.json())
-            ]);
+            // Fetch each endpoint separately for better error handling
+            console.log('[DocumentsPanel] Fetching documents/stats...');
+            const docsRes = await fetch(`${API_URL}/documents/stats`);
+            console.log('[DocumentsPanel] documents/stats response:', docsRes.status);
+            const docsData = await docsRes.json();
+            console.log('[DocumentsPanel] documents/stats data:', docsData);
 
-            setDocStats(docsRes);
-            setCollections(collectionsRes.collections || []);
-            setIngestedDocs(ingestedRes.documents || []);
-            setIngestionStatus(statusRes);
+            console.log('[DocumentsPanel] Fetching collections...');
+            const collectionsRes = await fetch(`${API_URL}/collections`);
+            console.log('[DocumentsPanel] collections response:', collectionsRes.status);
+            const collectionsData = await collectionsRes.json();
+            console.log('[DocumentsPanel] collections data:', collectionsData);
+
+            console.log('[DocumentsPanel] Fetching documents/ingested...');
+            const ingestedRes = await fetch(`${API_URL}/documents/ingested`);
+            console.log('[DocumentsPanel] documents/ingested response:', ingestedRes.status);
+            const ingestedData = await ingestedRes.json();
+            console.log('[DocumentsPanel] documents/ingested data:', ingestedData);
+
+            console.log('[DocumentsPanel] Fetching documents/ingest-status...');
+            const statusRes = await fetch(`${API_URL}/documents/ingest-status`);
+            console.log('[DocumentsPanel] documents/ingest-status response:', statusRes.status);
+            const statusData = await statusRes.json();
+            console.log('[DocumentsPanel] documents/ingest-status data:', statusData);
+
+            setDocStats(docsData);
+            setCollections(collectionsData.collections || []);
+            setIngestedDocs(ingestedData.documents || []);
+            setIngestionStatus(statusData);
+            console.log('[DocumentsPanel] All data set successfully');
         } catch (error) {
-            console.error('Failed to fetch documents data:', error);
+            console.error('[DocumentsPanel] Failed to fetch documents data:', error);
         } finally {
+            console.log('[DocumentsPanel] Setting loading to false');
             setLoading(false);
         }
     };

@@ -22,7 +22,15 @@ from src.core.logger import (
 @contextmanager
 def get_connection():
     """Context manager para conexão com o banco de dados."""
-    conn = psycopg2.connect(**DATABASE_CONFIG)
+    # Adiciona timeout de conexão e statement para evitar travamentos
+    config_with_timeout = {
+        **DATABASE_CONFIG,
+        'connect_timeout': 10,  # 10 segundos para conectar
+        'options': '-c statement_timeout=30000'  # 30 segundos max por query
+    }
+    db_logger.debug("Opening database connection...")
+    conn = psycopg2.connect(**config_with_timeout)
+    db_logger.debug("Database connection opened successfully")
     try:
         yield conn
         conn.commit()
@@ -32,6 +40,7 @@ def get_connection():
         raise e
     finally:
         conn.close()
+        db_logger.debug("Database connection closed")
 
 
 def init_database():
@@ -235,18 +244,28 @@ def get_document_count() -> int:
 
 def list_collections() -> list[str]:
     """Retorna a lista de collection_id distintos existentes."""
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT DISTINCT collection_id
-                FROM documentos
-                WHERE collection_id IS NOT NULL
-                ORDER BY collection_id;
-                """
-            )
-            rows = cur.fetchall()
-            return [row[0] for row in rows]
+    db_logger.debug("list_collections: Starting...")
+    try:
+        with get_connection() as conn:
+            db_logger.debug("list_collections: Got connection, creating cursor...")
+            with conn.cursor() as cur:
+                db_logger.debug("list_collections: Executing query...")
+                cur.execute(
+                    """
+                    SELECT DISTINCT collection_id
+                    FROM documentos
+                    WHERE collection_id IS NOT NULL
+                    ORDER BY collection_id;
+                    """
+                )
+                db_logger.debug("list_collections: Query executed, fetching results...")
+                rows = cur.fetchall()
+                result = [row[0] for row in rows]
+                db_logger.debug(f"list_collections: Returning {len(result)} collections")
+                return result
+    except Exception as e:
+        db_logger.error(f"list_collections: Error - {e}")
+        raise
 
 
 def clear_documents():
