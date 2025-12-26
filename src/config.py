@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -45,11 +46,11 @@ class Settings(BaseSettings):
     LM_STUDIO_BASE_URL: str = "http://127.0.0.1:1234/v1"
     
     # Modelo de embeddings (Nomic Embed v1.5)
-    EMBEDDING_MODEL: str = "text-embedding-nomic-embed-text-v1.5"
-    EMBEDDING_DIMENSION: int = 768
+    EMBEDDING_MODEL: str = Field(default="text-embedding-nomic-embed-text-v1.5", validation_alias="EMBEDDING_MODEL")
+    EMBEDDING_DIMENSION: int = Field(default=768, validation_alias="EMBEDDING_DIMENSION")
     
     # Modelo LLM (Phi-3.5 Mini)
-    LLM_MODEL: str = "phi-3.5-mini-instruct"
+    LLM_MODEL: str = Field(default="phi-3.5-mini-instruct", validation_alias="LLM_MODEL")
 
     # =========================================================================
     # Chunking
