@@ -6,9 +6,12 @@ Uso:
     python -m scripts.ingest --stats            # Mostra estatísticas
     python -m scripts.ingest --clear            # Limpa o banco
     python -m scripts.ingest --check            # Verifica serviços
+    python -m scripts.ingest --force            # Força re-ingestão de todos
+    python -m scripts.ingest --list-ingested    # Lista documentos já ingeridos
 """
 import sys
 import argparse
+import hashlib
 from pathlib import Path
 
 # Adicionar diretório raiz ao path
@@ -20,10 +23,23 @@ from src.data.database import (
     insert_documents_batch,
     get_document_count,
     clear_documents,
-    check_connection
+    check_connection,
+    get_ingested_document,
+    register_ingested_document,
+    remove_document_chunks_by_source,
+    list_ingested_documents
 )
-from src.data.ingestion import process_all_documents, get_document_stats
+from src.data.ingestion import process_document, get_document_stats, get_all_documents, SUPPORTED_EXTENSIONS
 from src.core.embeddings import get_embeddings_batch, check_embedding_service
+
+
+def calculate_file_hash(file_path: Path) -> str:
+    """Calcula o hash SHA-256 de um arquivo."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
 
 
 def check_services():
@@ -92,9 +108,40 @@ def show_stats():
         print(f"   ❌ Erro ao consultar banco: {e}")
 
 
-def run_ingestion():
+def show_ingested_documents():
+    """Mostra lista de documentos já ingeridos."""
+    print("📋 Documentos Ingeridos\n")
+    
+    try:
+        documents = list_ingested_documents()
+        
+        if not documents:
+            print("   Nenhum documento registrado ainda.")
+            return
+        
+        print(f"   Total: {len(documents)} documento(s)\n")
+        
+        for doc in documents:
+            file_name = Path(doc['file_path']).name
+            size_mb = doc['file_size'] / (1024 * 1024)
+            ingested_at = doc['ingested_at'].strftime("%Y-%m-%d %H:%M")
+            status_icon = "✅" if doc['status'] == 'success' else "⚠️"
+            
+            print(f"   {status_icon} {file_name}")
+            print(f"      Coleção: {doc['collection_id']} | Chunks: {doc['chunks_count']} | {size_mb:.2f} MB")
+            print(f"      Ingerido em: {ingested_at}")
+            print()
+            
+    except Exception as e:
+        print(f"   ❌ Erro ao listar documentos: {e}")
+
+
+def run_ingestion(force: bool = False):
     """Executa o processo de ingestão completo."""
     print("🚀 Iniciando ingestão de documentos\n")
+    
+    if force:
+        print("⚠️  Modo FORCE ativado - todos os documentos serão re-processados\n")
     
     # Verificar serviços
     if not check_services():
@@ -110,14 +157,111 @@ def run_ingestion():
         print(f"\n❌ Diretório não encontrado: {DOCUMENTS_DIR}")
         return
     
-    # Processar documentos
-    print(f"\n📂 Processando documentos de: {DOCUMENTS_DIR}\n")
+    # Listar todos os documentos
+    document_files = get_all_documents(DOCUMENTS_DIR)
     
-    # Coletar todos os chunks primeiro
-    all_chunks = list(process_all_documents())
+    if not document_files:
+        print(f"\n⚠️ Nenhum documento encontrado em: {DOCUMENTS_DIR}")
+        return
+    
+    print(f"\n📂 Encontrados {len(document_files)} documento(s) no diretório\n")
+    
+    # Separar documentos: novos, modificados, já ingeridos
+    docs_to_process = []
+    docs_skipped = []
+    docs_modified = []
+    
+    for doc_path in document_files:
+        file_path_str = str(doc_path)
+        file_hash = calculate_file_hash(doc_path)
+        file_size = doc_path.stat().st_size
+        
+        existing = get_ingested_document(file_path_str)
+        
+        if existing:
+            if force:
+                # Forçar re-ingestão
+                docs_modified.append((doc_path, file_hash, file_size, existing))
+            elif existing['file_hash'] != file_hash:
+                # Arquivo foi modificado
+                docs_modified.append((doc_path, file_hash, file_size, existing))
+            else:
+                # Já ingerido e não modificado
+                docs_skipped.append(doc_path)
+        else:
+            # Novo documento
+            docs_to_process.append((doc_path, file_hash, file_size))
+    
+    # Resumo
+    if docs_skipped:
+        print(f"⏭️  Pulando {len(docs_skipped)} documento(s) já ingerido(s)")
+    if docs_modified:
+        print(f"🔄 Re-ingerindo {len(docs_modified)} documento(s) modificado(s)")
+    if docs_to_process:
+        print(f"📥 Processando {len(docs_to_process)} novo(s) documento(s)")
+    
+    if not docs_to_process and not docs_modified:
+        print("\n✅ Nenhum documento novo ou modificado para processar.")
+        return
+    
+    # Processar documentos modificados (remover chunks antigos primeiro)
+    for doc_path, file_hash, file_size, existing in docs_modified:
+        print(f"\n🔄 Removendo chunks antigos de: {doc_path.name}")
+        removed = remove_document_chunks_by_source(str(doc_path))
+        print(f"   Removidos {removed} chunk(s)")
+        docs_to_process.append((doc_path, file_hash, file_size))
+    
+    print(f"\n� Total a processar: {len(docs_to_process)} documento(s)\n")
+    
+    # Processar documentos
+    all_chunks = []
+    doc_chunk_counts = {}  # Para registrar quantos chunks cada documento gerou
+    
+    for i, (doc_path, file_hash, file_size) in enumerate(docs_to_process, start=1):
+        # Determinar collection_id
+        try:
+            relative_path = doc_path.relative_to(DOCUMENTS_DIR)
+            if len(relative_path.parts) > 1:
+                collection_id = relative_path.parts[0]
+            else:
+                collection_id = "default"
+        except ValueError:
+            collection_id = "default"
+        
+        print(f"📄 [{i}/{len(docs_to_process)}] Processando: {doc_path.name} (Coleção: {collection_id})")
+        
+        try:
+            chunks = process_document(doc_path)
+            
+            # Adicionar collection_id a cada chunk
+            for chunk in chunks:
+                chunk["collection_id"] = collection_id
+            
+            all_chunks.extend(chunks)
+            doc_chunk_counts[str(doc_path)] = {
+                "chunks": len(chunks),
+                "hash": file_hash,
+                "size": file_size,
+                "collection_id": collection_id
+            }
+            
+            print(f"   ✂️ Gerados {len(chunks)} chunks")
+            
+        except Exception as e:
+            print(f"   ❌ Erro ao processar: {e}")
+            # Registrar como erro
+            register_ingested_document(
+                file_path=str(doc_path),
+                file_hash=file_hash,
+                file_size=file_size,
+                collection_id=collection_id,
+                chunks_count=0,
+                status="error"
+            )
+            continue
     
     if not all_chunks:
-        print("\n⚠️ Nenhum chunk gerado. Verifique os PDFs.")
+        print("\n⚠️ Nenhum chunk gerado. Verifique os documentos.")
         return
     
     print(f"\n📊 Total de chunks: {len(all_chunks)}")
@@ -148,7 +292,21 @@ def run_ingestion():
         total_inserted += inserted
         print(f"   Inseridos: {total_inserted}/{len(documents_to_insert)}")
     
-    print(f"\n✅ Ingestão completa! {total_inserted} chunks indexados.")
+    # Registrar documentos como ingeridos
+    print("\n📝 Registrando documentos processados...")
+    for file_path_str, info in doc_chunk_counts.items():
+        register_ingested_document(
+            file_path=file_path_str,
+            file_hash=info["hash"],
+            file_size=info["size"],
+            collection_id=info["collection_id"],
+            chunks_count=info["chunks"],
+            status="success"
+        )
+    
+    print(f"\n✅ Ingestão completa!")
+    print(f"   📄 Documentos processados: {len(doc_chunk_counts)}")
+    print(f"   📦 Chunks indexados: {total_inserted}")
 
 
 def clear_database():
@@ -168,6 +326,8 @@ def main():
     parser.add_argument("--stats", action="store_true", help="Mostrar estatísticas")
     parser.add_argument("--clear", action="store_true", help="Limpar banco de dados")
     parser.add_argument("--check", action="store_true", help="Verificar serviços")
+    parser.add_argument("--force", action="store_true", help="Forçar re-ingestão de todos os documentos")
+    parser.add_argument("--list-ingested", action="store_true", help="Listar documentos já ingeridos")
     
     args = parser.parse_args()
     
@@ -177,8 +337,10 @@ def main():
         clear_database()
     elif args.check:
         check_services()
+    elif args.list_ingested:
+        show_ingested_documents()
     else:
-        run_ingestion()
+        run_ingestion(force=args.force)
 
 
 if __name__ == "__main__":

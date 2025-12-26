@@ -301,3 +301,170 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
     except Exception as e:
         db_logger.error(f"Error inserting feedback: {e}")
         return False
+
+
+# =============================================================================
+# Controle de Ingestão de Documentos
+# =============================================================================
+
+def get_ingested_document(file_path: str) -> Optional[dict]:
+    """
+    Verifica se um documento já foi ingerido.
+    
+    Args:
+        file_path: Caminho absoluto do arquivo
+        
+    Returns:
+        Dict com informações do documento se existir, None caso contrário
+    """
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, file_path, file_hash, file_size, collection_id, 
+                       chunks_count, status, ingested_at, updated_at
+                FROM documentos_ingeridos
+                WHERE file_path = %s;
+                """,
+                (file_path,)
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def register_ingested_document(
+    file_path: str,
+    file_hash: str,
+    file_size: int,
+    collection_id: str = "default",
+    chunks_count: int = 0,
+    status: str = "success"
+) -> int:
+    """
+    Registra um documento como ingerido (ou atualiza se já existir).
+    
+    Args:
+        file_path: Caminho absoluto do arquivo
+        file_hash: Hash SHA-256 do conteúdo
+        file_size: Tamanho em bytes
+        collection_id: ID da coleção
+        chunks_count: Número de chunks gerados
+        status: Status da ingestão (success, error, partial)
+        
+    Returns:
+        ID do registro
+    """
+    start_time = time.time()
+    
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO documentos_ingeridos 
+                    (file_path, file_hash, file_size, collection_id, chunks_count, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (file_path) DO UPDATE SET
+                    file_hash = EXCLUDED.file_hash,
+                    file_size = EXCLUDED.file_size,
+                    collection_id = EXCLUDED.collection_id,
+                    chunks_count = EXCLUDED.chunks_count,
+                    status = EXCLUDED.status,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING id;
+                """,
+                (file_path, file_hash, file_size, collection_id, chunks_count, status)
+            )
+            doc_id = cur.fetchone()[0]
+    
+    duration = time.time() - start_time
+    db_logger.info(f"Registered ingested document: {file_path} (ID: {doc_id}) in {duration:.2f}s")
+    
+    return doc_id
+
+
+def remove_document_chunks_by_source(source_path: str) -> int:
+    """
+    Remove todos os chunks de um documento específico.
+    Usado antes de re-ingerir um documento modificado.
+    
+    Args:
+        source_path: Caminho do arquivo fonte (metadata->source_path)
+        
+    Returns:
+        Número de chunks removidos
+    """
+    start_time = time.time()
+    
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM documentos
+                WHERE metadata->>'source_path' = %s;
+                """,
+                (source_path,)
+            )
+            deleted = cur.rowcount
+    
+    duration = time.time() - start_time
+    db_logger.info(f"Removed {deleted} chunks from {source_path} in {duration:.2f}s")
+    
+    return deleted
+
+
+def list_ingested_documents(collection_id: Optional[str] = None) -> list[dict]:
+    """
+    Lista todos os documentos ingeridos.
+    
+    Args:
+        collection_id: Filtrar por coleção (opcional)
+        
+    Returns:
+        Lista de documentos ingeridos
+    """
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if collection_id:
+                cur.execute(
+                    """
+                    SELECT id, file_path, file_hash, file_size, collection_id, 
+                           chunks_count, status, ingested_at, updated_at
+                    FROM documentos_ingeridos
+                    WHERE collection_id = %s
+                    ORDER BY ingested_at DESC;
+                    """,
+                    (collection_id,)
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, file_path, file_hash, file_size, collection_id, 
+                           chunks_count, status, ingested_at, updated_at
+                    FROM documentos_ingeridos
+                    ORDER BY ingested_at DESC;
+                    """
+                )
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+
+
+def remove_ingested_document_record(file_path: str) -> bool:
+    """
+    Remove o registro de um documento ingerido.
+    
+    Args:
+        file_path: Caminho absoluto do arquivo
+        
+    Returns:
+        True se removido, False se não encontrado
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM documentos_ingeridos
+                WHERE file_path = %s;
+                """,
+                (file_path,)
+            )
+            return cur.rowcount > 0
