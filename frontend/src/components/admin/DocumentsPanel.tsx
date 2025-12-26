@@ -46,6 +46,7 @@ interface IngestionStatus {
         status: string;
         message?: string;
         chunks?: number;
+        total_chunks?: number;
     }>;
 }
 
@@ -145,12 +146,20 @@ export function DocumentsPanel() {
         fetchData();
     }, []);
 
-    // Polling removido a pedido do usuário para reduzir logs (agora na Visão Geral)
+    // Polling condicional: apenas quando há uma ingestão rodando
     useEffect(() => {
-        // Se houver uma ingestão rodando quando o painel abrir, 
-        // poderíamos fazer um refresh manual ou poll lento, 
-        // mas por enquanto seguiremos a instrução de focar na Visão Geral.
-    }, []);
+        let interval: any;
+
+        if (ingestionStatus?.running) {
+            interval = setInterval(() => {
+                fetchData();
+            }, 3000); // 3 segundos é um bom equilíbrio
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [ingestionStatus?.running]);
 
     const startIngestion = async (force: boolean = false, files_to_ingest: string[] | null = null) => {
         setLoading(true);
@@ -378,8 +387,11 @@ export function DocumentsPanel() {
                             <div key={idx} className="flex items-center gap-2 text-xs">
                                 {getStatusIcon(result.status)}
                                 <span className="text-zinc-300 truncate flex-1">{result.file}</span>
-                                {result.chunks && (
-                                    <span className="text-zinc-500">{result.chunks} chunks</span>
+                                {result.chunks !== undefined && (
+                                    <span className="text-zinc-500">
+                                        {result.chunks}
+                                        {result.total_chunks && result.total_chunks !== result.chunks ? `/${result.total_chunks}` : ''} chunks
+                                    </span>
                                 )}
                                 {result.message && result.status !== 'success' && (
                                     <span className="text-zinc-500">{result.message}</span>

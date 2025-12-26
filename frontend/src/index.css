@@ -1,12 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-sidebar: #09090b;
-  --color-chat: #09090b;
-  --color-card: #18181b;
-  --color-accent-primary: #6366f1;
-  --color-accent-hover: #4f46e5;
-  --color-surface: #27272a;
+  --color-sidebar: var(--sidebar-bg);
+  --color-chat: var(--chat-bg);
+  --color-card: var(--card-bg);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-hover: var(--accent-hover);
+  --color-surface: var(--surface-bg);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border-color);
 
   --animate-fade-in: fadeIn 0.3s ease-out;
   --animate-slide-up: slideUp 0.4s ease-out;
@@ -39,10 +42,33 @@
 @layer base {
   :root {
     --sidebar-width: 18rem;
+    
+    /* Dark Theme (Default) */
+    --sidebar-bg: #09090b;
+    --chat-bg: #09090b;
+    --card-bg: #18181b;
+    --accent-primary: #6366f1;
+    --accent-hover: #4f46e5;
+    --surface-bg: #27272a;
+    --text-primary: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  :root.light {
+    --sidebar-bg: #f8fafc;
+    --chat-bg: #ffffff;
+    --card-bg: #ffffff;
+    --accent-primary: #2563eb;
+    --accent-hover: #1d4ed8;
+    --surface-bg: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --border-color: rgba(0, 0, 0, 0.05);
   }
 
   body {
-    @apply bg-sidebar text-zinc-100 antialiased selection:bg-indigo-500/30 selection:text-indigo-200;
+    @apply bg-chat text-text-primary antialiased selection:bg-indigo-500/30 selection:text-indigo-200;
   }
 }
 

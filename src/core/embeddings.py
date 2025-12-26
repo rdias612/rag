@@ -187,13 +187,12 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
                     embedding_logger.info(f"Sucesso ao recuperar embedding individual para index {orig_idx}")
                     validated_embeddings.append(recovered_emb)
                 except Exception as e:
-                    embedding_logger.error(f"Falha na recuperação individual do embedding (index {orig_idx}): {e}")
                     # Se falhar mesmo individualmente, colocamos None e o banco lidará com isso
                     validated_embeddings.append(None)
                     
-                    # Log detalhado do erro final para esse chunk
+                    # Log mais informativo e menos assustador, pois o sistema irá ignorar este trecho
                     text_sample = problematic_text[:100] + "..." if len(problematic_text) > 100 else problematic_text
-                    embedding_logger.error(f"CHUNK FALHO PERMANENTE (len {len(problematic_text)}): '{text_sample}'")
+                    embedding_logger.warning(f"CHUNK IGNORADO (Falha persistente no modelo) no index {orig_idx}: '{text_sample}'")
 
         all_embeddings.extend(validated_embeddings)
         

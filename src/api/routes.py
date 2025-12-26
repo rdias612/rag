@@ -1009,7 +1009,8 @@ def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
                     _bulk_ingestion_status["results"].append({
                         "file": file_name,
                         "status": "success",
-                        "chunks": inserted
+                        "chunks": inserted,
+                        "total_chunks": len(chunks)
                     })
                     
             except Exception as e:
