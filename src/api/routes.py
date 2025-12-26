@@ -409,7 +409,28 @@ def new_session():
     start_time = time.time()
     log_api_request("/api/chat/new", "POST")
     
+    try:
+        session_id = conversation_manager.create_session()
+        
+        log_api_response("/api/chat/new", 200, time.time() - start_time)
+        return jsonify({"session_id": session_id})
+    except Exception as e:
+        api_logger.error(f"Error creating session: {e}")
+        log_api_response("/api/chat/new", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
 
+
+@api.route("/collections", methods=["GET"])
+def get_collections():
+    """
+    Lista todas as coleções disponíveis.
+    
+    Response:
+        {"collections": ["default", "projeto_A", ...]}
+    """
+    start_time = time.time()
+    log_api_request("/api/collections", "GET")
+    
     try:
         collections = list_collections()
         log_api_response("/api/collections", 200, time.time() - start_time)
