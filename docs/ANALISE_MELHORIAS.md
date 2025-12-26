@@ -336,30 +336,6 @@ def query(body: QueryRequest) -> QueryResponse:
 
 ---
 
-#### #18 🎨 **Melhorias de UX no Frontend**
-**Impacto:** ⭐⭐ | **Complexidade:** Baixa | **Urgência:** Baixa
-
-**Por que Implementar esta Melhoria?**
-
-Pequenos detalhes de UX fazem grande diferença na adoção. Indicadores de loading, feedback visual, e funcionalidades convenientes como copy-to-clipboard transformam uma ferramenta funcional em uma ferramenta agradável de usar.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Interface mais intuitiva e responsiva. Funcionalidades convenientes no dia-a-dia. Menos frustração com esperas. |
-| 💻 **Desenvolvedor** | UX moderna atrai contribuições. Pride no produto. |
-| ⚡ **Performance** | Percepção de velocidade com indicators. Não impacta backend. |
-| 🏗️ **Qualidade do Projeto** | Produto polido e profissional. |
-| 📊 **Gestão** | Maior adoção pelo usuário. Reduz resistência à mudança. Demonstrações mais impactantes. |
-
-**Melhorias específicas:**
-- Indicador de "pensando" durante busca
-- Preview de documentos fonte
-- Histórico de conversas persistente
-- Filtro por collection no chat
-- Copiar resposta para clipboard
-
----
-
 ## 🎯 Conclusão
 
 O sistema RAG está **bem implementado** com técnicas avançadas (HyDE, MMR, reranking, query expansion). Os principais gaps são em:
