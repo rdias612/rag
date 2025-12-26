@@ -3,24 +3,91 @@ import time
 import sys
 import os
 import signal
+import re
+
+# Portas usadas pela aplicação
+BACKEND_PORT = 5000
+FRONTEND_PORT = 5173
+
+def kill_process_on_port(port: int) -> bool:
+    """Mata processos usando uma porta específica (Windows)."""
+    if os.name != 'nt':
+        # Linux/Mac
+        try:
+            result = subprocess.run(
+                f"lsof -ti:{port} | xargs kill -9",
+                shell=True, capture_output=True
+            )
+            return result.returncode == 0
+        except:
+            return False
+    
+    # Windows - encontrar PIDs usando netstat
+    try:
+        result = subprocess.run(
+            ['netstat', '-ano'], 
+            capture_output=True, text=True
+        )
+        
+        pids_killed = set()
+        for line in result.stdout.split('\n'):
+            if f':{port}' in line and 'LISTENING' in line:
+                # Extrair PID (último número na linha)
+                parts = line.split()
+                if parts:
+                    pid = parts[-1]
+                    if pid.isdigit() and pid not in pids_killed:
+                        try:
+                            subprocess.run(
+                                ['taskkill', '/F', '/T', '/PID', pid],
+                                capture_output=True
+                            )
+                            pids_killed.add(pid)
+                            print(f"   ✓ Processo {pid} na porta {port} encerrado")
+                        except:
+                            pass
+        
+        return len(pids_killed) > 0
+    except Exception as e:
+        print(f"   ⚠ Erro ao verificar porta {port}: {e}")
+        return False
+
+
+def cleanup_ports():
+    """Limpa as portas antes de iniciar."""
+    print("🔍 Verificando portas...")
+    
+    killed_backend = kill_process_on_port(BACKEND_PORT)
+    killed_frontend = kill_process_on_port(FRONTEND_PORT)
+    
+    if killed_backend or killed_frontend:
+        print("   ⏳ Aguardando liberação das portas...")
+        time.sleep(2)
+    else:
+        print("   ✓ Portas livres")
+
 
 def run_app():
-    print("🚀 Iniciando RAG System (Backend + Frontend)...")
+    print("🚀 Iniciando RAG System (Backend + Frontend)...\n")
+    
+    # Limpar portas antes de iniciar
+    cleanup_ports()
+    print()
     
     # Paths
     root_dir = os.path.abspath(os.path.dirname(__file__))
     frontend_dir = os.path.join(root_dir, "frontend")
     
-    # Flags para criação de processo no Windows (para poder matar grupo de processos)
+    # Flags para criação de processo no Windows
     creationflags = 0
     if os.name == 'nt':
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
     
     # 1. Iniciar Backend (Flask)
-    print("📡 Iniciando Backend na porta 5000...")
+    print(f"📡 Iniciando Backend na porta {BACKEND_PORT}...")
     backend_process = subprocess.Popen(
         [sys.executable, "-c", 
-         "from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port=5000, debug=False)"],
+         f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug=False)"],
         cwd=root_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -31,7 +98,7 @@ def run_app():
     )
 
     # 2. Iniciar Frontend (Vite)
-    print("🎨 Iniciando Frontend na porta 5173...")
+    print(f"🎨 Iniciando Frontend na porta {FRONTEND_PORT}...")
     frontend_process = subprocess.Popen(
         ["npm.cmd" if os.name == 'nt' else "npm", "run", "dev"],
         cwd=frontend_dir,
@@ -46,9 +113,7 @@ def run_app():
     def cleanup():
         print("\n\n🛑 Encerrando sistema...")
         
-        # Matar processos de forma mais agressiva no Windows
         if os.name == 'nt':
-            # Usar taskkill para matar árvore de processos
             try:
                 subprocess.run(['taskkill', '/F', '/T', '/PID', str(backend_process.pid)], 
                              capture_output=True)
@@ -60,7 +125,6 @@ def run_app():
             except:
                 pass
         else:
-            # Linux/Mac - tentar terminate primeiro, depois kill
             try:
                 backend_process.terminate()
                 frontend_process.terminate()
@@ -80,15 +144,16 @@ def run_app():
     if os.name == 'nt':
         signal.signal(signal.SIGBREAK, signal_handler)
 
-    # Monitorar outputs (opcional: simplificado aqui)
-    print("\n✅ Sistema rodando!")
-    print("👉 Backend:  http://localhost:5000")
-    print("👉 Frontend: http://localhost:5173")
+    # Aguardar um pouco para os processos iniciarem
+    time.sleep(2)
+
+    print(f"\n✅ Sistema rodando!")
+    print(f"👉 Backend:  http://localhost:{BACKEND_PORT}")
+    print(f"👉 Frontend: http://localhost:{FRONTEND_PORT}")
     print("\nPressione Ctrl+C para encerrar.\n")
 
     try:
         while True:
-            # Verificar se algum processo morreu
             if backend_process.poll() is not None:
                 print("❌ Backend parou inesperadamente.")
                 cleanup()
