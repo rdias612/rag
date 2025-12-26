@@ -20,7 +20,11 @@ requests>=2.31.0
 
 # NLP - Chunking Semântico
 spacy>=3.7.0
-# Modelo português: python -m spacy download pt_core_news_sm
+langdetect>=1.0.9
+# Modelos spaCy para multi-idioma:
+# python -m spacy download pt_core_news_sm
+# python -m spacy download en_core_web_sm
+# python -m spacy download es_core_news_sm
 
 # Phase 2 - Re-ranking
 sentence-transformers>=2.2.0

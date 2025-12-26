@@ -11,20 +11,35 @@ import logging
 # Configurar logger
 logger = logging.getLogger(__name__)
 
-# Tentar carregar spaCy e modelo português
+# Importar detector de idioma
+try:
+    from src.core.language_detector import (
+        detect_language,
+        get_nlp_for_language,
+        LANGDETECT_AVAILABLE,
+        DEFAULT_LANGUAGE
+    )
+    LANGUAGE_DETECTION_AVAILABLE = True
+except ImportError:
+    LANGUAGE_DETECTION_AVAILABLE = False
+    LANGDETECT_AVAILABLE = False
+    DEFAULT_LANGUAGE = 'pt'
+    logger.warning("language_detector não disponível")
+
+# Tentar carregar spaCy
 try:
     import spacy
+    SPACY_AVAILABLE = True
     
+    # Modelo padrão (português) para compatibilidade
     try:
-        # Carregar modelo mínimo para segmentação de sentenças
-        nlp = spacy.blank("pt")  # Modelo em branco (mais leve)
-        nlp.add_pipe("sentencizer")  # Adicionar apenas sentencizer
-        SPACY_AVAILABLE = True
+        nlp = spacy.blank("pt")
+        nlp.add_pipe("sentencizer")
         logger.info("spaCy carregado com sucesso (sentencizer pt)")
     except Exception as e:
-        SPACY_AVAILABLE = False
         nlp = None
-        logger.warning(f"Erro ao carregar spaCy: {e}. Usando fallback regex.")
+        logger.warning(f"Erro ao carregar spaCy padrão: {e}")
+        
 except ImportError:
     SPACY_AVAILABLE = False
     nlp = None
@@ -62,6 +77,7 @@ class SemanticChunker:
         self.min_chunk_size = min_chunk_size
         self.overlap_sentences = overlap_sentences
         self.language = language
+        self._detected_language = None  # Cache do idioma detectado
         
         if not SPACY_AVAILABLE:
             logger.warning("Usando fallback regex para segmentação de sentenças")
@@ -173,8 +189,22 @@ class SemanticChunker:
             return self._split_sentences_regex(text)
     
     def _split_sentences_spacy(self, text: str) -> List[str]:
-        """Divide sentenças usando spaCy."""
-        doc = nlp(text)
+        """Divide sentenças usando spaCy com detecção de idioma."""
+        # Detectar idioma se não foi detectado ainda
+        if LANGUAGE_DETECTION_AVAILABLE and self._detected_language is None:
+            self._detected_language = detect_language(text)
+            logger.debug(f"Idioma detectado para chunking: {self._detected_language}")
+        
+        # Usar modelo do idioma detectado ou default
+        if LANGUAGE_DETECTION_AVAILABLE and self._detected_language:
+            current_nlp = get_nlp_for_language(self._detected_language)
+        else:
+            current_nlp = nlp
+        
+        if current_nlp is None:
+            return self._split_sentences_regex(text)
+        
+        doc = current_nlp(text)
         return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     
     def _split_sentences_regex(self, text: str) -> List[str]:
@@ -344,8 +374,11 @@ def check_spacy_available() -> dict:
     return {
         "spacy_installed": SPACY_AVAILABLE,
         "model_loaded": nlp is not None,
-        "model_name": "pt_core_news_sm" if nlp else None,
-        "fallback_mode": not SPACY_AVAILABLE
+        "model_name": "pt (default)" if nlp else None,
+        "fallback_mode": not SPACY_AVAILABLE,
+        "language_detection_available": LANGUAGE_DETECTION_AVAILABLE,
+        "langdetect_available": LANGDETECT_AVAILABLE,
+        "default_language": DEFAULT_LANGUAGE
     }
 
 

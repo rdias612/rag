@@ -3,6 +3,7 @@ import { Settings, Menu } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { UploadModal } from "./components/UploadModal";
+import { AdminDashboard } from "./components/AdminDashboard";
 import { Toast } from "./components/Toast";
 import { useToast } from "./hooks/useToast";
 import type { Message, Session } from "./types";
@@ -15,6 +16,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [collections, setCollections] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const { toast, showToast, hideToast } = useToast();
@@ -211,7 +213,9 @@ function App() {
               ))}
             </select>
             <button
+              onClick={() => setIsAdminOpen(true)}
               className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+              title="Painel de Administração"
             >
               <Settings size={18} />
             </button>
@@ -240,6 +244,11 @@ function App() {
         isVisible={toast.isVisible}
         onClose={hideToast}
       />
+
+      {/* Admin Dashboard Overlay */}
+      {isAdminOpen && (
+        <AdminDashboard onClose={() => setIsAdminOpen(false)} />
+      )}
     </div>
   );
 }

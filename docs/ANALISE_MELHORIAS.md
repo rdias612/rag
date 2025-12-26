@@ -64,44 +64,6 @@ def test_health_endpoint(client):
 
 ---
 
-#### #2 📈 **Observabilidade e Métricas**
-**Impacto:** ⭐⭐⭐⭐⭐ | **Complexidade:** Média | **Urgência:** Alta
-
-**Problema Atual:**
-- Logs estruturados existem mas sem agregação
-- Sem métricas de latência por componente
-- Sem dashboards para monitorar qualidade das respostas
-- Sem tracking de uso do cache
-
-**Por que Implementar esta Melhoria?**
-
-"Você não pode melhorar o que não consegue medir." Em um sistema RAG, há dezenas de variáveis que afetam a qualidade: latência de embeddings, taxa de cache hit, precisão do reranking, tempo de resposta do LLM. Sem observabilidade, você está voando às cegas, descobrindo problemas apenas quando usuários reclamam.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Sistema mais estável e rápido. Problemas são detectados antes de impactá-lo. SLAs definidos e cumpridos (ex: 95% das respostas em <3s). |
-| 💻 **Desenvolvedor** | Debugging facilitado com traces completos. Identificação precisa de onde otimizar. Validação do impacto de mudanças com A/B testing. Alertas automáticos antes que vire crise. |
-| ⚡ **Performance** | Identificação exata de gargalos (embedding? rerank? LLM?). Métricas históricas para comparação. Otimização baseada em dados reais, não suposições. |
-| 🏗️ **Qualidade do Projeto** | Dashboards provam que o sistema funciona. Evidência de melhoria contínua. Profissionalização do projeto. |
-| 📊 **Gestão** | Visibilidade do sistema em tempo real. Justificativa baseada em dados para decisões. Previsibilidade operacional. Relatórios automáticos de uso e performance. |
-
-**Solução:**
-```python
-# Instrumentação com Prometheus
-from prometheus_client import Histogram, Counter, Gauge
-
-rag_latency = Histogram('rag_query_seconds', 'RAG query latency', 
-                        ['phase'])  # embedding, search, rerank, llm
-cache_hits = Counter('embedding_cache_hits_total', 'Cache hits')
-active_sessions = Gauge('chat_sessions_active', 'Active sessions')
-
-# No rag.py
-with rag_latency.labels(phase='embedding').time():
-    question_embedding = get_embedding(question)
-```
-
----
-
 #### #3 🔄 **Re-ingestão Incremental**
 **Impacto:** ⭐⭐⭐⭐⭐ | **Complexidade:** Baixa | **Urgência:** Alta
 
