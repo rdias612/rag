@@ -429,19 +429,12 @@ def get_collections():
     Response:
         {"collections": ["default", "projeto_A", ...]}
     """
-    import sys
-    sys.stderr.write(f"\n[CRITICAL-DEBUG] /collections - START\n")
     start_time = time.time()
     log_api_request("/api/collections", "GET")
-    sys.stderr.write(f"[CRITICAL-DEBUG] /collections - After log_api_request\n")
     
     try:
-        sys.stderr.write(f"[CRITICAL-DEBUG] /collections - Calling list_collections()\n")
         collections = list_collections()
-        sys.stderr.write(f"[CRITICAL-DEBUG] /collections - Done list_collections()\n")
-        print(f"[DEBUG] /collections - Got {len(collections)} collections: {collections}")
         log_api_response("/api/collections", 200, time.time() - start_time)
-        print("[DEBUG] /collections - Returning response")
         return jsonify({"collections": collections})
     except Exception as e:
         print(f"[DEBUG] /collections - ERROR: {e}")

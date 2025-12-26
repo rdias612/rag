@@ -244,12 +244,9 @@ def get_document_count() -> int:
 
 def list_collections() -> list[str]:
     """Retorna a lista de collection_id distintos existentes."""
-    import sys
-    sys.stderr.write(f"\n[CRITICAL-DB-DEBUG] list_collections: Starting...\n")
     db_logger.debug("list_collections: Starting...")
     try:
         with get_connection() as conn:
-            sys.stderr.write(f"[CRITICAL-DB-DEBUG] list_collections: Got connection from context manager\n")
             db_logger.debug("list_collections: Got connection, creating cursor...")
             with conn.cursor() as cur:
                 db_logger.debug("list_collections: Executing query...")
