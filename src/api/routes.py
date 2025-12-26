@@ -22,12 +22,25 @@ from src.core.rag import (
     clear_conversation
 )
 from src.core.conversation import conversation_manager
-from src.data.database import get_document_count, check_connection, insert_documents_batch, list_collections, insert_feedback
+from src.data.database import (
+    get_document_count, 
+    check_connection, 
+    insert_documents_batch, 
+    list_collections, 
+    insert_feedback,
+    get_ingested_document,
+    register_ingested_document,
+    remove_document_chunks_by_source,
+    list_ingested_documents,
+    remove_ingested_document_record
+)
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS, 
     process_document, 
-    get_document_stats
+    get_document_stats,
+    get_all_documents
 )
+import hashlib
 from src.core.embeddings import get_embeddings_batch
 from src.config import DOCUMENTS_DIR
 from src.core.logger import (
@@ -720,6 +733,339 @@ def documents_stats():
         api_logger.error(f"Error in /documents/stats: {e}")
         log_api_response("/api/documents/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Endpoints de Gerenciamento de Documentos Ingeridos
+# =============================================================================
+
+def _calculate_file_hash(file_path: Path) -> str:
+    """Calcula o hash SHA-256 de um arquivo."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+@api.route("/documents/ingested", methods=["GET"])
+def get_ingested_documents():
+    """
+    Lista todos os documentos já ingeridos.
+    
+    Query params:
+        collection: filtrar por coleção (opcional)
+        
+    Response:
+        {
+            "documents": [
+                {
+                    "file_path": "/path/to/doc.pdf",
+                    "file_name": "doc.pdf",
+                    "file_hash": "abc123...",
+                    "file_size": 1024,
+                    "collection_id": "default",
+                    "chunks_count": 15,
+                    "status": "success",
+                    "ingested_at": "2025-12-26T10:00:00"
+                }
+            ],
+            "count": 1
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/documents/ingested", "GET")
+    
+    try:
+        collection_filter = request.args.get("collection")
+        documents = list_ingested_documents(collection_filter)
+        
+        # Enriquecer com nome do arquivo
+        for doc in documents:
+            doc["file_name"] = Path(doc["file_path"]).name
+            # Converter datetime para string se necessário
+            if hasattr(doc.get("ingested_at"), "isoformat"):
+                doc["ingested_at"] = doc["ingested_at"].isoformat()
+            if hasattr(doc.get("updated_at"), "isoformat"):
+                doc["updated_at"] = doc["updated_at"].isoformat()
+        
+        log_api_response("/api/documents/ingested", 200, time.time() - start_time)
+        return jsonify({
+            "documents": documents,
+            "count": len(documents)
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error in /documents/ingested: {e}")
+        log_api_response("/api/documents/ingested", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/documents/delete", methods=["POST"])
+def delete_ingested_document():
+    """
+    Deleta um documento e todos os seus chunks do banco.
+    
+    Body:
+        {
+            "file_path": "/path/to/document.pdf"
+        }
+        
+    Response:
+        {
+            "message": "Documento removido com sucesso",
+            "file_path": "/path/to/document.pdf",
+            "chunks_removed": 15
+        }
+    """
+    start_time = time.time()
+    data = request.get_json() or {}
+    log_api_input("/api/documents/delete", "POST", data)
+    
+    if "file_path" not in data:
+        log_api_response("/api/documents/delete", 400, time.time() - start_time)
+        return jsonify({"error": "Campo 'file_path' é obrigatório"}), 400
+    
+    file_path = data["file_path"]
+    
+    try:
+        # Verificar se documento existe na tabela de controle
+        existing = get_ingested_document(file_path)
+        if not existing:
+            log_api_response("/api/documents/delete", 404, time.time() - start_time)
+            return jsonify({"error": "Documento não encontrado"}), 404
+        
+        # Remover chunks do banco
+        chunks_removed = remove_document_chunks_by_source(file_path)
+        
+        # Remover registro de controle
+        remove_ingested_document_record(file_path)
+        
+        api_logger.info(f"Document deleted: {file_path}, {chunks_removed} chunks removed")
+        log_api_response("/api/documents/delete", 200, time.time() - start_time)
+        
+        return jsonify({
+            "message": "Documento removido com sucesso",
+            "file_path": file_path,
+            "chunks_removed": chunks_removed
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error deleting document: {e}")
+        log_api_response("/api/documents/delete", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+# Estado global para ingestão em massa
+_bulk_ingestion_status = {
+    "running": False,
+    "progress": 0,
+    "total": 0,
+    "current_file": None,
+    "message": "",
+    "results": []
+}
+_bulk_ingestion_lock = threading.Lock()
+
+
+def _run_bulk_ingestion(force: bool = False):
+    """Executa ingestão em massa em background."""
+    global _bulk_ingestion_status
+    
+    try:
+        # Listar documentos do diretório
+        document_files = get_all_documents(DOCUMENTS_DIR)
+        
+        with _bulk_ingestion_lock:
+            _bulk_ingestion_status["total"] = len(document_files)
+            _bulk_ingestion_status["progress"] = 0
+            _bulk_ingestion_status["results"] = []
+        
+        docs_processed = 0
+        docs_skipped = 0
+        docs_failed = 0
+        
+        for i, doc_path in enumerate(document_files):
+            file_path_str = str(doc_path)
+            file_name = doc_path.name
+            
+            with _bulk_ingestion_lock:
+                _bulk_ingestion_status["progress"] = i + 1
+                _bulk_ingestion_status["current_file"] = file_name
+                _bulk_ingestion_status["message"] = f"Processando: {file_name}"
+            
+            try:
+                # Calcular hash do arquivo
+                file_hash = _calculate_file_hash(doc_path)
+                file_size = doc_path.stat().st_size
+                
+                # Verificar se já foi ingerido
+                existing = get_ingested_document(file_path_str)
+                
+                if existing and not force:
+                    if existing["file_hash"] == file_hash:
+                        # Já ingerido e não modificado
+                        docs_skipped += 1
+                        with _bulk_ingestion_lock:
+                            _bulk_ingestion_status["results"].append({
+                                "file": file_name,
+                                "status": "skipped",
+                                "message": "Já ingerido"
+                            })
+                        continue
+                    else:
+                        # Arquivo modificado - remover chunks antigos
+                        remove_document_chunks_by_source(file_path_str)
+                elif existing and force:
+                    # Forçar re-ingestão - remover chunks antigos
+                    remove_document_chunks_by_source(file_path_str)
+                
+                # Determinar collection_id
+                try:
+                    relative_path = doc_path.relative_to(DOCUMENTS_DIR)
+                    collection_id = relative_path.parts[0] if len(relative_path.parts) > 1 else "default"
+                except ValueError:
+                    collection_id = "default"
+                
+                # Processar documento
+                chunks = process_document(doc_path)
+                
+                if not chunks:
+                    docs_failed += 1
+                    register_ingested_document(file_path_str, file_hash, file_size, collection_id, 0, "error")
+                    with _bulk_ingestion_lock:
+                        _bulk_ingestion_status["results"].append({
+                            "file": file_name,
+                            "status": "error",
+                            "message": "Nenhum texto extraído"
+                        })
+                    continue
+                
+                # Gerar embeddings
+                texts = [chunk["content"] for chunk in chunks]
+                embeddings = get_embeddings_batch(texts)
+                
+                # Preparar e inserir
+                documents_to_insert = []
+                for chunk, embedding in zip(chunks, embeddings):
+                    documents_to_insert.append({
+                        "content": chunk["content"],
+                        "metadata": chunk["metadata"],
+                        "embedding": embedding,
+                        "collection_id": collection_id
+                    })
+                
+                inserted = insert_documents_batch(documents_to_insert)
+                
+                # Registrar como ingerido
+                register_ingested_document(file_path_str, file_hash, file_size, collection_id, inserted, "success")
+                
+                docs_processed += 1
+                with _bulk_ingestion_lock:
+                    _bulk_ingestion_status["results"].append({
+                        "file": file_name,
+                        "status": "success",
+                        "chunks": inserted
+                    })
+                    
+            except Exception as e:
+                docs_failed += 1
+                api_logger.error(f"Error processing {file_name}: {e}")
+                with _bulk_ingestion_lock:
+                    _bulk_ingestion_status["results"].append({
+                        "file": file_name,
+                        "status": "error",
+                        "message": str(e)
+                    })
+        
+        with _bulk_ingestion_lock:
+            _bulk_ingestion_status["running"] = False
+            _bulk_ingestion_status["current_file"] = None
+            _bulk_ingestion_status["message"] = f"Concluído: {docs_processed} processados, {docs_skipped} ignorados, {docs_failed} erros"
+            
+    except Exception as e:
+        api_logger.error(f"Bulk ingestion failed: {e}")
+        with _bulk_ingestion_lock:
+            _bulk_ingestion_status["running"] = False
+            _bulk_ingestion_status["message"] = f"Erro: {str(e)}"
+
+
+@api.route("/documents/ingest-all", methods=["POST"])
+def start_bulk_ingestion():
+    """
+    Inicia ingestão em massa de todos os documentos do diretório.
+    
+    Body:
+        {
+            "force": false  // Se true, re-ingere todos mesmo que já existam
+        }
+        
+    Response:
+        {
+            "message": "Ingestão iniciada",
+            "total_files": 10
+        }
+    """
+    global _bulk_ingestion_status
+    
+    start_time = time.time()
+    data = request.get_json() or {}
+    log_api_input("/api/documents/ingest-all", "POST", data)
+    
+    with _bulk_ingestion_lock:
+        if _bulk_ingestion_status["running"]:
+            log_api_response("/api/documents/ingest-all", 409, time.time() - start_time)
+            return jsonify({"error": "Ingestão já está em andamento"}), 409
+        
+        _bulk_ingestion_status["running"] = True
+        _bulk_ingestion_status["progress"] = 0
+        _bulk_ingestion_status["total"] = 0
+        _bulk_ingestion_status["current_file"] = None
+        _bulk_ingestion_status["message"] = "Iniciando..."
+        _bulk_ingestion_status["results"] = []
+    
+    force = data.get("force", False)
+    
+    # Contar arquivos
+    document_files = get_all_documents(DOCUMENTS_DIR)
+    
+    # Iniciar em background
+    thread = threading.Thread(target=_run_bulk_ingestion, args=(force,))
+    thread.daemon = True
+    thread.start()
+    
+    api_logger.info(f"Bulk ingestion started: {len(document_files)} files, force={force}")
+    log_api_response("/api/documents/ingest-all", 202, time.time() - start_time)
+    
+    return jsonify({
+        "message": "Ingestão iniciada",
+        "total_files": len(document_files)
+    }), 202
+
+
+@api.route("/documents/ingest-status", methods=["GET"])
+def get_bulk_ingestion_status():
+    """
+    Retorna o status da ingestão em massa.
+    
+    Response:
+        {
+            "running": true,
+            "progress": 5,
+            "total": 10,
+            "current_file": "documento.pdf",
+            "message": "Processando: documento.pdf",
+            "results": [...]
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/documents/ingest-status", "GET")
+    
+    with _bulk_ingestion_lock:
+        status = dict(_bulk_ingestion_status)
+    
+    log_api_response("/api/documents/ingest-status", 200, time.time() - start_time)
+    return jsonify(status)
 
 
 # =============================================================================

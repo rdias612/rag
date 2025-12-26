@@ -112,52 +112,6 @@ def ingest_incremental(directory: Path):
 
 ---
 
-#### #4 💾 **Cache Persistente com Redis**
-**Impacto:** ⭐⭐⭐⭐ | **Complexidade:** Baixa | **Urgência:** Média
-
-**Problema Atual:**
-```python
-# embedding_cache.py (linha 30)
-self._cache: OrderedDict[str, list[float]] = OrderedDict()  # IN-MEMORY!
-```
-- Cache perdido em cada restart da API
-- Cada instância tem cache separado
-- Embeddings recalculados repetidamente
-
-**Por que Implementar esta Melhoria?**
-
-O cache atual é efêmero - toda vez que a aplicação reinicia, você perde todo o cache acumulado. Isso significa recalcular embeddings que já foram calculados antes, desperdiçando tempo e recursos. Redis resolve isso persistindo o cache de forma durável e compartilhável.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Respostas mais rápidas para queries repetidas. Consistência de performance mesmo após atualizações do sistema. Menor latência percebida. |
-| 💻 **Desenvolvedor** | Pode reiniciar a aplicação sem perder cache. Múltiplas instâncias compartilham o mesmo cache. Debug facilitado com redis-cli. Menos complexidade para escalar. |
-| ⚡ **Performance** | Redução de 80%+ em chamadas ao modelo de embeddings. Latência de busca em cache ~1ms vs ~200ms para gerar. Escalabilidade horizontal sem duplicação de trabalho. |
-| 🏗️ **Qualidade do Projeto** | Arquitetura preparada para produção. Separação clara de responsabilidades. Suporte a TTL para gerenciamento automático de memória. |
-| 📊 **Gestão** | Economia direta em custos de compute (menos embeddings = menos GPU). Métricas de cache hit rate para otimização. Infraestrutura padrão de mercado. |
-
-**Solução:**
-```python
-import redis
-import json
-
-class RedisEmbeddingCache:
-    def __init__(self, host='localhost', port=6379, ttl=86400*7):
-        self.redis = redis.Redis(host=host, port=port, db=0)
-        self.ttl = ttl  # 7 dias default
-    
-    def get(self, text: str) -> Optional[list[float]]:
-        key = f"emb:{self._hash(text)}"
-        cached = self.redis.get(key)
-        return json.loads(cached) if cached else None
-    
-    def set(self, text: str, embedding: list[float]):
-        key = f"emb:{self._hash(text)}"
-        self.redis.setex(key, self.ttl, json.dumps(embedding))
-```
-
----
-
 #### #5 🐳 **Containerização Completa**
 **Impacto:** ⭐⭐⭐⭐ | **Complexidade:** Média | **Urgência:** Média
 
