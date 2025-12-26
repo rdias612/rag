@@ -11,6 +11,11 @@ def run_app():
     root_dir = os.path.abspath(os.path.dirname(__file__))
     frontend_dir = os.path.join(root_dir, "frontend")
     
+    # Flags para criação de processo no Windows (para poder matar grupo de processos)
+    creationflags = 0
+    if os.name == 'nt':
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+    
     # 1. Iniciar Backend (Flask)
     print("📡 Iniciando Backend na porta 5000...")
     backend_process = subprocess.Popen(
@@ -21,7 +26,8 @@ def run_app():
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        universal_newlines=True
+        universal_newlines=True,
+        creationflags=creationflags
     )
 
     # 2. Iniciar Frontend (Vite)
@@ -33,16 +39,46 @@ def run_app():
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        universal_newlines=True
+        universal_newlines=True,
+        creationflags=creationflags
     )
 
-    def signal_handler(sig, frame):
+    def cleanup():
         print("\n\n🛑 Encerrando sistema...")
-        backend_process.terminate()
-        frontend_process.terminate()
+        
+        # Matar processos de forma mais agressiva no Windows
+        if os.name == 'nt':
+            # Usar taskkill para matar árvore de processos
+            try:
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(backend_process.pid)], 
+                             capture_output=True)
+            except:
+                pass
+            try:
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(frontend_process.pid)], 
+                             capture_output=True)
+            except:
+                pass
+        else:
+            # Linux/Mac - tentar terminate primeiro, depois kill
+            try:
+                backend_process.terminate()
+                frontend_process.terminate()
+                time.sleep(0.5)
+                backend_process.kill()
+                frontend_process.kill()
+            except:
+                pass
+        
+        print("✅ Sistema encerrado.")
+
+    def signal_handler(sig, frame):
+        cleanup()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
+    if os.name == 'nt':
+        signal.signal(signal.SIGBREAK, signal_handler)
 
     # Monitorar outputs (opcional: simplificado aqui)
     print("\n✅ Sistema rodando!")
@@ -52,20 +88,19 @@ def run_app():
 
     try:
         while True:
-            # Ler linhas do backend se quiser debugar no terminal
-            # line = backend_process.stdout.readline()
-            # if line: print(f"[BACKEND] {line.strip()}")
-            
             # Verificar se algum processo morreu
             if backend_process.poll() is not None:
                 print("❌ Backend parou inesperadamente.")
+                cleanup()
                 break
             if frontend_process.poll() is not None:
                 print("❌ Frontend parou inesperadamente.")
+                cleanup()
                 break
             time.sleep(1)
     except KeyboardInterrupt:
-        signal_handler(None, None)
+        cleanup()
+        sys.exit(0)
 
 if __name__ == "__main__":
     run_app()
