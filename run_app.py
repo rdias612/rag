@@ -110,6 +110,16 @@ def run_app():
         creationflags=creationflags
     )
 
+    # Funções para ler e imprimir logs
+    def stream_logs(process, name):
+        for line in iter(process.stdout.readline, ''):
+            if line:
+                print(f"[{name}] {line.strip()}")
+
+    import threading
+    threading.Thread(target=stream_logs, args=(backend_process, "BACKEND"), daemon=True).start()
+    threading.Thread(target=stream_logs, args=(frontend_process, "FRONTEND"), daemon=True).start()
+
     def cleanup():
         print("\n\n🛑 Encerrando sistema...")
         
@@ -145,7 +155,7 @@ def run_app():
         signal.signal(signal.SIGBREAK, signal_handler)
 
     # Aguardar um pouco para os processos iniciarem
-    time.sleep(2)
+    time.sleep(5)
 
     print(f"\n✅ Sistema rodando!")
     print(f"👉 Backend:  http://localhost:{BACKEND_PORT}")
@@ -156,6 +166,10 @@ def run_app():
         while True:
             if backend_process.poll() is not None:
                 print("❌ Backend parou inesperadamente.")
+                # Tentar ler o erro final
+                stderr_output = backend_process.stdout.read()
+                if stderr_output:
+                    print(f"Erro do Backend:\n{stderr_output}")
                 cleanup()
                 break
             if frontend_process.poll() is not None:
