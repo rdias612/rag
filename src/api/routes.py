@@ -940,3 +940,46 @@ def test_hyde():
         api_logger.error(f"Error in /hyde/test: {e}")
         log_api_response("/api/hyde/test", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Endpoints de Observabilidade (Phase: Metrics)
+# =============================================================================
+
+@api.route("/metrics", methods=["GET"])
+def metrics():
+    """
+    Endpoint de métricas Prometheus.
+    
+    Retorna métricas no formato esperado pelo Prometheus para scraping.
+    
+    Response:
+        Content-Type: text/plain
+        Métricas no formato Prometheus
+    """
+    from src.core.metrics import get_metrics, check_metrics_available
+    
+    content, content_type = get_metrics()
+    return Response(content, mimetype=content_type)
+
+
+@api.route("/metrics/status", methods=["GET"])
+def metrics_status():
+    """
+    Verifica status do módulo de métricas.
+    
+    Response:
+        {
+            "prometheus_available": true,
+            "metrics_enabled": true
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/metrics/status", "GET")
+    
+    from src.core.metrics import check_metrics_available
+    
+    status = check_metrics_available()
+    log_api_response("/api/metrics/status", 200, time.time() - start_time)
+    
+    return jsonify(status)

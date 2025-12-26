@@ -47,6 +47,13 @@ from src.core.question_classifier import (
     get_instructions_for_type,
     get_question_type_description
 )
+from src.core.metrics import (
+    LatencyTracker,
+    inc_query,
+    observe_chunks_retrieved,
+    observe_compression_ratio,
+    inc_error
+)
 
 # Phase 2 imports (lazy loaded quando necessário)
 def _get_reranker():
@@ -457,7 +464,8 @@ def query_rag(
     
     # 1. Gerar embedding da pergunta
     rag_logger.debug("Generating question embedding...")
-    question_embedding = get_embedding(question)
+    with LatencyTracker('embedding'):
+        question_embedding = get_embedding(question)
     
     # Phase 3: HyDE - usar embedding de documento hipotético
     hyde_metrics = {"hyde_applied": False}
@@ -478,28 +486,30 @@ def query_rag(
     initial_top_k = RERANKING_TOP_K_INITIAL if ENABLE_RERANKING else top_k
     
     rag_logger.debug(f"Searching similar documents (initial top_k={initial_top_k})...")
-    similar_docs, search_metrics = _search_documents(
-        question=question,
-        question_embedding=question_embedding,
-        top_k=initial_top_k,
-        min_similarity=min_similarity,
-        use_hybrid=use_hybrid_search,
-        hybrid_alpha=hybrid_alpha,
-        collection_id=collection_id
-    )
+    with LatencyTracker('search'):
+        similar_docs, search_metrics = _search_documents(
+            question=question,
+            question_embedding=question_embedding,
+            top_k=initial_top_k,
+            min_similarity=min_similarity,
+            use_hybrid=use_hybrid_search,
+            hybrid_alpha=hybrid_alpha,
+            collection_id=collection_id
+        )
     
     # Adicionar métricas HyDE
     search_metrics["hyde"] = hyde_metrics
     
     # Phase 2: Aplicar Query Expansion, MMR e Re-ranking
     if similar_docs and (ENABLE_QUERY_EXPANSION or ENABLE_MMR or ENABLE_RERANKING):
-        similar_docs, search_metrics = _apply_phase2_pipeline(
-            question=question,
-            question_embedding=question_embedding,
-            initial_results=similar_docs,
-            final_top_k=top_k,
-            search_metrics=search_metrics
-        )
+        with LatencyTracker('rerank'):
+            similar_docs, search_metrics = _apply_phase2_pipeline(
+                question=question,
+                question_embedding=question_embedding,
+                initial_results=similar_docs,
+                final_top_k=top_k,
+                search_metrics=search_metrics
+            )
     
     # Classificar tipo de pergunta (Phase 1)
     question_type = None
@@ -509,6 +519,7 @@ def query_rag(
     
     if not similar_docs:
         rag_logger.warning("No similar documents found (all filtered by similarity threshold)")
+        inc_query(status='no_results', question_type=question_type or 'unknown')
         return _build_no_results_response(question, question_type, search_metrics)
     
     # 3. Montar contexto
@@ -566,8 +577,13 @@ def query_rag(
     log_rag_context(context, sources)
     
     # 4. Aplicar compressão de contexto se necessário
-    compression_result = _apply_context_compression(context, question, enable_compression)
+    with LatencyTracker('compression'):
+        compression_result = _apply_context_compression(context, question, enable_compression)
     context = compression_result["context"]
+    
+    # Registrar razão de compressão nas métricas
+    if compression_result["was_compressed"]:
+        observe_compression_ratio(compression_result["compression_ratio"] / 100.0)
     
     if compression_result["was_compressed"]:
         rag_logger.info(
@@ -586,7 +602,8 @@ def query_rag(
     
     # 6. Gerar resposta
     rag_logger.debug("Generating LLM response...")
-    answer = generate_response(prompt, temperature=temperature)
+    with LatencyTracker('llm'):
+        answer = generate_response(prompt, temperature=temperature)
     
     result = {
         "answer": answer,
@@ -610,6 +627,10 @@ def query_rag(
     total_duration = time.time() - start_time
     source_names = [s["source"] for s in sources]
     log_rag_result(len(similar_docs), source_names, total_duration)
+    
+    # Métricas Prometheus
+    inc_query(status='success', question_type=question_type or 'unknown')
+    observe_chunks_retrieved(len(similar_docs))
     
     return result
 

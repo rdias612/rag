@@ -9,6 +9,14 @@ from collections import OrderedDict
 from typing import Optional
 import logging
 
+from src.core.metrics import (
+    inc_cache_hit,
+    inc_cache_miss,
+    inc_cache_set,
+    inc_cache_evict,
+    set_cache_size
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,10 +72,12 @@ class EmbeddingCache:
             # Move para o final (mais recentemente usado)
             self._cache.move_to_end(key)
             self._hits += 1
+            inc_cache_hit()  # Prometheus metric
             logger.debug(f"Cache HIT for key {key[:8]}...")
             return self._cache[key]
         
         self._misses += 1
+        inc_cache_miss()  # Prometheus metric
         logger.debug(f"Cache MISS for key {key[:8]}...")
         return None
     
@@ -92,9 +102,12 @@ class EmbeddingCache:
             # Remover o mais antigo (primeiro item)
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]
+            inc_cache_evict()  # Prometheus metric
             logger.debug(f"Cache evicted oldest entry: {oldest_key[:8]}...")
         
         self._cache[key] = embedding
+        inc_cache_set()  # Prometheus metric
+        set_cache_size(len(self._cache))  # Prometheus gauge
         logger.debug(f"Cache SET for key {key[:8]}...")
     
     def clear(self) -> None:
@@ -102,6 +115,7 @@ class EmbeddingCache:
         self._cache.clear()
         self._hits = 0
         self._misses = 0
+        set_cache_size(0)  # Prometheus gauge
         logger.info("Cache cleared")
     
     def get_stats(self) -> dict:
