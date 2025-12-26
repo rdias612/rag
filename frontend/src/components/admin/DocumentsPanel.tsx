@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     HardDrive,
     FolderOpen,
@@ -68,6 +68,38 @@ export function DocumentsPanel() {
     const [pendingFiles, setPendingFiles] = useState<any[]>([]);
     const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
+
+    // Column resizing states
+    const [fileColumnWidth, setFileColumnWidth] = useState(300);
+    const isResizing = useRef(false);
+    const startX = useRef(0);
+    const startWidth = useRef(0);
+
+    const handleMouseMove = useCallback((e: MouseEvent) => {
+        if (!isResizing.current) return;
+        const deltaX = e.clientX - startX.current;
+        const newWidth = Math.max(100, Math.min(800, startWidth.current + deltaX));
+        setFileColumnWidth(newWidth);
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+        isResizing.current = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+    }, [handleMouseMove]);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        isResizing.current = true;
+        startX.current = e.clientX;
+        startWidth.current = fileColumnWidth;
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    };
 
     const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
         const controller = new AbortController();
@@ -485,7 +517,17 @@ export function DocumentsPanel() {
                                                     }}
                                                 />
                                             </th>
-                                            <th className="px-4 py-3 font-medium">Arquivo</th>
+                                            <th
+                                                className="px-4 py-3 font-medium relative group"
+                                                style={{ width: `${fileColumnWidth}px`, minWidth: `${fileColumnWidth}px`, maxWidth: `${fileColumnWidth}px` }}
+                                            >
+                                                <span>Arquivo</span>
+                                                <div
+                                                    onMouseDown={handleMouseDown}
+                                                    className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500/50 transition-colors z-10"
+                                                    title="Arraste para redimensionar"
+                                                />
+                                            </th>
                                             <th className="px-4 py-3 font-medium">Coleção</th>
                                             <th className="px-4 py-3 font-medium">Chunks</th>
                                             <th className="px-4 py-3 font-medium">Tamanho</th>
@@ -515,10 +557,14 @@ export function DocumentsPanel() {
                                                         }}
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{getFileIcon(doc.file_name.substring(doc.file_name.lastIndexOf('.')))}</span>
-                                                        <span className="text-sm text-white truncate max-w-[200px]" title={doc.file_name}>
+                                                <td className="px-4 py-3 overflow-hidden">
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <span className="shrink-0">{getFileIcon(doc.file_name.substring(doc.file_name.lastIndexOf('.')))}</span>
+                                                        <span
+                                                            className="text-sm text-text-primary truncate"
+                                                            style={{ maxWidth: `${fileColumnWidth - 60}px` }}
+                                                            title={doc.file_name}
+                                                        >
                                                             {doc.file_name}
                                                         </span>
                                                     </div>
