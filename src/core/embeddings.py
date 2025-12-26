@@ -57,10 +57,44 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     duration = time.time() - start_time
     
     # Validar embedding
-    if embedding is None or not isinstance(embedding, list) or any(v is None for v in embedding):
+    is_valid = (
+        embedding is not None and 
+        isinstance(embedding, list) and 
+        len(embedding) > 0 and 
+        not any(v is None for v in embedding)
+    )
+
+    if not is_valid:
         error_reason = "None" if embedding is None else ("not a list" if not isinstance(embedding, list) else "contains NULLs")
-        embedding_logger.error(f"ERRO: Embedding inválido retornado (singular): {error_reason}")
-        raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) para o texto: '{text[:50]}...'")
+        embedding_logger.warning(f"Embedding inválido retornado. Tentando retry único... Razão: {error_reason}")
+        
+        # Um pequeno sleep antes de tentar de novo
+        time.sleep(1.0)
+        
+        response = requests.post(
+            f"{LM_STUDIO_BASE_URL}/embeddings",
+            json={
+                "model": EMBEDDING_MODEL,
+                "input": text
+            },
+            timeout=60
+        )
+        response.raise_for_status()
+        data = response.json()
+        embedding = data["data"][0]["embedding"]
+        
+        # Validar novamente
+        is_valid = (
+            embedding is not None and 
+            isinstance(embedding, list) and 
+            len(embedding) > 0 and 
+            not any(v is None for v in embedding)
+        )
+        
+        if not is_valid:
+            error_reason = "None" if embedding is None else ("not a list" if not isinstance(embedding, list) else "contains NULLs")
+            embedding_logger.error(f"ERRO: Embedding inválido retornado após retry: {error_reason}")
+            raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) após retry para o texto: '{text[:50]}...'")
 
     # Log do embedding gerado
     log_embedding_response(embedding, duration)
@@ -110,37 +144,43 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         sorted_data = sorted(data["data"], key=lambda x: x["index"])
         batch_embeddings = [item.get("embedding") for item in sorted_data]
         
-        # Validar se algum embedding veio nulo ou malformado
+        # Validar e retentar individualmente se necessário
+        validated_embeddings = []
         for idx, emb in enumerate(batch_embeddings):
-            is_invalid = False
-            error_reason = ""
+            is_valid = (
+                emb is not None and 
+                isinstance(emb, list) and 
+                len(emb) > 0 and 
+                not any(v is None for v in emb)
+            )
             
-            if emb is None:
-                is_invalid = True
-                error_reason = "Embedding is None (null from model)"
-            elif not isinstance(emb, list):
-                is_invalid = True
-                error_reason = f"Embedding is not a list (type: {type(emb)})"
-            elif any(v is None for v in emb):
-                is_invalid = True
-                error_reason = "Embedding contains NULL values"
-                
-            if is_invalid:
+            if is_valid:
+                validated_embeddings.append(emb)
+            else:
+                # Tentar recuperar individualmente
                 orig_idx = i + idx
                 problematic_text = texts[orig_idx]
-                text_len = len(problematic_text)
-                sample_text = problematic_text[:100] + "..." if text_len > 100 else problematic_text
+                embedding_logger.warning(f"Embedding inválido no batch (index {orig_idx}). Tentando recuperação individual...")
                 
-                embedding_logger.error(f"ERRO: {error_reason}")
-                embedding_logger.error(f"Texto (index {orig_idx}, len {text_len}): '{sample_text}'")
-                
-                # Logar o objeto retornado pelo LM Studio para debug profundo
-                embedding_logger.error(f"Full response data from LM Studio: {data}")
-                
-                raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) para o texto {orig_idx}. "
-                                 f"Verifique se o texto está vazio ou se o modelo no LM Studio parou de responder.")
+                try:
+                    # Retry individualmente (sem cache para garantir nova tentativa)
+                    # Adicionamos um pequeno delay preventivo
+                    time.sleep(0.5)
+                    recovered_emb = get_embedding(problematic_text, use_cache=False)
+                    
+                    # Log de sucesso na recuperação
+                    embedding_logger.info(f"Sucesso ao recuperar embedding individual para index {orig_idx}")
+                    validated_embeddings.append(recovered_emb)
+                except Exception as e:
+                    embedding_logger.error(f"Falha na recuperação individual do embedding (index {orig_idx}): {e}")
+                    # Se falhar mesmo individualmente, colocamos None e o banco lidará com isso
+                    validated_embeddings.append(None)
+                    
+                    # Log detalhado do erro final para esse chunk
+                    text_sample = problematic_text[:100] + "..." if len(problematic_text) > 100 else problematic_text
+                    embedding_logger.error(f"CHUNK FALHO PERMANENTE (len {len(problematic_text)}): '{text_sample}'")
 
-        all_embeddings.extend(batch_embeddings)
+        all_embeddings.extend(validated_embeddings)
         
         batch_duration = time.time() - batch_start
         log_embedding_batch_response(len(batch), batch_duration, EMBEDDING_DIMENSION)

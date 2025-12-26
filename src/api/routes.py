@@ -897,19 +897,36 @@ def _run_bulk_ingestion(force: bool = False):
     
     try:
         # Listar documentos do diretório
-        document_files = get_all_documents(DOCUMENTS_DIR)
+        all_document_files = get_all_documents(DOCUMENTS_DIR)
         
+        # Determinar quais arquivos serão realmente processados
+        if force:
+            files_to_process = all_document_files
+        else:
+            pending = _scan_documents()
+            pending_paths = {p["path"] for p in pending}
+            files_to_process = [dp for dp in all_document_files if str(dp) in pending_paths]
+            
+        total_files = len(files_to_process)
+        
+        if total_files == 0:
+            with _bulk_ingestion_lock:
+                _bulk_ingestion_status["running"] = False
+                _bulk_ingestion_status["progress"] = 0
+                _bulk_ingestion_status["total"] = 0
+                _bulk_ingestion_status["message"] = "Concluído: Nada para processar (todos os arquivos já estão atualizados)"
+            return
+
         with _bulk_ingestion_lock:
-            _bulk_ingestion_status["total"] = len(document_files)
+            _bulk_ingestion_status["total"] = total_files
             _bulk_ingestion_status["progress"] = 0
             _bulk_ingestion_status["results"] = []
         
         docs_processed = 0
         docs_skipped = 0
         docs_failed = 0
-        total_files = len(document_files)
         
-        for i, doc_path in enumerate(document_files, start=1):
+        for i, doc_path in enumerate(files_to_process, start=1):
             file_path_str = str(doc_path)
             file_name = doc_path.name
             
@@ -923,25 +940,12 @@ def _run_bulk_ingestion(force: bool = False):
                 file_hash = _calculate_file_hash(doc_path)
                 file_size = doc_path.stat().st_size
                 
-                # Verificar se já foi ingerido
+                # Verificar se já foi ingerido para tratar remoção de chunks antigos
                 existing = get_ingested_document(file_path_str)
                 
-                if existing and not force:
-                    if existing["file_hash"] == file_hash:
-                        # Já ingerido e não modificado
-                        docs_skipped += 1
-                        with _bulk_ingestion_lock:
-                            _bulk_ingestion_status["results"].append({
-                                "file": file_name,
-                                "status": "skipped",
-                                "message": "Já ingerido"
-                            })
-                        continue
-                    else:
-                        # Arquivo modificado - remover chunks antigos
-                        remove_document_chunks_by_source(file_path_str)
-                elif existing and force:
-                    # Forçar re-ingestão - remover chunks antigos
+                if existing:
+                    # Se estamos aqui e existing é true, ou é force=True ou foi detectada mudança pelo _scan
+                    # De qualquer forma, precisamos remover o conteúdo antigo primeiro
                     remove_document_chunks_by_source(file_path_str)
                 
                 # Determinar collection_id

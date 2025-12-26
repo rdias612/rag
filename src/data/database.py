@@ -157,8 +157,8 @@ def insert_documents_batch(documents: list[dict]) -> int:
                 
                 if is_invalid:
                     file_info = doc.get("metadata", {}).get("source_path", "unknown")
-                    db_logger.error(f"DETALHE ERRO EMBEDDING: {error_detail} para {file_info}")
-                    raise ValueError(f"Embedding inválido detectado para {file_info}: {error_detail}")
+                    db_logger.warning(f"SKIPPING CHUNK due to invalid embedding for {file_info}: {error_detail}")
+                    continue
 
                 values.append((
                     doc["content"],
@@ -167,6 +167,10 @@ def insert_documents_batch(documents: list[dict]) -> int:
                     doc.get("collection_id", "default")
                 ))
             
+            if not values:
+                db_logger.warning("No documents were inserted in this batch (all were invalid)")
+                return 0
+
             # Inserção em batch usando executemany
             cur.executemany(
                 """
@@ -175,11 +179,12 @@ def insert_documents_batch(documents: list[dict]) -> int:
                 """,
                 values
             )
+            inserted_count = len(values)
     
     duration = time.time() - start_time
-    log_db_result("INSERT BATCH", len(documents), duration)
+    log_db_result("INSERT BATCH", inserted_count, duration)
     
-    return len(documents)
+    return inserted_count
 
 
 def search_similar(
