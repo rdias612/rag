@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from pydantic import ValidationError
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from src.api.schemas import QueryRequest, ChatRequest, SearchRequest, StreamQueryRequest, FeedbackRequest
 
@@ -44,6 +45,24 @@ api = Blueprint("api", __name__)
 # =============================================================================
 _ingestion_jobs: dict[str, dict] = {}
 _ingestion_lock = threading.Lock()
+
+# =============================================================================
+# Agendador de Tarefas em Background (APScheduler)
+# =============================================================================
+scheduler = BackgroundScheduler()
+
+def _run_session_cleanup():
+    """Wrapper para a tarefa de limpeza periódica de sessões."""
+    try:
+        count = conversation_manager.cleanup_expired_sessions()
+        if count > 0:
+            api_logger.debug(f"Background cleanup: {count} sessions removed")
+    except Exception as e:
+        api_logger.error(f"Error in background session cleanup: {e}")
+
+# Adicionar job para rodar a cada 10 minutos
+scheduler.add_job(_run_session_cleanup, 'interval', minutes=10, id='session_cleanup')
+scheduler.start()
 
 # Diretório temporário para uploads
 UPLOAD_DIR = Path(DOCUMENTS_DIR) / "_uploads"

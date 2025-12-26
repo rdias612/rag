@@ -303,41 +303,6 @@ def extract_images_from_pdf(file_path: Path) -> list[dict]:
 
 ---
 
-#### #9 🔍 **Feedback Loop para Qualidade**
-**Impacto:** ⭐⭐⭐ | **Complexidade:** Média | **Urgência:** Média
-
-**Problema Atual:**
-- Sem mecanismo de feedback do usuário
-- Não sabe quais respostas foram úteis
-- Não aprende com erros
-
-**Por que Implementar esta Melhoria?**
-
-Sem feedback, você não sabe se suas respostas são boas. Pode haver padrões de perguntas que sempre falham, ou documentos que precisam ser melhor indexados. Um sistema de feedback transforma usuários em fonte de melhoria contínua.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Voz para reportar problemas. Sensação de que feedback importa. Melhoria contínua baseada em suas necessidades. |
-| 💻 **Desenvolvedor** | Dados reais para priorizar melhorias. Identificação de edge cases. Base para fine-tuning de embeddings. Debugging direcionado. |
-| ⚡ **Performance** | Otimização focada em casos reais. Identificação de queries problemáticas. Priorização baseada em impacto. |
-| 🏗️ **Qualidade do Projeto** | Sistema que melhora com o uso. Ciclo de feedback fechado. Evolução orientada por dados. |
-| 📊 **Gestão** | Métricas de satisfação (thumbs up/down). Justificativa para investimento em melhorias. Priorização objetiva de backlog. KPIs mensuráveis de qualidade. |
-
-**Solução:**
-```python
-@api.route('/api/feedback', methods=['POST'])
-def submit_feedback():
-    """
-    Recebe feedback sobre qualidade da resposta.
-    Body: {"query_id": "...", "rating": 1-5, "comment": "..."}
-    """
-    # Salvar feedback para análise
-    # Usar para fine-tuning futuro
-    # Identificar padrões de falha
-```
-
----
-
 ### Tier C - Quick Wins & Nice-to-Have
 
 ---
@@ -367,40 +332,6 @@ app = OpenAPI(__name__)
           description="Envia pergunta e recebe resposta baseada em documentos")
 def query(body: QueryRequest) -> QueryResponse:
     ...
-```
-
----
-
-#### #15 🧹 **Cleanup Automático de Sessões**
-**Impacto:** ⭐⭐ | **Complexidade:** Baixa | **Urgência:** Baixa
-
-**Problema Atual:**
-- Sessões expiram mas ficam em memória
-- Sem limpeza automática
-
-**Por que Implementar esta Melhoria?**
-
-Memory leaks silenciosos eventualmente degradam o sistema. Sessões de chat abandonadas acumulam e consomem memória indefinidamente. Limpeza automática previne isso de forma transparente.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Sistema estável mesmo com uso prolongado. Sem degradação por memory leak. |
-| 💻 **Desenvolvedor** | Menos debugging de problemas de memória. Comportamento previsível. Logs de cleanup para auditoria. |
-| ⚡ **Performance** | Memória controlada e previsível. Sistema não degrada com o tempo. |
-| 🏗️ **Qualidade do Projeto** | Sistema mais robusto. Operação autônoma. |
-| 📊 **Gestão** | Menos incidentes por falta de memória. Uptime melhor. |
-
-**Solução:**
-```python
-# Background task para limpeza
-from apscheduler.schedulers.background import BackgroundScheduler
-
-def cleanup_expired_sessions():
-    conversation_manager.cleanup_expired()
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(cleanup_expired_sessions, 'interval', minutes=10)
-scheduler.start()
 ```
 
 ---

@@ -132,7 +132,7 @@ class ConversationManager:
         
         with self._lock:
             # Limpar sessões antigas se necessário
-            self._cleanup_old_sessions()
+            self.cleanup_expired_sessions()
             
             # Verificar limite de sessões
             if len(self._sessions) >= self._max_sessions:
@@ -231,7 +231,7 @@ class ConversationManager:
             Lista de dicionários com informações das sessões
         """
         with self._lock:
-            self._cleanup_old_sessions()
+            self.cleanup_expired_sessions()
             return [
                 {
                     "session_id": session.session_id,
@@ -242,26 +242,27 @@ class ConversationManager:
                 for session in self._sessions.values()
             ]
     
-    def _cleanup_old_sessions(self) -> int:
+    def cleanup_expired_sessions(self) -> int:
         """
-        Remove sessões expiradas.
+        Remove sessões expiradas. Public method to be called by background task.
         
         Returns:
             Número de sessões removidas
         """
         now = time.time()
-        expired = [
-            sid for sid, session in self._sessions.items()
-            if now - session.last_activity > self._session_timeout
-        ]
-        
-        for sid in expired:
-            del self._sessions[sid]
-        
-        if expired:
-            rag_logger.info(f"Cleaned up {len(expired)} expired sessions")
-        
-        return len(expired)
+        with self._lock:
+            expired = [
+                sid for sid, session in self._sessions.items()
+                if now - session.last_activity > self._session_timeout
+            ]
+            
+            for sid in expired:
+                del self._sessions[sid]
+            
+            if expired:
+                rag_logger.info(f"Cleaned up {len(expired)} expired sessions")
+            
+            return len(expired)
     
     def _remove_oldest_session(self) -> None:
         """Remove a sessão mais antiga."""

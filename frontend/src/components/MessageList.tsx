@@ -1,10 +1,12 @@
 import ReactMarkdown from 'react-markdown';
-import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Message } from "../types";
 import { useEffect, useRef, useState } from 'react';
 import { DebugPanel } from './DebugPanel';
+import { SourceModal } from './SourceModal';
+import type { Source } from '../types';
 
 interface MessageListProps {
     messages: Message[];
@@ -17,6 +19,14 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
     const containerRef = useRef<HTMLDivElement>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [userScrolled, setUserScrolled] = useState(false);
+    const [selectedSource, setSelectedSource] = useState<Source | null>(null);
+    const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+    const handleCopy = (content: string, index: number) => {
+        navigator.clipboard.writeText(content);
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+    };
 
     // Auto-scroll when new messages arrive (only if user hasn't scrolled manually)
     useEffect(() => {
@@ -123,8 +133,9 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                     {msg.sources.map((source, i) => (
                                         <div
                                             key={i}
-                                            className="bg-[#18181b] border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-lg p-2.5 text-xs flex items-center gap-2 cursor-help"
-                                            title={source.filename}
+                                            onClick={() => setSelectedSource(source)}
+                                            className="bg-[#18181b] border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-lg p-2.5 text-xs flex items-center gap-2 cursor-pointer group/source"
+                                            title="Clique para ver o conteúdo"
                                         >
                                             <FileText size={14} className="text-indigo-400" />
                                             <span className="text-zinc-300 max-w-[150px] truncate">
@@ -168,6 +179,14 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                     >
                                         <ThumbsDown size={14} fill={msg.feedback === 'bad' ? "currentColor" : "none"} />
                                     </button>
+                                    <div className="w-px h-3 bg-white/10 mx-1" />
+                                    <button
+                                        onClick={() => handleCopy(msg.content, idx)}
+                                        className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+                                        title="Copiar resposta"
+                                    >
+                                        {copiedIndex === idx ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -187,10 +206,11 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                             </div>
                             <div className="flex flex-col gap-2">
                                 <div className="flex gap-1 h-6 items-center px-2">
-                                    <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                    <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                    <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full animate-bounce"></span>
+                                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></span>
                                 </div>
+                                <span className="text-xs text-zinc-500 font-medium px-1">Pensando...</span>
                             </div>
                         </motion.div>
                     )}
@@ -210,6 +230,12 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                     <ArrowDown size={20} />
                 </motion.button>
             )}
+
+            <SourceModal
+                source={selectedSource}
+                isOpen={!!selectedSource}
+                onClose={() => setSelectedSource(null)}
+            />
         </div>
     );
 }
