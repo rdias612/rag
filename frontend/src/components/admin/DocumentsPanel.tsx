@@ -339,7 +339,7 @@ export function DocumentsPanel() {
             case 'skipped':
                 return <Clock size={14} className="text-yellow-400" />;
             default:
-                return <FileText size={14} className="text-zinc-400" />;
+                return <FileText size={14} className="text-text-secondary" />;
         }
     };
 
@@ -347,15 +347,15 @@ export function DocumentsPanel() {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                    <HardDrive size={24} className="text-indigo-400" />
+                <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+                    <HardDrive size={24} className="text-accent-primary" />
                     Documentos
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={handleScanClick}
                         disabled={loading || scanning || ingestionStatus?.running}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent-primary hover:bg-accent-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {scanning ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -378,7 +378,7 @@ export function DocumentsPanel() {
                     <button
                         onClick={fetchData}
                         disabled={loading}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-surface hover:bg-surface/80 text-text-primary rounded-lg transition-colors disabled:opacity-50 border border-border"
                     >
                         <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                         Atualizar
@@ -411,16 +411,16 @@ export function DocumentsPanel() {
 
             {/* Ingestion Results */}
             {!ingestionStatus?.running && ingestionStatus?.results && ingestionStatus.results.length > 0 && (
-                <div className="bg-zinc-900/60 border border-white/5 rounded-xl p-4">
-                    <h3 className="text-sm font-medium text-zinc-300 mb-3">Última Ingestão</h3>
-                    <p className="text-xs text-zinc-400 mb-3">{ingestionStatus.message}</p>
+                <div className="bg-card border border-border rounded-xl p-4">
+                    <h3 className="text-sm font-medium text-text-primary mb-3">Última Ingestão</h3>
+                    <p className="text-xs text-text-secondary mb-3">{ingestionStatus.message}</p>
                     <div className="max-h-40 overflow-y-auto space-y-1">
                         {ingestionStatus.results.map((result, idx) => (
                             <div key={idx} className="flex items-center gap-2 text-xs">
                                 {getStatusIcon(result.status)}
-                                <span className="text-zinc-300 truncate flex-1">{result.file}</span>
+                                <span className="text-text-primary truncate flex-1">{result.file}</span>
                                 {result.chunks !== undefined && (
-                                    <span className="text-zinc-500">
+                                    <span className="text-text-secondary">
                                         {result.chunks}
                                         {result.total_chunks && result.total_chunks !== result.chunks ? `/${result.total_chunks}` : ''} chunks
                                     </span>
@@ -442,55 +442,55 @@ export function DocumentsPanel() {
                 <>
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl p-4">
+                        <div className="bg-card backdrop-blur-xl border border-border rounded-xl p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-zinc-400 text-sm">Arquivos no Dir</span>
-                                <FileText size={16} className="text-blue-400" />
+                                <span className="text-text-secondary text-sm">Arquivos no Dir</span>
+                                <FileText size={16} className="text-accent-primary" />
                             </div>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-2xl font-bold text-text-primary">
                                 {docStats?.total_files || 0}
                             </p>
                         </div>
 
-                        <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl p-4">
+                        <div className="bg-card backdrop-blur-xl border border-border rounded-xl p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-zinc-400 text-sm">Docs Ingeridos</span>
+                                <span className="text-text-secondary text-sm">Docs Ingeridos</span>
                                 <CheckCircle size={16} className="text-emerald-400" />
                             </div>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-2xl font-bold text-text-primary">
                                 {ingestedDocs.length}
                             </p>
                         </div>
 
-                        <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl p-4">
+                        <div className="bg-card backdrop-blur-xl border border-border rounded-xl p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-zinc-400 text-sm">Chunks Indexados</span>
+                                <span className="text-text-secondary text-sm">Chunks Indexados</span>
                                 <Database size={16} className="text-purple-400" />
                             </div>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-2xl font-bold text-text-primary">
                                 {docStats?.indexed_chunks?.toLocaleString() || 0}
                             </p>
                         </div>
 
-                        <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl p-4">
+                        <div className="bg-card backdrop-blur-xl border border-border rounded-xl p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-zinc-400 text-sm">Collections</span>
+                                <span className="text-text-secondary text-sm">Collections</span>
                                 <FolderOpen size={16} className="text-yellow-400" />
                             </div>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-2xl font-bold text-text-primary">
                                 {collections.length}
                             </p>
                         </div>
                     </div>
 
                     {/* Ingested Documents Table */}
-                    <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl overflow-hidden">
-                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                            <h3 className="text-sm font-medium text-zinc-300">Documentos Ingeridos</h3>
+                    <div className="bg-card backdrop-blur-xl border border-border rounded-xl overflow-hidden">
+                        <div className="p-4 border-b border-border flex items-center justify-between">
+                            <h3 className="text-sm font-medium text-text-primary">Documentos Ingeridos</h3>
                             {selectedDocs.length > 0 && (
                                 <button
                                     onClick={() => startIngestion(true, selectedDocs)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors shadow-lg shadow-indigo-500/10"
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-accent-primary hover:bg-accent-hover text-white text-xs font-medium rounded-lg transition-colors shadow-lg shadow-accent-primary/10"
                                 >
                                     <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
                                     Reprocessar {selectedDocs.length} Selecionado(s)
@@ -502,11 +502,11 @@ export function DocumentsPanel() {
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
-                                        <tr className="text-left text-xs text-zinc-500 border-b border-white/5">
+                                        <tr className="text-left text-xs text-text-secondary border-b border-border">
                                             <th className="px-4 py-3 w-10">
                                                 <input
                                                     type="checkbox"
-                                                    className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500/50"
+                                                    className="rounded border-border bg-surface text-accent-primary focus:ring-accent-primary/50"
                                                     checked={selectedDocs.length === ingestedDocs.length && ingestedDocs.length > 0}
                                                     onChange={(e) => {
                                                         if (e.target.checked) {
@@ -524,29 +524,29 @@ export function DocumentsPanel() {
                                                 <span>Arquivo</span>
                                                 <div
                                                     onMouseDown={handleMouseDown}
-                                                    className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500/50 transition-colors z-10"
+                                                    className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-primary/50 transition-colors z-10"
                                                     title="Arraste para redimensionar"
                                                 />
                                             </th>
-                                            <th className="px-4 py-3 font-medium">Coleção</th>
-                                            <th className="px-4 py-3 font-medium">Chunks</th>
-                                            <th className="px-4 py-3 font-medium">Tamanho</th>
-                                            <th className="px-4 py-3 font-medium">Data</th>
-                                            <th className="px-4 py-3 font-medium">Status</th>
-                                            <th className="px-4 py-3 font-medium w-20">Ações</th>
+                                            <th className="px-4 py-3 font-medium text-text-secondary">Coleção</th>
+                                            <th className="px-4 py-3 font-medium text-text-secondary">Chunks</th>
+                                            <th className="px-4 py-3 font-medium text-text-secondary">Tamanho</th>
+                                            <th className="px-4 py-3 font-medium text-text-secondary">Data</th>
+                                            <th className="px-4 py-3 font-medium text-text-secondary">Status</th>
+                                            <th className="px-4 py-3 font-medium w-20 text-text-secondary">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {ingestedDocs.map((doc) => (
                                             <tr
                                                 key={doc.id}
-                                                className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selectedDocs.includes(doc.file_path) ? 'bg-indigo-500/5' : ''
+                                                className={`border-b border-border hover:bg-surface transition-colors ${selectedDocs.includes(doc.file_path) ? 'bg-accent-primary/5' : ''
                                                     }`}
                                             >
                                                 <td className="px-4 py-3">
                                                     <input
                                                         type="checkbox"
-                                                        className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500/50"
+                                                        className="rounded border-border bg-surface text-accent-primary focus:ring-accent-primary/50"
                                                         checked={selectedDocs.includes(doc.file_path)}
                                                         onChange={(e) => {
                                                             if (e.target.checked) {
@@ -570,17 +570,17 @@ export function DocumentsPanel() {
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <span className="text-xs px-2 py-1 bg-indigo-500/10 text-indigo-400 rounded">
+                                                    <span className="text-xs px-2 py-1 bg-accent-primary/10 text-accent-primary rounded">
                                                         {doc.collection_id}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-3 text-sm text-zinc-300">
+                                                <td className="px-4 py-3 text-sm text-text-primary">
                                                     {doc.chunks_count}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm text-zinc-400">
+                                                <td className="px-4 py-3 text-sm text-text-secondary">
                                                     {formatBytes(doc.file_size)}
                                                 </td>
-                                                <td className="px-4 py-3 text-xs text-zinc-500">
+                                                <td className="px-4 py-3 text-xs text-text-secondary">
                                                     {formatDate(doc.ingested_at)}
                                                 </td>
                                                 <td className="px-4 py-3">
@@ -598,7 +598,7 @@ export function DocumentsPanel() {
                                                             </button>
                                                             <button
                                                                 onClick={() => setDeleteConfirm(null)}
-                                                                className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded transition-colors"
+                                                                className="text-xs px-2 py-1 bg-surface hover:bg-surface/80 text-text-primary rounded transition-colors border border-border"
                                                             >
                                                                 Não
                                                             </button>
@@ -606,7 +606,7 @@ export function DocumentsPanel() {
                                                     ) : (
                                                         <button
                                                             onClick={() => setDeleteConfirm(doc.file_path)}
-                                                            className="p-1.5 hover:bg-red-500/10 text-zinc-500 hover:text-red-400 rounded transition-colors"
+                                                            className="p-1.5 hover:bg-red-500/10 text-text-secondary hover:text-red-400 rounded transition-colors"
                                                             title="Deletar documento"
                                                         >
                                                             <Trash2 size={14} />
@@ -619,10 +619,10 @@ export function DocumentsPanel() {
                                 </table>
                             </div>
                         ) : (
-                            <div className="p-8 text-center text-zinc-500">
-                                <Database size={32} className="mx-auto mb-2 opacity-50" />
+                            <div className="p-8 text-center text-text-secondary">
+                                <Database size={32} className="mx-auto mb-2 opacity-30" />
                                 <p className="text-sm">Nenhum documento ingerido ainda</p>
-                                <p className="text-xs mt-1">Clique em "Iniciar Ingestão" para processar documentos</p>
+                                <p className="text-xs mt-1 text-text-secondary">Clique em "Iniciar Ingestão" para processar documentos</p>
                             </div>
                         )}
                     </div>
@@ -635,12 +635,12 @@ export function DocumentsPanel() {
                                 {Object.entries(docStats.files_by_type).map(([ext, count]) => (
                                     <div
                                         key={ext}
-                                        className="flex items-center gap-2 bg-zinc-800/50 rounded-lg p-3"
+                                        className="flex items-center gap-2 bg-surface rounded-lg p-3 border border-border"
                                     >
                                         <span className="text-xl">{getFileIcon(ext)}</span>
                                         <div>
-                                            <p className="text-white font-medium">{count}</p>
-                                            <p className="text-xs text-zinc-500 uppercase">{ext}</p>
+                                            <p className="text-text-primary font-medium">{count}</p>
+                                            <p className="text-xs text-text-secondary uppercase">{ext}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -651,14 +651,17 @@ export function DocumentsPanel() {
                     </div>
 
                     {/* Documents Path */}
-                    {docStats?.documents_dir && (
-                        <div className="text-xs text-zinc-600 flex items-center gap-2">
-                            <FolderOpen size={12} />
-                            <span className="font-mono">{docStats.documents_dir}</span>
-                        </div>
-                    )}
+                    {
+                        docStats?.documents_dir && (
+                            <div className="text-xs text-text-secondary flex items-center gap-2">
+                                <FolderOpen size={12} />
+                                <span className="font-mono">{docStats.documents_dir}</span>
+                            </div>
+                        )
+                    }
                 </>
-            )}
+            )
+            }
 
             {/* Confirmation Modals */}
             <ConfirmModal
@@ -674,88 +677,92 @@ export function DocumentsPanel() {
             />
 
             {/* Scan Modal */}
-            {showScanModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowScanModal(false)} />
-                    <div className="relative bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-fade-in overflow-hidden">
-                        <div className="p-6">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-500/10 rounded-xl">
-                                    <RefreshCw className="text-indigo-400" size={24} />
-                                </div>
-                                <h3 className="text-lg font-semibold text-white">
-                                    Documentos Pendentes
-                                </h3>
-                            </div>
-
-                            <p className="text-zinc-400 text-sm mb-4">
-                                Os seguintes arquivos foram detectados como novos ou modificados e serão processados:
-                            </p>
-
-                            <div className="max-h-60 overflow-y-auto space-y-2 mb-6 pr-2">
-                                {pendingFiles.map((file, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                                        <div className="flex items-center gap-3 overflow-hidden">
-                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${file.reason === 'new' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                                                }`}>
-                                                {file.reason === 'new' ? 'Novo' : 'Modificado'}
-                                            </span>
-                                            <span className="text-zinc-300 text-sm truncate">{file.file}</span>
-                                        </div>
-                                        <span className="text-zinc-500 text-[10px] font-mono whitespace-nowrap">
-                                            {(file.size / 1024).toFixed(1)} KB
-                                        </span>
+            {
+                showScanModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowScanModal(false)} />
+                        <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-fade-in overflow-hidden">
+                            <div className="p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 bg-indigo-500/10 rounded-xl">
+                                        <RefreshCw className="text-indigo-400" size={24} />
                                     </div>
-                                ))}
-                            </div>
+                                    <h3 className="text-lg font-semibold text-white">
+                                        Documentos Pendentes
+                                    </h3>
+                                </div>
 
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowScanModal(false)}
-                                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setShowScanModal(false);
-                                        startIngestion(false);
-                                    }}
-                                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
-                                >
-                                    Iniciar Ingestão
-                                </button>
+                                <p className="text-zinc-400 text-sm mb-4">
+                                    Os seguintes arquivos foram detectados como novos ou modificados e serão processados:
+                                </p>
+
+                                <div className="max-h-60 overflow-y-auto space-y-2 mb-6 pr-2">
+                                    {pendingFiles.map((file, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-surface rounded-lg border border-border">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${file.reason === 'new' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                                                    }`}>
+                                                    {file.reason === 'new' ? 'Novo' : 'Modificado'}
+                                                </span>
+                                                <span className="text-zinc-300 text-sm truncate">{file.file}</span>
+                                            </div>
+                                            <span className="text-zinc-500 text-[10px] font-mono whitespace-nowrap">
+                                                {(file.size / 1024).toFixed(1)} KB
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowScanModal(false)}
+                                        className="flex-1 px-4 py-2.5 text-sm font-medium bg-surface hover:bg-surface/80 text-text-primary rounded-xl transition-colors border border-border"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowScanModal(false);
+                                            startIngestion(false);
+                                        }}
+                                        className="flex-1 px-4 py-2.5 text-sm font-medium bg-accent-primary hover:bg-accent-hover text-white rounded-xl transition-colors shadow-lg shadow-accent-primary/20"
+                                    >
+                                        Iniciar Ingestão
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* No Files Modal */}
-            {showNoFilesModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNoFilesModal(false)} />
-                    <div className="relative bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-fade-in overflow-hidden">
-                        <div className="p-6 text-center">
-                            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CheckCircle className="text-emerald-500" size={32} />
+            {
+                showNoFilesModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNoFilesModal(false)} />
+                        <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-fade-in overflow-hidden">
+                            <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle className="text-emerald-500" size={32} />
+                                </div>
+                                <h3 className="text-lg font-semibold text-white mb-2">
+                                    Tudo Atualizado!
+                                </h3>
+                                <p className="text-zinc-400 text-sm mb-6">
+                                    Nenhum arquivo novo ou modificado foi detectado no diretório de documentos.
+                                </p>
+                                <button
+                                    onClick={() => setShowNoFilesModal(false)}
+                                    className="w-full px-4 py-2.5 text-sm font-medium bg-surface hover:bg-surface/80 text-text-primary rounded-xl transition-colors border border-border"
+                                >
+                                    Entendido
+                                </button>
                             </div>
-                            <h3 className="text-lg font-semibold text-white mb-2">
-                                Tudo Atualizado!
-                            </h3>
-                            <p className="text-zinc-400 text-sm mb-6">
-                                Nenhum arquivo novo ou modificado foi detectado no diretório de documentos.
-                            </p>
-                            <button
-                                onClick={() => setShowNoFilesModal(false)}
-                                className="w-full px-4 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors"
-                            >
-                                Entendido
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
