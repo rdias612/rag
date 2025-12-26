@@ -13,6 +13,7 @@ import {
     Loader2,
     RotateCcw
 } from 'lucide-react';
+import { ConfirmModal } from '../ConfirmModal';
 
 interface DocumentStats {
     total_files: number;
@@ -58,6 +59,9 @@ export function DocumentsPanel() {
     const [loading, setLoading] = useState(true);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
+
+    // Modal states
+    const [showReprocessModal, setShowReprocessModal] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
@@ -130,10 +134,6 @@ export function DocumentsPanel() {
     };
 
     const reprocessKnowledgeBase = async () => {
-        if (!confirm('Isso irá APAGAR todos os dados e reprocessar do zero. Continuar?')) {
-            return;
-        }
-
         try {
             const res = await fetch(`${API_URL}/documents/reprocess`, {
                 method: 'POST',
@@ -155,6 +155,8 @@ export function DocumentsPanel() {
             }
         } catch (error) {
             console.error('Failed to reprocess:', error);
+        } finally {
+            setShowReprocessModal(false);
         }
     };
 
@@ -248,7 +250,7 @@ export function DocumentsPanel() {
                         {ingestionStatus?.running ? 'Processando...' : 'Atualizar Base de Conhecimento'}
                     </button>
                     <button
-                        onClick={reprocessKnowledgeBase}
+                        onClick={() => setShowReprocessModal(true)}
                         disabled={loading || ingestionStatus?.running}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Limpa todos os dados e reprocessa do zero"
@@ -485,6 +487,19 @@ export function DocumentsPanel() {
                     )}
                 </>
             )}
+
+            {/* Confirmation Modals */}
+            <ConfirmModal
+                isOpen={showReprocessModal}
+                onClose={() => setShowReprocessModal(false)}
+                onConfirm={reprocessKnowledgeBase}
+                title="Reprocessar Base de Conhecimento"
+                message="Esta ação irá APAGAR todos os documentos indexados e reprocessar tudo do zero. Isso pode levar vários minutos dependendo do volume de dados. Deseja continuar?"
+                confirmText="Sim, Reprocessar"
+                cancelText="Cancelar"
+                variant="danger"
+                loading={ingestionStatus?.running}
+            />
         </div>
     );
 }

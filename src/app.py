@@ -16,7 +16,13 @@ def create_app() -> Flask:
     app.json.ensure_ascii = False
     
     # Habilitar CORS para frontend (Vite default port 5173) e localhost
-    CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://localhost:3000"]}})
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": ["http://localhost:5173", "http://localhost:3000"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
     
     # Registrar blueprint da API
     app.register_blueprint(api, url_prefix="/api")
