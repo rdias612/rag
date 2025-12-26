@@ -891,7 +891,7 @@ _bulk_ingestion_status = {
 _bulk_ingestion_lock = threading.Lock()
 
 
-def _run_bulk_ingestion(force: bool = False):
+def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
     """Executa ingestão em massa em background."""
     global _bulk_ingestion_status
     
@@ -900,7 +900,12 @@ def _run_bulk_ingestion(force: bool = False):
         all_document_files = get_all_documents(DOCUMENTS_DIR)
         
         # Determinar quais arquivos serão realmente processados
-        if force:
+        if specific_files:
+            # Processar apenas os arquivos selecionados
+            files_to_process = [dp for dp in all_document_files if str(dp) in specific_files]
+            # Se for específico, forçamos a limpeza do conteúdo antigo
+            force = True 
+        elif force:
             files_to_process = all_document_files
         else:
             pending = _scan_documents()
@@ -1106,11 +1111,14 @@ def start_bulk_ingestion():
     log_api_input("/api/documents/ingest-all", "POST", data)
     
     force = data.get("force", False)
+    files_to_ingest = data.get("files", None)
     
     # Contar arquivos que serão realmente processados (antes do lock para evitar NameError)
-    if force:
-        document_files = get_all_documents(DOCUMENTS_DIR)
-        total_to_process = len(document_files)
+    if files_to_ingest:
+        total_to_process = len(files_to_ingest)
+    elif force:
+        all_document_files = get_all_documents(DOCUMENTS_DIR)
+        total_to_process = len(all_document_files)
     else:
         pending = _scan_documents()
         total_to_process = len(pending)
@@ -1128,7 +1136,7 @@ def start_bulk_ingestion():
         _bulk_ingestion_status["results"] = []
     
     # Iniciar em background
-    thread = threading.Thread(target=_run_bulk_ingestion, args=(force,))
+    thread = threading.Thread(target=_run_bulk_ingestion, args=(force, files_to_ingest))
     thread.daemon = True
     thread.start()
     
