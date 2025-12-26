@@ -138,9 +138,27 @@ def insert_documents_batch(documents: list[dict]) -> int:
             values = []
             for doc in documents:
                 # Validar embedding
-                if not isinstance(doc["embedding"], list) or any(v is None for v in doc["embedding"]):
+                is_invalid = False
+                error_detail = ""
+                
+                if doc["embedding"] is None:
+                    is_invalid = True
+                    error_detail = "None (is null)"
+                elif not isinstance(doc["embedding"], list):
+                    is_invalid = True
+                    error_detail = f"not a list (type: {type(doc['embedding'])})"
+                else:
+                    # Encontrar o índice do primeiro nulo (se houver)
+                    for idx, val in enumerate(doc["embedding"]):
+                        if val is None:
+                            is_invalid = True
+                            error_detail = f"contains NULL at index {idx}"
+                            break
+                
+                if is_invalid:
                     file_info = doc.get("metadata", {}).get("source_path", "unknown")
-                    raise ValueError(f"Embedding inválido detectado para {file_info}: contém valores nulos ou tipo incorreto.")
+                    db_logger.error(f"DETALHE ERRO EMBEDDING: {error_detail} para {file_info}")
+                    raise ValueError(f"Embedding inválido detectado para {file_info}: {error_detail}")
 
                 values.append((
                     doc["content"],

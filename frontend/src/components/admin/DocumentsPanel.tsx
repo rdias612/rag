@@ -35,7 +35,6 @@ interface IngestedDocument {
     status: string;
     ingested_at: string;
 }
-
 interface IngestionStatus {
     running: boolean;
     progress: number;
@@ -50,6 +49,13 @@ interface IngestionStatus {
     }>;
 }
 
+interface PendingFile {
+    file: string;
+    path: string;
+    reason: 'new' | 'modified';
+    size: number;
+}
+
 
 export function DocumentsPanel() {
     const [docStats, setDocStats] = useState<DocumentStats | null>(null);
@@ -62,6 +68,9 @@ export function DocumentsPanel() {
 
     // Modal states
     const [showReprocessModal, setShowReprocessModal] = useState(false);
+    const [showScanModal, setShowScanModal] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+    const [scanning, setScanning] = useState(false);
 
     const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
         const controller = new AbortController();
@@ -148,6 +157,7 @@ export function DocumentsPanel() {
     }, []);
 
     const startIngestion = async (force: boolean = false) => {
+        setLoading(true);
         try {
             const res = await fetch(`${API_URL}/documents/ingest-all`, {
                 method: 'POST',
@@ -160,14 +170,40 @@ export function DocumentsPanel() {
                 setIngestionStatus({
                     running: true,
                     progress: 0,
-                    total: data.total_files,
+                    total: data.total_files || 0,
                     current_file: null,
-                    message: 'Iniciando...',
+                    message: "Iniciando ingestão...",
                     results: []
                 });
+                // Iniciar polling
+                fetchData();
             }
         } catch (error) {
-            console.error('Failed to start ingestion:', error);
+            console.error("Error starting ingestion:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleScanClick = async () => {
+        setScanning(true);
+        try {
+            const res = await fetch(`${API_URL}/documents/scan`);
+            if (!res.ok) throw new Error("Failed to scan documents");
+            const data = await res.json();
+
+            if (data.pending && data.pending.length > 0) {
+                setPendingFiles(data.pending);
+                setShowScanModal(true);
+            } else {
+                // Se não houver nada novo, ainda assim podemos mostrar um feedback ou iniciar se quiser
+                // mas a instrução pede modal para os que serão atualizados
+                alert("Nenhum arquivo novo ou modificado detectado.");
+            }
+        } catch (error) {
+            console.error("Error scanning:", error);
+        } finally {
+            setScanning(false);
         }
     };
 
@@ -276,16 +312,18 @@ export function DocumentsPanel() {
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => startIngestion(false)}
-                        disabled={loading || ingestionStatus?.running}
+                        onClick={handleScanClick}
+                        disabled={loading || scanning || ingestionStatus?.running}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {ingestionStatus?.running ? (
+                        {scanning ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : ingestionStatus?.running ? (
                             <Loader2 size={14} className="animate-spin" />
                         ) : (
                             <Play size={14} />
                         )}
-                        {ingestionStatus?.running ? 'Processando...' : 'Atualizar Base de Conhecimento'}
+                        {scanning ? 'Escaneando...' : ingestionStatus?.running ? 'Processando...' : 'Atualizar Base de Conhecimento'}
                     </button>
                     <button
                         onClick={() => setShowReprocessModal(true)}
@@ -538,6 +576,64 @@ export function DocumentsPanel() {
                 variant="danger"
                 loading={ingestionStatus?.running}
             />
+
+            {/* Scan Modal */}
+            {showScanModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowScanModal(false)} />
+                    <div className="relative bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-fade-in overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-indigo-500/10 rounded-xl">
+                                    <RefreshCw className="text-indigo-400" size={24} />
+                                </div>
+                                <h3 className="text-lg font-semibold text-white">
+                                    Documentos Pendentes
+                                </h3>
+                            </div>
+
+                            <p className="text-zinc-400 text-sm mb-4">
+                                Os seguintes arquivos foram detectados como novos ou modificados e serão processados:
+                            </p>
+
+                            <div className="max-h-60 overflow-y-auto space-y-2 mb-6 pr-2">
+                                {pendingFiles.map((file, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${file.reason === 'new' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                                                }`}>
+                                                {file.reason === 'new' ? 'Novo' : 'Modificado'}
+                                            </span>
+                                            <span className="text-zinc-300 text-sm truncate">{file.file}</span>
+                                        </div>
+                                        <span className="text-zinc-500 text-[10px] font-mono whitespace-nowrap">
+                                            {(file.size / 1024).toFixed(1)} KB
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowScanModal(false)}
+                                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowScanModal(false);
+                                        startIngestion(false);
+                                    }}
+                                    className="flex-1 px-4 py-2.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+                                >
+                                    Iniciar Ingestão
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

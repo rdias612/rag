@@ -1025,6 +1025,60 @@ def _run_bulk_ingestion(force: bool = False):
             _bulk_ingestion_status["message"] = f"Erro: {str(e)}"
 
 
+def _scan_documents():
+    """Escaneia diretório buscando arquivos novos ou modificados."""
+    document_files = get_all_documents(DOCUMENTS_DIR)
+    pending = []
+    
+    for doc_path in document_files:
+        file_path_str = str(doc_path)
+        try:
+            file_hash = _calculate_file_hash(doc_path)
+            file_size = doc_path.stat().st_size
+            
+            existing = get_ingested_document(file_path_str)
+            
+            if not existing:
+                pending.append({
+                    "file": doc_path.name,
+                    "path": file_path_str,
+                    "reason": "new",
+                    "size": file_size
+                })
+            elif existing["file_hash"] != file_hash:
+                pending.append({
+                    "file": doc_path.name,
+                    "path": file_path_str,
+                    "reason": "modified",
+                    "size": file_size
+                })
+        except Exception as e:
+            api_logger.warning(f"Could not scan {doc_path}: {e}")
+            
+    return pending
+
+
+@api.route("/documents/scan", methods=["GET"])
+def scan_pending_documents():
+    """Retorna lista de documentos que precisam de atualização."""
+    start_time = time.time()
+    log_api_request("/api/documents/scan", "GET")
+    
+    try:
+        pending = _scan_documents()
+        duration = time.time() - start_time
+        log_api_response("/api/documents/scan", 200, duration)
+        
+        return jsonify({
+            "pending": pending,
+            "count": len(pending)
+        }), 200
+    except Exception as e:
+        api_logger.error(f"Error scanning documents: {e}")
+        log_api_response("/api/documents/scan", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
 @api.route("/documents/ingest-all", methods=["POST"])
 def start_bulk_ingestion():
     """

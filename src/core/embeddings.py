@@ -56,6 +56,12 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     embedding = data["data"][0]["embedding"]
     duration = time.time() - start_time
     
+    # Validar embedding
+    if embedding is None or not isinstance(embedding, list) or any(v is None for v in embedding):
+        error_reason = "None" if embedding is None else ("not a list" if not isinstance(embedding, list) else "contains NULLs")
+        embedding_logger.error(f"ERRO: Embedding inválido retornado (singular): {error_reason}")
+        raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) para o texto: '{text[:50]}...'")
+
     # Log do embedding gerado
     log_embedding_response(embedding, duration)
     
