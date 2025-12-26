@@ -447,8 +447,17 @@ export function DocumentsPanel() {
 
                     {/* Ingested Documents Table */}
                     <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl overflow-hidden">
-                        <div className="p-4 border-b border-white/5">
+                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
                             <h3 className="text-sm font-medium text-zinc-300">Documentos Ingeridos</h3>
+                            {selectedDocs.length > 0 && (
+                                <button
+                                    onClick={() => startIngestion(true, selectedDocs)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors shadow-lg shadow-indigo-500/10"
+                                >
+                                    <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+                                    Reprocessar {selectedDocs.length} Selecionado(s)
+                                </button>
+                            )}
                         </div>
 
                         {ingestedDocs.length > 0 ? (
@@ -456,6 +465,20 @@ export function DocumentsPanel() {
                                 <table className="w-full">
                                     <thead>
                                         <tr className="text-left text-xs text-zinc-500 border-b border-white/5">
+                                            <th className="px-4 py-3 w-10">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500/50"
+                                                    checked={selectedDocs.length === ingestedDocs.length && ingestedDocs.length > 0}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedDocs(ingestedDocs.map(d => d.file_path));
+                                                        } else {
+                                                            setSelectedDocs([]);
+                                                        }
+                                                    }}
+                                                />
+                                            </th>
                                             <th className="px-4 py-3 font-medium">Arquivo</th>
                                             <th className="px-4 py-3 font-medium">Coleção</th>
                                             <th className="px-4 py-3 font-medium">Chunks</th>
@@ -469,8 +492,23 @@ export function DocumentsPanel() {
                                         {ingestedDocs.map((doc) => (
                                             <tr
                                                 key={doc.id}
-                                                className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                                                className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selectedDocs.includes(doc.file_path) ? 'bg-indigo-500/5' : ''
+                                                    }`}
                                             >
+                                                <td className="px-4 py-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500/50"
+                                                        checked={selectedDocs.includes(doc.file_path)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedDocs(prev => [...prev, doc.file_path]);
+                                                            } else {
+                                                                setSelectedDocs(prev => prev.filter(path => path !== doc.file_path));
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
                                                         <span>{getFileIcon(doc.file_name.substring(doc.file_name.lastIndexOf('.')))}</span>
@@ -636,6 +674,32 @@ export function DocumentsPanel() {
                                     Iniciar Ingestão
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* No Files Modal */}
+            {showNoFilesModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNoFilesModal(false)} />
+                    <div className="relative bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-fade-in overflow-hidden">
+                        <div className="p-6 text-center">
+                            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle className="text-emerald-500" size={32} />
+                            </div>
+                            <h3 className="text-lg font-semibold text-white mb-2">
+                                Tudo Atualizado!
+                            </h3>
+                            <p className="text-zinc-400 text-sm mb-6">
+                                Nenhum arquivo novo ou modificado foi detectado no diretório de documentos.
+                            </p>
+                            <button
+                                onClick={() => setShowNoFilesModal(false)}
+                                className="w-full px-4 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors"
+                            >
+                                Entendido
+                            </button>
                         </div>
                     </div>
                 </div>
