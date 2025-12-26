@@ -429,14 +429,20 @@ def get_collections():
     Response:
         {"collections": ["default", "projeto_A", ...]}
     """
+    print("[DEBUG] /collections - START")
     start_time = time.time()
     log_api_request("/api/collections", "GET")
+    print("[DEBUG] /collections - After log_api_request")
     
     try:
+        print("[DEBUG] /collections - Calling list_collections()")
         collections = list_collections()
+        print(f"[DEBUG] /collections - Got {len(collections)} collections: {collections}")
         log_api_response("/api/collections", 200, time.time() - start_time)
+        print("[DEBUG] /collections - Returning response")
         return jsonify({"collections": collections})
     except Exception as e:
+        print(f"[DEBUG] /collections - ERROR: {e}")
         api_logger.error(f"Error in /collections: {e}")
         log_api_response("/api/collections", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
