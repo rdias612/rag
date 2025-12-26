@@ -185,7 +185,15 @@ python -m src.app
 
 A API estará disponível em `http://localhost:5000`
 
-### Iniciar o Frontend
+### Iniciar Tudo (Recomendado)
+
+Você pode iniciar o Backend e o Frontend simultaneamente com um único comando:
+
+```bash
+python run_app.py
+```
+
+### Iniciar separadamente
 
 Em outro terminal:
 
@@ -731,6 +739,9 @@ python -m scripts.ingest --clear
 
 # Iniciar API
 python -m src.app
+
+# Iniciar Tudo (Unificado)
+python run_app.py
 ```
 
 ---
