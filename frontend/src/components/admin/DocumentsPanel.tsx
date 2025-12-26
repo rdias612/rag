@@ -69,7 +69,9 @@ export function DocumentsPanel() {
     // Modal states
     const [showReprocessModal, setShowReprocessModal] = useState(false);
     const [showScanModal, setShowScanModal] = useState(false);
-    const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+    const [showNoFilesModal, setShowNoFilesModal] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState<any[]>([]);
+    const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
 
     const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
@@ -156,13 +158,16 @@ export function DocumentsPanel() {
         // mas por enquanto seguiremos a instrução de focar na Visão Geral.
     }, []);
 
-    const startIngestion = async (force: boolean = false) => {
+    const startIngestion = async (force: boolean = false, files_to_ingest: string[] | null = null) => {
         setLoading(true);
         try {
             const res = await fetch(`${API_URL}/documents/ingest-all`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ force })
+                body: JSON.stringify({
+                    force,
+                    files: files_to_ingest
+                })
             });
 
             if (res.ok) {
@@ -172,9 +177,12 @@ export function DocumentsPanel() {
                     progress: 0,
                     total: data.total_files || 0,
                     current_file: null,
-                    message: "Iniciando ingestão...",
+                    message: files_to_ingest ? "Reprocessando selecionados..." : "Iniciando ingestão...",
                     results: []
                 });
+                if (files_to_ingest) {
+                    setSelectedDocs([]);
+                }
                 // Iniciar polling
                 fetchData();
             }
@@ -196,9 +204,7 @@ export function DocumentsPanel() {
                 setPendingFiles(data.pending);
                 setShowScanModal(true);
             } else {
-                // Se não houver nada novo, ainda assim podemos mostrar um feedback ou iniciar se quiser
-                // mas a instrução pede modal para os que serão atualizados
-                alert("Nenhum arquivo novo ou modificado detectado.");
+                setShowNoFilesModal(true);
             }
         } catch (error) {
             console.error("Error scanning:", error);
