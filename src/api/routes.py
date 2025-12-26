@@ -907,8 +907,9 @@ def _run_bulk_ingestion(force: bool = False):
         docs_processed = 0
         docs_skipped = 0
         docs_failed = 0
+        total_files = len(document_files)
         
-        for i, doc_path in enumerate(document_files):
+        for i, doc_path in enumerate(document_files, start=1):
             file_path_str = str(doc_path)
             file_name = doc_path.name
             
