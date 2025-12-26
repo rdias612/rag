@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     # =========================================================================
     LM_STUDIO_BASE_URL: str = "http://127.0.0.1:1234/v1"
     
-    # Modelo de embeddings (Nomic Embed v1.5)
-    EMBEDDING_MODEL: str = Field(default="text-embedding-nomic-embed-text-v1.5", validation_alias="EMBEDDING_MODEL")
+    # Modelo de embeddings (BGE-M3)
+    EMBEDDING_MODEL: str = Field(default="text-embedding-bge-m3", validation_alias="EMBEDDING_MODEL")
     EMBEDDING_DIMENSION: int = Field(default=1024, validation_alias="EMBEDDING_DIMENSION")
     
     # Modelo LLM (Phi-3.5 Mini)
