@@ -8,6 +8,9 @@ import threading
 from pathlib import Path
 from datetime import datetime
 from flask import Blueprint, request, jsonify, Response, stream_with_context
+from pydantic import ValidationError
+
+from src.api.schemas import QueryRequest, ChatRequest, SearchRequest, StreamQueryRequest
 
 from src.core.rag import (
     query_rag, 
@@ -99,35 +102,28 @@ def query():
         }
     """
     start_time = time.time()
-    data = request.get_json()
-    
-    # Log do input completo recebido
+    data = request.get_json() or {}
     log_api_input("/api/query", "POST", data)
     
-    if not data or "question" not in data:
-        api_logger.warning("Query request missing 'question' field")
+    # Validação com Pydantic
+    try:
+        req = QueryRequest(**data)
+    except ValidationError as e:
+        api_logger.warning(f"Query validation failed: {e.errors()}")
         log_api_response("/api/query", 400, time.time() - start_time)
-        return jsonify({"error": "Campo 'question' é obrigatório"}), 400
-    
-    question = data["question"]
-    top_k = data.get("top_k", 5)
-    temperature = data.get("temperature", 0.7)
-    include_sources = data.get("include_sources", True)
-    collection_id = data.get("collection", None)
-    debug_mode = data.get("debug", False)  # Modo debug/explain
+        return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     try:
         result = query_rag(
-            question=question,
-            top_k=top_k,
-            temperature=temperature,
-            include_sources=include_sources,
-            collection_id=collection_id,
-            debug_mode=debug_mode
+            question=req.question,
+            top_k=req.top_k,
+            temperature=req.temperature,
+            include_sources=req.include_sources,
+            collection_id=req.collection,
+            debug_mode=req.debug
         )
         
         log_api_response("/api/query", 200, time.time() - start_time)
-        
         return jsonify(result)
     
     except Exception as e:
@@ -148,22 +144,19 @@ def query_stream():
             "temperature": 0.7
         }
     """
-    data = request.get_json()
-    
-    # Log do input completo recebido
+    data = request.get_json() or {}
     log_api_input("/api/query/stream", "POST", data)
     
-    if not data or "question" not in data:
-        api_logger.warning("Stream query request missing 'question' field")
-        return jsonify({"error": "Campo 'question' é obrigatório"}), 400
-    
-    question = data["question"]
-    top_k = data.get("top_k", 5)
-    temperature = data.get("temperature", 0.7)
+    # Validação com Pydantic
+    try:
+        req = StreamQueryRequest(**data)
+    except ValidationError as e:
+        api_logger.warning(f"Stream query validation failed: {e.errors()}")
+        return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     def generate():
         try:
-            for token in query_rag_stream(question, top_k, temperature):
+            for token in query_rag_stream(req.question, req.top_k, req.temperature):
                 yield token
             api_logger.info("Stream query completed successfully")
         except Exception as e:
@@ -190,28 +183,22 @@ def search():
         }
     """
     start_time = time.time()
-    data = request.get_json()
-    
-    # Log do input completo recebido
+    data = request.get_json() or {}
     log_api_input("/api/search", "POST", data)
     
-    if not data or "question" not in data:
-        api_logger.warning("Search request missing 'question' field")
+    # Validação com Pydantic
+    try:
+        req = SearchRequest(**data)
+    except ValidationError as e:
+        api_logger.warning(f"Search validation failed: {e.errors()}")
         log_api_response("/api/search", 400, time.time() - start_time)
-        return jsonify({"error": "Campo 'question' é obrigatório"}), 400
-    
-    question = data["question"]
-    top_k = data.get("top_k", 5)
+        return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     try:
-        results = search_only(question, top_k)
+        results = search_only(req.question, req.top_k)
         
         log_api_response("/api/search", 200, time.time() - start_time)
-        
-        return jsonify({
-            "results": results,
-            "count": len(results)
-        })
+        return jsonify({"results": results, "count": len(results)})
     
     except Exception as e:
         api_logger.error(f"Error in /search: {e}")
@@ -248,34 +235,28 @@ def chat():
         }
     """
     start_time = time.time()
-    data = request.get_json()
-    
+    data = request.get_json() or {}
     log_api_input("/api/chat", "POST", data)
     
-    if not data or "question" not in data:
-        api_logger.warning("Chat request missing 'question' field")
+    # Validação com Pydantic
+    try:
+        req = ChatRequest(**data)
+    except ValidationError as e:
+        api_logger.warning(f"Chat validation failed: {e.errors()}")
         log_api_response("/api/chat", 400, time.time() - start_time)
-        return jsonify({"error": "Campo 'question' é obrigatório"}), 400
-    
-    question = data["question"]
-    session_id = data.get("session_id")  # Opcional
-    top_k = data.get("top_k", 5)
-    temperature = data.get("temperature", 0.7)
-    include_sources = data.get("include_sources", True)
-    collection_id = data.get("collection")
+        return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     try:
         result = query_rag_with_history(
-            question=question,
-            session_id=session_id,
-            top_k=top_k,
-            temperature=temperature,
-            include_sources=include_sources,
-            collection_id=collection_id
+            question=req.question,
+            session_id=req.session_id,
+            top_k=req.top_k,
+            temperature=req.temperature,
+            include_sources=req.include_sources,
+            collection_id=req.collection
         )
         
         log_api_response("/api/chat", 200, time.time() - start_time)
-        
         return jsonify(result)
     
     except Exception as e:

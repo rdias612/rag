@@ -150,6 +150,7 @@ python -m scripts.ingest --stats
 - [x] ✅ **Suporte Multi-idioma**
 - [x] ✅ **Configuração via Environment (#13)** - Pydantic Settings & `.env`
 - [x] ✅ **Script Unificado de Execução** - `run_app.py`
+- [x] ✅ **Validação de Schema (#12)** - Pydantic para todos os endpoints
 
 ---
 

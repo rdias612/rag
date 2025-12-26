@@ -385,45 +385,6 @@ def query():
 
 ---
 
-#### #13 🔧 **Configuração via Variáveis de Ambiente**
-**Impacto:** ⭐⭐ | **Complexidade:** Baixa | **Urgência:** Média
-
-**Problema Atual:**
-- Algumas configs usam `os.getenv()`, outras são hardcoded
-- Paths absolutos no código (`C:\Users\Rian\...`)
-
-**Por que Implementar esta Melhoria?**
-
-Configuração misturada entre código e environment cria confusão e dificulta deployment. Um arquivo `.env` centralizado torna óbvio o que precisa ser configurado e permite diferentes valores para dev/staging/prod sem alterar código.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Sistema funciona consistentemente em qualquer ambiente. Menos bugs por configuração errada. |
-| 💻 **Desenvolvedor** | Um lugar só para ver/alterar configs. `.env.example` documenta opções. Secrets não vazam no Git. Fácil alternar entre ambientes. |
-| ⚡ **Performance** | Configs de performance ajustáveis sem rebuild. Feature flags para habilitar/desabilitar componentes. |
-| 🏗️ **Qualidade do Projeto** | 12-Factor App compliance. Deploy reproduzível. Secrets management apropriado. |
-| 📊 **Gestão** | Configuração centralizada e auditável. Fácil onboarding de novos ambientes. Deploy self-service possível. |
-
-**Solução:**
-```python
-# config.py - Usar pydantic-settings
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    documents_dir: Path = Path("./documents")
-    db_host: str = "localhost"
-    db_port: int = 5433
-    enable_hyde: bool = True
-    # ... todas as configs
-    
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
-```
-
----
-
 #### #14 📚 **Documentação OpenAPI/Swagger**
 **Impacto:** ⭐⭐ | **Complexidade:** Baixa | **Urgência:** Baixa
 
