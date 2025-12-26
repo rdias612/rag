@@ -1,3 +1,17 @@
+import { useState, useEffect } from 'react';
+import {
+    Activity,
+    Database,
+    Zap,
+    Clock,
+    RefreshCw,
+    HardDrive,
+    BarChart3
+} from 'lucide-react';
+
+interface HealthData {
+    status: string;
+    database: string;
 }
 
 interface StatsData {
