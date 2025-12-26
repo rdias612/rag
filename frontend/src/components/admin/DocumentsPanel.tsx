@@ -49,7 +49,7 @@ interface IngestionStatus {
     }>;
 }
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = "http://127.0.0.1:5000/api";
 
 export function DocumentsPanel() {
     const [docStats, setDocStats] = useState<DocumentStats | null>(null);
@@ -63,6 +63,22 @@ export function DocumentsPanel() {
     // Modal states
     const [showReprocessModal, setShowReprocessModal] = useState(false);
 
+    const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            clearTimeout(id);
+            return response;
+        } catch (error) {
+            clearTimeout(id);
+            throw error;
+        }
+    };
+
     const fetchData = async () => {
         console.log('[DocumentsPanel] fetchData started');
         console.log('[DocumentsPanel] API_URL:', API_URL);
@@ -72,22 +88,22 @@ export function DocumentsPanel() {
             // Use Promise.allSettled so individual failures don't break everything
             console.log('[DocumentsPanel] Inside try block');
             const results = await Promise.allSettled([
-                fetch(`${API_URL}/documents/stats`).then(r => {
+                fetchWithTimeout(`${API_URL}/documents/stats`).then(r => {
                     console.log('[DocumentsPanel] documents/stats status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
-                fetch(`${API_URL}/collections`).then(r => {
+                fetchWithTimeout(`${API_URL}/collections`).then(r => {
                     console.log('[DocumentsPanel] collections status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
-                fetch(`${API_URL}/documents/ingested`).then(r => {
+                fetchWithTimeout(`${API_URL}/documents/ingested`).then(r => {
                     console.log('[DocumentsPanel] documents/ingested status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
-                fetch(`${API_URL}/documents/ingest-status`).then(r => {
+                fetchWithTimeout(`${API_URL}/documents/ingest-status`).then(r => {
                     console.log('[DocumentsPanel] documents/ingest-status status:', r.status);
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
