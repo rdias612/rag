@@ -4,6 +4,7 @@ export interface Message {
     timestamp?: number;
     sources?: Source[];
     debugInfo?: DebugInfo;
+    feedback?: 'good' | 'bad' | null;
 }
 
 export interface DebugInfo {

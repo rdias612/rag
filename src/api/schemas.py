@@ -50,3 +50,15 @@ class StreamQueryRequest(BaseModel):
 
     class Config:
         extra = "ignore"
+
+
+class FeedbackRequest(BaseModel):
+    """Modelo para requisições ao endpoint /api/feedback."""
+    session_id: str = Field(..., description="ID da sessão de conversa")
+    message_index: int = Field(..., ge=0, description="Índice da mensagem na conversa")
+    rating: int = Field(..., ge=0, le=1, description="Avaliação: 1 (bom), 0 (ruim)")
+    comment: Optional[str] = Field(default=None, description="Comentário opcional")
+    metadata: Optional[dict] = Field(default=None, description="Metadados adicionais do feedback")
+
+    class Config:
+        extra = "ignore"

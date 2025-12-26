@@ -342,49 +342,6 @@ def submit_feedback():
 
 ---
 
-#### #12 📝 **Validação de Schema com Pydantic**
-**Impacto:** ⭐⭐ | **Complexidade:** Baixa | **Urgência:** Baixa
-
-**Problema Atual:**
-```python
-# routes.py - Validação manual
-question = data.get("question", "").strip()
-if not question:
-    return jsonify({"error": "..."}), 400
-```
-
-**Por que Implementar esta Melhoria?**
-
-Validação manual é propensa a erros e verbosa. Pydantic automatiza isso, garantindo que os dados estejam corretos antes de processar, gerando mensagens de erro claras, e documentando a API automaticamente.
-
-| Perspectiva | Benefícios |
-|-------------|------------|
-| 👤 **Usuário** | Mensagens de erro claras quando input é inválido. API mais previsível e documentada. |
-| 💻 **Desenvolvedor** | Menos código boilerplate. Type hints automáticos. Integração com IDEs. Documentação gerada automaticamente. |
-| ⚡ **Performance** | Rejeição rápida de requests inválidos. Menos processamento desperdiçado. |
-| 🏗️ **Qualidade do Projeto** | Código mais limpo e manutenível. Melhor DX (Developer Experience). Padrão de mercado. |
-| 📊 **Gestão** | API mais robusta. Menos suporte por erro de uso. Documentação sempre atualizada. |
-
-**Solução:**
-```python
-from pydantic import BaseModel, Field
-
-class QueryRequest(BaseModel):
-    question: str = Field(..., min_length=1)
-    top_k: int = Field(default=5, ge=1, le=50)
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    collection: Optional[str] = None
-
-@api.route('/api/query', methods=['POST'])
-def query():
-    try:
-        req = QueryRequest(**request.json)
-    except ValidationError as e:
-        return jsonify({"error": e.errors()}), 400
-```
-
----
-
 #### #14 📚 **Documentação OpenAPI/Swagger**
 **Impacto:** ⭐⭐ | **Complexidade:** Baixa | **Urgência:** Baixa
 

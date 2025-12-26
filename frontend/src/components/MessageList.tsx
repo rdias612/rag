@@ -1,5 +1,5 @@
 import ReactMarkdown from 'react-markdown';
-import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen } from "lucide-react";
+import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Message } from "../types";
@@ -9,9 +9,10 @@ import { DebugPanel } from './DebugPanel';
 interface MessageListProps {
     messages: Message[];
     isLoading: boolean;
+    onFeedback: (index: number, rating: number) => void;
 }
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
+export function MessageList({ messages, isLoading, onFeedback }: MessageListProps) {
     const bottomRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
@@ -96,7 +97,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={cn(
-                            "flex gap-4 w-full",
+                            "flex gap-4 w-full group",
                             msg.role === 'user' ? "justify-end" : "justify-start"
                         )}
                     >
@@ -138,6 +139,36 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                             {/* Debug Panel */}
                             {msg.role === 'assistant' && msg.debugInfo && (
                                 <DebugPanel debugInfo={msg.debugInfo} />
+                            )}
+
+                            {/* Feedback Buttons */}
+                            {msg.role === 'assistant' && !isLoading && (
+                                <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => onFeedback(idx, 1)}
+                                        className={cn(
+                                            "p-1.5 rounded-lg transition-colors",
+                                            msg.feedback === 'good'
+                                                ? "text-emerald-400 bg-emerald-500/10"
+                                                : "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                                        )}
+                                        title="Útil"
+                                    >
+                                        <ThumbsUp size={14} fill={msg.feedback === 'good' ? "currentColor" : "none"} />
+                                    </button>
+                                    <button
+                                        onClick={() => onFeedback(idx, 0)}
+                                        className={cn(
+                                            "p-1.5 rounded-lg transition-colors",
+                                            msg.feedback === 'bad'
+                                                ? "text-rose-400 bg-rose-500/10"
+                                                : "text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10"
+                                        )}
+                                        title="Não foi útil"
+                                    >
+                                        <ThumbsDown size={14} fill={msg.feedback === 'bad' ? "currentColor" : "none"} />
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </motion.div>

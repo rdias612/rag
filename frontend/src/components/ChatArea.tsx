@@ -7,12 +7,13 @@ interface ChatAreaProps {
     isLoading: boolean;
     onSend: (msg: string) => void;
     onOpenUpload: () => void;
+    onFeedback: (index: number, rating: number) => void;
 }
 
-export function ChatArea({ messages, isLoading, onSend, onOpenUpload }: ChatAreaProps) {
+export function ChatArea({ messages, isLoading, onSend, onOpenUpload, onFeedback }: ChatAreaProps) {
     return (
         <div className="flex-1 flex flex-col">
-            <MessageList messages={messages} isLoading={isLoading} />
+            <MessageList messages={messages} isLoading={isLoading} onFeedback={onFeedback} />
             <MessageInput onSend={onSend} isLoading={isLoading} onOpenUpload={onOpenUpload} />
         </div>
     );

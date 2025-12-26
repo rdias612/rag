@@ -274,3 +274,30 @@ def check_connection() -> bool:
     except Exception as e:
         db_logger.error(f"Database connection failed: {e}")
         return False
+
+
+def insert_feedback(session_id: str, message_index: int, rating: int, comment: Optional[str] = None, metadata: Optional[dict] = None) -> bool:
+    """
+    Insere um feedback do usuário no banco de dados.
+    """
+    start_time = time.time()
+    query = "INSERT INTO feedback (session_id, message_index, rating, comment, metadata) VALUES (%s, %s, %s, %s, %s)"
+    log_db_query("INSERT FEEDBACK", query, (session_id, message_index, rating, comment))
+    
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO feedback (session_id, message_index, rating, comment, metadata)
+                    VALUES (%s, %s, %s, %s, %s);
+                    """,
+                    (session_id, message_index, rating, comment, json.dumps(metadata) if metadata else None)
+                )
+        
+        duration = time.time() - start_time
+        log_db_result("INSERT FEEDBACK", 1, duration)
+        return True
+    except Exception as e:
+        db_logger.error(f"Error inserting feedback: {e}")
+        return False

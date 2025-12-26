@@ -10,7 +10,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from pydantic import ValidationError
 
-from src.api.schemas import QueryRequest, ChatRequest, SearchRequest, StreamQueryRequest
+from src.api.schemas import QueryRequest, ChatRequest, SearchRequest, StreamQueryRequest, FeedbackRequest
 
 from src.core.rag import (
     query_rag, 
@@ -21,7 +21,7 @@ from src.core.rag import (
     clear_conversation
 )
 from src.core.conversation import conversation_manager
-from src.data.database import get_document_count, check_connection, insert_documents_batch, list_collections
+from src.data.database import get_document_count, check_connection, insert_documents_batch, list_collections, insert_feedback
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS, 
     process_document, 
@@ -377,24 +377,6 @@ def new_session():
     start_time = time.time()
     log_api_request("/api/chat/new", "POST")
     
-    try:
-        session_id = conversation_manager.create_session()
-        
-        log_api_response("/api/chat/new", 201, time.time() - start_time)
-        
-        return jsonify({"session_id": session_id}), 201
-    
-    except Exception as e:
-        api_logger.error(f"Error creating session: {e}")
-        log_api_response("/api/chat/new", 500, time.time() - start_time)
-        return jsonify({"error": str(e)}), 500
-
-
-@api.route("/collections", methods=["GET"])
-def get_collections():
-    """Lista collections disponíveis para seleção no frontend."""
-    start_time = time.time()
-    log_api_request("/api/collections", "GET")
 
     try:
         collections = list_collections()

@@ -67,3 +67,18 @@ export async function streamChat(
 
     return data;
 }
+
+export async function submitFeedback(sessionId: string, messageIndex: number, rating: number, comment?: string) {
+    const res = await fetch(`${API_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            session_id: sessionId,
+            message_index: messageIndex,
+            rating,
+            comment
+        })
+    });
+    if (!res.ok) throw new Error("Failed to submit feedback");
+    return res.json();
+}

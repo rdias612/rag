@@ -7,7 +7,7 @@ import { AdminDashboard } from "./components/AdminDashboard";
 import { Toast } from "./components/Toast";
 import { useToast } from "./hooks/useToast";
 import type { Message, Session } from "./types";
-import { fetchSessions, streamChat, createSession, deleteSession, fetchHistory, fetchCollections } from "./api";
+import { fetchSessions, streamChat, createSession, deleteSession, fetchHistory, fetchCollections, submitFeedback } from "./api";
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -173,6 +173,30 @@ function App() {
     }
   }
 
+  async function handleFeedback(messageIndex: number, rating: number) {
+    if (!currentSessionId) return;
+
+    try {
+      await submitFeedback(currentSessionId, messageIndex, rating);
+
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages[messageIndex]) {
+          newMessages[messageIndex] = {
+            ...newMessages[messageIndex],
+            feedback: rating === 1 ? 'good' : 'bad'
+          };
+        }
+        return newMessages;
+      });
+
+      showToast("Feedback registrado. Obrigado!", "success");
+    } catch (error) {
+      console.error("Feedback error", error);
+      showToast("Erro ao registrar feedback.", "error");
+    }
+  }
+
   return (
     <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans overflow-hidden selection:bg-indigo-500/20">
 
@@ -220,8 +244,8 @@ function App() {
             <button
               onClick={() => setDebugMode(!debugMode)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-all ${debugMode
-                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                  : 'bg-zinc-800/50 text-zinc-500 border-white/5 hover:border-white/10'
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                : 'bg-zinc-800/50 text-zinc-500 border-white/5 hover:border-white/10'
                 }`}
               title={debugMode ? "Debug ativado" : "Debug desativado"}
             >
@@ -246,6 +270,7 @@ function App() {
             isLoading={isLoading}
             onSend={handleSendMessage}
             onOpenUpload={() => setIsUploadOpen(true)}
+            onFeedback={handleFeedback}
           />
         </div>
 
