@@ -128,8 +128,8 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
                 embedding_logger.error(f"ERRO: {error_reason}")
                 embedding_logger.error(f"Texto (index {orig_idx}, len {text_len}): '{sample_text}'")
                 
-                # Opcional: Logar o objeto retornado pelo LM Studio para debug profundo
-                embedding_logger.debug(f"Data from LM Studio for this index: {sorted_data[idx]}")
+                # Logar o objeto retornado pelo LM Studio para debug profundo
+                embedding_logger.error(f"Full response data from LM Studio: {data}")
                 
                 raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) para o texto {orig_idx}. "
                                  f"Verifique se o texto está vazio ou se o modelo no LM Studio parou de responder.")
