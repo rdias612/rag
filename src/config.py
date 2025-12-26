@@ -1,92 +1,185 @@
-"""
-Configurações centralizadas do sistema RAG.
-"""
 import os
 from pathlib import Path
+from typing import Dict, Any, Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
+class Settings(BaseSettings):
+    # App Environment
+    APP_ENV: str = os.getenv("APP_ENV", "dev")
+    
+    # =========================================================================
+    # Diretórios
+    # =========================================================================
+    BASE_DIR: Path = Path(__file__).parent.parent
+    DOCUMENTS_DIR: Path = Path(r"C:\Users\Rian\Documents\treinamento")
+
+    # =========================================================================
+    # PostgreSQL + pgvector
+    # =========================================================================
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5433
+    DB_NAME: str = "ragdb"
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = "changeme"
+
+    @property
+    def DATABASE_CONFIG(self) -> Dict[str, Any]:
+        return {
+            "host": self.DB_HOST,
+            "port": self.DB_PORT,
+            "database": self.DB_NAME,
+            "user": self.DB_USER,
+            "password": self.DB_PASSWORD,
+        }
+
+    @property
+    def DATABASE_URL(self) -> str:
+        return (
+            f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
+
+    # =========================================================================
+    # LM Studio API
+    # =========================================================================
+    LM_STUDIO_BASE_URL: str = "http://127.0.0.1:1234/v1"
+    
+    # Modelo de embeddings (Nomic Embed v1.5)
+    EMBEDDING_MODEL: str = "text-embedding-nomic-embed-text-v1.5"
+    EMBEDDING_DIMENSION: int = 768
+    
+    # Modelo LLM (Phi-3.5 Mini)
+    LLM_MODEL: str = "phi-3.5-mini-instruct"
+
+    # =========================================================================
+    # Chunking
+    # =========================================================================
+    CHUNK_SIZE: int = 800
+    CHUNK_OVERLAP: int = 150
+    USE_SEMANTIC_CHUNKING: bool = True
+    MIN_CHUNK_SIZE: int = 200
+    CHUNK_OVERLAP_SENTENCES: int = 1
+
+    # =========================================================================
+    # RAG
+    # =========================================================================
+    TOP_K_RESULTS: int = 10
+    MIN_SIMILARITY_THRESHOLD: float = 0.4
+
+    # =========================================================================
+    # Busca Híbrida (Vetorial + Full-Text Search)
+    # =========================================================================
+    ENABLE_HYBRID_SEARCH: bool = True
+    HYBRID_SEARCH_ALPHA: float = 0.7
+
+    # =========================================================================
+    # Compressão de Contexto
+    # =========================================================================
+    ENABLE_CONTEXT_COMPRESSION: bool = True
+    CONTEXT_COMPRESSION_THRESHOLD: int = 3000
+    CONTEXT_COMPRESSION_TARGET_RATIO: float = 0.5
+    CONTEXT_COMPRESSION_METHOD: str = "llm"
+
+    # =========================================================================
+    # Conversação
+    # =========================================================================
+    SESSION_TIMEOUT_MINUTES: int = 30
+    MAX_CONVERSATION_HISTORY: int = 10
+
+    # =========================================================================
+    # Configurações Adicionais (Phases 1-4)
+    # =========================================================================
+    EMBEDDING_CACHE_ENABLED: bool = True
+    EMBEDDING_CACHE_MAX_SIZE: int = 1000
+    USE_QUESTION_CLASSIFIER: bool = True
+    USE_ENHANCED_PROMPTS: bool = True
+    ENABLE_RERANKING: bool = True
+    RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    RERANKING_TOP_K_INITIAL: int = 15
+    ENABLE_QUERY_EXPANSION: bool = True
+    QUERY_EXPANSION_COUNT: int = 3
+    ENABLE_MMR: bool = True
+    MMR_LAMBDA: float = 0.7
+    ENABLE_HYDE: bool = True
+    HYDE_WEIGHT: float = 0.5
+    ENABLE_CONTEXTUAL_METADATA: bool = True
+    CONTEXTUAL_NEIGHBOR_SUMMARIES: bool = True
+    CONTEXTUAL_SECTION_DETECTION: bool = True
+    ENABLE_HIERARCHICAL_CHUNKING: bool = False
+    PARENT_CHUNK_SIZE: int = 2000
+    CHILD_CHUNK_SIZE: int = 400
+    CHILD_CHUNK_OVERLAP: int = 50
+    ENABLE_AUTO_EVALUATION: bool = False
+    ENABLE_ADAPTIVE_RETRIEVAL: bool = True
+    ENABLE_SELF_RAG: bool = False
+    SELF_RAG_MIN_SCORE: int = 60
+    ENABLE_SENTENCE_WINDOW: bool = False
+    SENTENCE_WINDOW_SIZE: int = 2
+
+    model_config = SettingsConfigDict(
+        # Prioridade: .env.{APP_ENV} > .env
+        env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+# Instância global de configurações
+settings = Settings()
 
 # =============================================================================
-# Diretórios
+# Compatibilidade (Exportando nomes originais)
 # =============================================================================
-BASE_DIR = Path(__file__).parent.parent
-DOCUMENTS_DIR = Path(r"C:\Users\Rian\Documents\treinamento")
-
-
-# =============================================================================
-# PostgreSQL + pgvector
-# =============================================================================
-DATABASE_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", "5433")),
-    "database": os.getenv("DB_NAME", "ragdb"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", "changeme"),
-}
-
-# String de conexão para psycopg2
-DATABASE_URL = (
-    f"postgresql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}"
-    f"@{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
-)
-
-
-# =============================================================================
-# LM Studio API
-# =============================================================================
-LM_STUDIO_BASE_URL = os.getenv("LM_STUDIO_URL", "http://127.0.0.1:1234/v1")
-
-# Modelo de embeddings (Nomic Embed v1.5)
-EMBEDDING_MODEL = "text-embedding-nomic-embed-text-v1.5"
-EMBEDDING_DIMENSION = 768  # Dimensão do Nomic Embed v1.5
-
-# Modelo LLM (Phi-3.5 Mini)
-LLM_MODEL = "phi-3.5-mini-instruct"
-
-
-# =============================================================================
-# Chunking
-# =============================================================================
-CHUNK_SIZE = 800  # Tamanho do chunk em caracteres (~200 tokens)
-CHUNK_OVERLAP = 150  # Overlap entre chunks (usado no modo legado)
-
-# Chunking Semântico (novo)
-USE_SEMANTIC_CHUNKING = True  # Se True, usa chunking por sentenças
-MIN_CHUNK_SIZE = 200  # Tamanho mínimo do chunk
-CHUNK_OVERLAP_SENTENCES = 1  # Número de sentenças de overlap
-
-
-# =============================================================================
-# RAG
-# =============================================================================
-TOP_K_RESULTS = 10  # Número de chunks retornados na busca
-MIN_SIMILARITY_THRESHOLD = 0.4  # Similaridade mínima para considerar um chunk relevante (0.0 a 1.0)
-
+DOCUMENTS_DIR = settings.DOCUMENTS_DIR
+DATABASE_CONFIG = settings.DATABASE_CONFIG
+DATABASE_URL = settings.DATABASE_URL
+LM_STUDIO_BASE_URL = settings.LM_STUDIO_BASE_URL
+EMBEDDING_MODEL = settings.EMBEDDING_MODEL
+EMBEDDING_DIMENSION = settings.EMBEDDING_DIMENSION
+LLM_MODEL = settings.LLM_MODEL
+CHUNK_SIZE = settings.CHUNK_SIZE
+CHUNK_OVERLAP = settings.CHUNK_OVERLAP
+USE_SEMANTIC_CHUNKING = settings.USE_SEMANTIC_CHUNKING
+MIN_CHUNK_SIZE = settings.MIN_CHUNK_SIZE
+CHUNK_OVERLAP_SENTENCES = settings.CHUNK_OVERLAP_SENTENCES
+TOP_K_RESULTS = settings.TOP_K_RESULTS
+MIN_SIMILARITY_THRESHOLD = settings.MIN_SIMILARITY_THRESHOLD
+ENABLE_HYBRID_SEARCH = settings.ENABLE_HYBRID_SEARCH
+HYBRID_SEARCH_ALPHA = settings.HYBRID_SEARCH_ALPHA
+ENABLE_CONTEXT_COMPRESSION = settings.ENABLE_CONTEXT_COMPRESSION
+CONTEXT_COMPRESSION_THRESHOLD = settings.CONTEXT_COMPRESSION_THRESHOLD
+CONTEXT_COMPRESSION_TARGET_RATIO = settings.CONTEXT_COMPRESSION_TARGET_RATIO
+CONTEXT_COMPRESSION_METHOD = settings.CONTEXT_COMPRESSION_METHOD
+SESSION_TIMEOUT_MINUTES = settings.SESSION_TIMEOUT_MINUTES
+MAX_CONVERSATION_HISTORY = settings.MAX_CONVERSATION_HISTORY
+EMBEDDING_CACHE_ENABLED = settings.EMBEDDING_CACHE_ENABLED
+EMBEDDING_CACHE_MAX_SIZE = settings.EMBEDDING_CACHE_MAX_SIZE
+USE_QUESTION_CLASSIFIER = settings.USE_QUESTION_CLASSIFIER
+USE_ENHANCED_PROMPTS = settings.USE_ENHANCED_PROMPTS
+ENABLE_RERANKING = settings.ENABLE_RERANKING
+RERANKER_MODEL = settings.RERANKER_MODEL
+RERANKING_TOP_K_INITIAL = settings.RERANKING_TOP_K_INITIAL
+ENABLE_QUERY_EXPANSION = settings.ENABLE_QUERY_EXPANSION
+QUERY_EXPANSION_COUNT = settings.QUERY_EXPANSION_COUNT
+ENABLE_MMR = settings.ENABLE_MMR
+MMR_LAMBDA = settings.MMR_LAMBDA
+ENABLE_HYDE = settings.ENABLE_HYDE
+HYDE_WEIGHT = settings.HYDE_WEIGHT
+ENABLE_CONTEXTUAL_METADATA = settings.ENABLE_CONTEXTUAL_METADATA
+CONTEXTUAL_NEIGHBOR_SUMMARIES = settings.CONTEXTUAL_NEIGHBOR_SUMMARIES
+CONTEXTUAL_SECTION_DETECTION = settings.CONTEXTUAL_SECTION_DETECTION
+ENABLE_HIERARCHICAL_CHUNKING = settings.ENABLE_HIERARCHICAL_CHUNKING
+PARENT_CHUNK_SIZE = settings.PARENT_CHUNK_SIZE
+CHILD_CHUNK_SIZE = settings.CHILD_CHUNK_SIZE
+CHILD_CHUNK_OVERLAP = settings.CHILD_CHUNK_OVERLAP
+ENABLE_AUTO_EVALUATION = settings.ENABLE_AUTO_EVALUATION
+ENABLE_ADAPTIVE_RETRIEVAL = settings.ENABLE_ADAPTIVE_RETRIEVAL
+ENABLE_SELF_RAG = settings.ENABLE_SELF_RAG
+SELF_RAG_MIN_SCORE = settings.SELF_RAG_MIN_SCORE
+ENABLE_SENTENCE_WINDOW = settings.ENABLE_SENTENCE_WINDOW
+SENTENCE_WINDOW_SIZE = settings.SENTENCE_WINDOW_SIZE
 
 # =============================================================================
-# Busca Híbrida (Vetorial + Full-Text Search)
-# =============================================================================
-ENABLE_HYBRID_SEARCH = True  # Se True, usa busca híbrida ao invés de apenas vetorial
-HYBRID_SEARCH_ALPHA = 0.7  # Peso da busca vetorial (0.0 a 1.0). 0.7 = 70% vetorial, 30% FTS
-
-
-# =============================================================================
-# Compressão de Contexto
-# =============================================================================
-ENABLE_CONTEXT_COMPRESSION = True  # Se True, comprime contexto quando muito grande
-CONTEXT_COMPRESSION_THRESHOLD = 3000  # Caracteres acima dos quais ativar compressão
-CONTEXT_COMPRESSION_TARGET_RATIO = 0.5  # Proporção alvo (0.5 = reduzir pela metade)
-CONTEXT_COMPRESSION_METHOD = "llm"  # "llm" (mais preciso) ou "heuristic" (mais rápido)
-
-
-# =============================================================================
-# Conversação
-# =============================================================================
-SESSION_TIMEOUT_MINUTES = 30  # Tempo para expirar sessões inativas
-MAX_CONVERSATION_HISTORY = 10  # Máximo de mensagens no histórico
-
-
-# =============================================================================
-# Prompt Template
+# Prompts (Mantidos como constantes por não precisarem de override via env)
 # =============================================================================
 RAG_PROMPT_TEMPLATE = """Você é um assistente especializado e deve responder apenas com base no contexto fornecido.
 
@@ -99,8 +192,6 @@ RAG_PROMPT_TEMPLATE = """Você é um assistente especializado e deve responder a
 Se a resposta não estiver no contexto, diga: "Não há informações suficientes no contexto."
 """
 
-
-# Template com histórico de conversa
 RAG_PROMPT_TEMPLATE_WITH_HISTORY = """Você é um assistente especializado e deve responder apenas com base no contexto fornecido.
 Considere o histórico da conversa para entender perguntas de follow-up.
 
@@ -119,10 +210,6 @@ Instruções:
 - Se a resposta não estiver no contexto, diga: "Não há informações suficientes no contexto."
 """
 
-
-# =============================================================================
-# Prompt Template Melhorado (Phase 1)
-# =============================================================================
 RAG_PROMPT_ENHANCED = """Você é um assistente especializado. Analise o contexto cuidadosamente antes de responder.
 
 [CONTEXTO]
@@ -141,8 +228,6 @@ RAG_PROMPT_ENHANCED = """Você é um assistente especializado. Analise o context
 [RESPOSTA]
 """
 
-
-# Template com histórico melhorado
 RAG_PROMPT_ENHANCED_WITH_HISTORY = """Você é um assistente especializado. Analise o contexto e histórico cuidadosamente.
 
 [HISTÓRICO DA CONVERSA]
@@ -163,89 +248,3 @@ RAG_PROMPT_ENHANCED_WITH_HISTORY = """Você é um assistente especializado. Anal
 
 [RESPOSTA]
 """
-
-
-# =============================================================================
-# Configurações de Cache (Phase 1)
-# =============================================================================
-EMBEDDING_CACHE_ENABLED = True  # Habilita cache de embeddings
-EMBEDDING_CACHE_MAX_SIZE = 1000  # Máximo de embeddings em cache
-
-
-# =============================================================================
-# Configurações do Classificador de Perguntas (Phase 1)
-# =============================================================================
-USE_QUESTION_CLASSIFIER = True  # Habilita classificação de perguntas
-USE_ENHANCED_PROMPTS = True  # Usa prompts melhorados com instruções por tipo
-
-
-# =============================================================================
-# Configurações Phase 2 - Re-ranking
-# =============================================================================
-ENABLE_RERANKING = True  # Habilita re-ranking com cross-encoder
-RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Modelo do HuggingFace
-RERANKING_TOP_K_INITIAL = 15  # Buscar mais chunks para depois filtrar com reranker
-
-
-# =============================================================================
-# Configurações Phase 2 - Query Expansion
-# =============================================================================
-ENABLE_QUERY_EXPANSION = True  # Habilita expansão de queries
-QUERY_EXPANSION_COUNT = 3  # Número de variações a gerar
-
-
-# =============================================================================
-# Configurações Phase 2 - MMR (Diversidade)
-# =============================================================================
-ENABLE_MMR = True  # Habilita MMR para diversificação
-MMR_LAMBDA = 0.7  # Balanço: 0.7 = 70% relevância, 30% diversidade
-
-
-# =============================================================================
-# Configurações Phase 3 - HyDE (Hypothetical Document Embeddings)
-# =============================================================================
-ENABLE_HYDE = True  # Habilita HyDE
-HYDE_WEIGHT = 0.5   # Peso do embedding HyDE (0=só original, 1=só HyDE)
-
-
-# =============================================================================
-# Configurações Phase 3 - Contextual Chunking
-# =============================================================================
-ENABLE_CONTEXTUAL_METADATA = True  # Adiciona metadados contextuais aos chunks
-CONTEXTUAL_NEIGHBOR_SUMMARIES = True  # Resumos dos chunks vizinhos
-CONTEXTUAL_SECTION_DETECTION = True  # Detecção de títulos de seção
-
-
-# =============================================================================
-# Configurações Phase 3 - Hierarchical Chunking
-# =============================================================================
-ENABLE_HIERARCHICAL_CHUNKING = False  # Requer re-ingestão de documentos
-PARENT_CHUNK_SIZE = 2000  # Tamanho dos chunks pais
-CHILD_CHUNK_SIZE = 400    # Tamanho dos chunks filhos
-CHILD_CHUNK_OVERLAP = 50  # Overlap entre filhos
-
-
-# =============================================================================
-# Configurações Phase 3 - Avaliação RAGAS
-# =============================================================================
-ENABLE_AUTO_EVALUATION = False  # Avaliar automaticamente respostas (lento)
-
-
-# =============================================================================
-# Configurações Phase 4 - Adaptive Retrieval
-# =============================================================================
-ENABLE_ADAPTIVE_RETRIEVAL = True  # Ajusta top_k/min_similarity dinamicamente
-
-
-# =============================================================================
-# Configurações Phase 4 - Self-RAG
-# =============================================================================
-ENABLE_SELF_RAG = False  # Avalia e refina respostas (lento, +1 chamada LLM)
-SELF_RAG_MIN_SCORE = 60  # Score mínimo para considerar resposta completa
-
-
-# =============================================================================
-# Configurações Phase 4 - Sentence Window
-# =============================================================================
-ENABLE_SENTENCE_WINDOW = False  # Requer docs indexados por sentença
-SENTENCE_WINDOW_SIZE = 2  # Sentenças antes/depois da encontrada
