@@ -434,7 +434,8 @@ def query_rag(
     enable_compression: bool = None,
     use_hybrid_search: bool = None,
     hybrid_alpha: float = None,
-    collection_id: str = None
+    collection_id: str = None,
+    debug_mode: bool = False
 ) -> dict:
     """
     Executa o pipeline RAG completo.
@@ -455,17 +456,27 @@ def query_rag(
         use_hybrid_search: Força uso de busca híbrida (usa config se None)
         hybrid_alpha: Peso da busca vetorial na busca híbrida (usa config se None)
         collection_id: Filtrar por coleção específica (opcional)
+        debug_mode: Se True, inclui informações de debug na resposta
         
     Returns:
-        Dict com answer, sources e metadata
+        Dict com answer, sources e metadata (+ _debug se debug_mode=True)
     """
     start_time = time.time()
     log_rag_query(question, top_k)
     
+    # Debug info collector
+    debug_info = {} if debug_mode else None
+    
     # 1. Gerar embedding da pergunta
     rag_logger.debug("Generating question embedding...")
+    embedding_start = time.time()
     with LatencyTracker('embedding'):
         question_embedding = get_embedding(question)
+    embedding_time_ms = (time.time() - embedding_start) * 1000
+    
+    if debug_info is not None:
+        debug_info["embedding_time_ms"] = round(embedding_time_ms, 2)
+        debug_info["embedding_dimension"] = len(question_embedding)
     
     # Phase 3: HyDE - usar embedding de documento hipotético
     hyde_metrics = {"hyde_applied": False}
@@ -486,6 +497,7 @@ def query_rag(
     initial_top_k = RERANKING_TOP_K_INITIAL if ENABLE_RERANKING else top_k
     
     rag_logger.debug(f"Searching similar documents (initial top_k={initial_top_k})...")
+    search_start = time.time()
     with LatencyTracker('search'):
         similar_docs, search_metrics = _search_documents(
             question=question,
@@ -496,12 +508,23 @@ def query_rag(
             hybrid_alpha=hybrid_alpha,
             collection_id=collection_id
         )
+    search_time_ms = (time.time() - search_start) * 1000
+    
+    if debug_info is not None:
+        debug_info["search_time_ms"] = round(search_time_ms, 2)
+        debug_info["initial_chunks_found"] = len(similar_docs)
+        debug_info["hyde_applied"] = hyde_metrics.get("hyde_applied", False)
+        if hyde_metrics.get("hypothetical_document"):
+            debug_info["hyde_document"] = hyde_metrics.get("hypothetical_document", "")[:500]
     
     # Adicionar métricas HyDE
     search_metrics["hyde"] = hyde_metrics
     
     # Phase 2: Aplicar Query Expansion, MMR e Re-ranking
+    rerank_time_ms = 0
+    chunks_before_rerank = len(similar_docs)
     if similar_docs and (ENABLE_QUERY_EXPANSION or ENABLE_MMR or ENABLE_RERANKING):
+        rerank_start = time.time()
         with LatencyTracker('rerank'):
             similar_docs, search_metrics = _apply_phase2_pipeline(
                 question=question,
@@ -510,6 +533,19 @@ def query_rag(
                 final_top_k=top_k,
                 search_metrics=search_metrics
             )
+        rerank_time_ms = (time.time() - rerank_start) * 1000
+        
+        if debug_info is not None:
+            debug_info["rerank_time_ms"] = round(rerank_time_ms, 2)
+            debug_info["chunks_after_rerank"] = len(similar_docs)
+            debug_info["chunks_rejected"] = chunks_before_rerank - len(similar_docs)
+            # Incluir scores de reranking se disponíveis
+            if search_metrics.get("reranking", {}).get("reranked_chunks"):
+                debug_info["rerank_scores"] = [
+                    {"chunk_preview": chunk.get("content", "")[:100] + "...", 
+                     "score": round(chunk.get("rerank_score", 0), 4)}
+                    for chunk in similar_docs[:5]  # Top 5 apenas
+                ]
     
     # Classificar tipo de pergunta (Phase 1)
     question_type = None
@@ -602,8 +638,14 @@ def query_rag(
     
     # 6. Gerar resposta
     rag_logger.debug("Generating LLM response...")
+    llm_start = time.time()
     with LatencyTracker('llm'):
         answer = generate_response(prompt, temperature=temperature)
+    llm_time_ms = (time.time() - llm_start) * 1000
+    
+    if debug_info is not None:
+        debug_info["compression_time_ms"] = compression_result["compression_time_ms"]
+        debug_info["llm_time_ms"] = round(llm_time_ms, 2)
     
     result = {
         "answer": answer,
@@ -631,6 +673,19 @@ def query_rag(
     # Métricas Prometheus
     inc_query(status='success', question_type=question_type or 'unknown')
     observe_chunks_retrieved(len(similar_docs))
+    
+    # Adicionar debug info se habilitado
+    if debug_info is not None:
+        debug_info["total_time_ms"] = round(total_duration * 1000, 2)
+        debug_info["question_type"] = question_type
+        debug_info["config"] = {
+            "enable_hyde": ENABLE_HYDE,
+            "enable_reranking": ENABLE_RERANKING,
+            "enable_mmr": ENABLE_MMR,
+            "enable_query_expansion": ENABLE_QUERY_EXPANSION,
+            "use_hybrid_search": search_metrics.get("hybrid_applied", False)
+        }
+        result["_debug"] = debug_info
     
     return result
 

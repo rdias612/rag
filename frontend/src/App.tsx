@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Menu } from "lucide-react";
+import { Settings, Menu, Bug } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { UploadModal } from "./components/UploadModal";
@@ -19,6 +19,7 @@ function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [collections, setCollections] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [debugMode, setDebugMode] = useState(false);
   const { toast, showToast, hideToast } = useToast();
 
   // Load initial sessions
@@ -107,7 +108,7 @@ function App() {
           }
           return newMessages;
         });
-      });
+      }, debugMode);
 
       // Update with final message including sources
       setMessages(prev => {
@@ -117,14 +118,16 @@ function App() {
             role: 'assistant',
             content: res.answer,
             timestamp: Date.now(),
-            sources: res.sources
+            sources: res.sources,
+            debugInfo: res._debug
           };
         } else {
           newMessages.push({
             role: 'assistant',
             content: res.answer,
             timestamp: Date.now(),
-            sources: res.sources
+            sources: res.sources,
+            debugInfo: res._debug
           });
         }
         return newMessages;
@@ -212,6 +215,20 @@ function App() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+
+            {/* Debug Toggle */}
+            <button
+              onClick={() => setDebugMode(!debugMode)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-all ${debugMode
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                  : 'bg-zinc-800/50 text-zinc-500 border-white/5 hover:border-white/10'
+                }`}
+              title={debugMode ? "Debug ativado" : "Debug desativado"}
+            >
+              <Bug size={14} />
+              <span className="hidden sm:inline">{debugMode ? 'ON' : 'OFF'}</span>
+            </button>
+
             <button
               onClick={() => setIsAdminOpen(true)}
               className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"

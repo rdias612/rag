@@ -3,6 +3,29 @@ export interface Message {
     content: string;
     timestamp?: number;
     sources?: Source[];
+    debugInfo?: DebugInfo;
+}
+
+export interface DebugInfo {
+    embedding_time_ms?: number;
+    search_time_ms?: number;
+    rerank_time_ms?: number;
+    compression_time_ms?: number;
+    llm_time_ms?: number;
+    total_time_ms?: number;
+    initial_chunks_found?: number;
+    chunks_after_rerank?: number;
+    chunks_rejected?: number;
+    hyde_applied?: boolean;
+    hyde_document?: string;
+    question_type?: string;
+    config?: {
+        enable_hyde?: boolean;
+        enable_reranking?: boolean;
+        enable_mmr?: boolean;
+        enable_query_expansion?: boolean;
+        use_hybrid_search?: boolean;
+    };
 }
 
 export interface Source {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Message } from "../types";
 import { useEffect, useRef, useState } from 'react';
+import { DebugPanel } from './DebugPanel';
 
 interface MessageListProps {
     messages: Message[];
@@ -132,6 +133,11 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                                         </div>
                                     ))}
                                 </div>
+                            )}
+
+                            {/* Debug Panel */}
+                            {msg.role === 'assistant' && msg.debugInfo && (
+                                <DebugPanel debugInfo={msg.debugInfo} />
                             )}
                         </div>
                     </motion.div>

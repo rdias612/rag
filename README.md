@@ -12,8 +12,9 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **API** | Flask | Backend REST API |
 | **Frontend** | React + Vite | Interface moderna e responsiva |
 | **Estilização** | Tailwind CSS | Design system e componentes |
-| **NLP** | spaCy | Chunking semântico por sentenças |
-| **Ingestão** | pypdf, python-docx, beautifulsoup4 | Extração de múltiplos formatos |
+| **NLP** | spaCy + langdetect | Chunking semântico e detecção de idioma |
+| **Monitoramento** | Prometheus | Coleta de métricas de performance e uso |
+| **Ingestão** | pypdf, python-docx, bs4 | Extração de múltiplos formatos |
 
 ---
 
@@ -26,7 +27,11 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - 💬 **Histórico de conversas**: Perguntas de follow-up com contexto mantido
 - 📤 **Upload via API**: Ingestão de documentos com processamento assíncrono
 - ✂️ **Chunking semântico**: Divisão inteligente por sentenças (spaCy)
-- 🔄 **Streaming**: Respostas em tempo real
+- 🌍 **Suporte Multi-idioma**: Detecção automática e processamento em PT, EN, ES, DE, FR, IT
+- � **Dashboard Admin**: Monitoramento completo do sistema, cache e sessões
+- 🔬 **Modo Debug/Explain**: Transparência total no pipeline (timing, scores, HyDE)
+- �🔄 **Streaming**: Respostas em tempo real
+- ⚡ **Observabilidade**: Métricas Prometheus nativas em cada fase do RAG
 
 ---
 
@@ -274,6 +279,10 @@ Quando o contexto recuperado é muito grande (> 3000 chars por padrão), o siste
 | `/api/ingest/jobs` | GET | Listar jobs de ingestão |
 | `/api/ingest/formats` | GET | Formatos suportados |
 | `/api/documents/stats` | GET | Estatísticas dos documentos |
+| `/api/cache/stats` | GET | Estatísticas do cache de embeddings |
+| `/api/metrics` | GET | Métricas Prometheus (formato OpenMetrics) |
+| `/api/metrics/status` | GET | Status do sistema de métricas |
+| `/api/health` | GET | Health check detalhado |
 
 ---
 
@@ -327,6 +336,15 @@ Envia uma pergunta e recebe uma resposta baseada nos documentos indexados.
     "final_size": 2100,
     "compression_ratio": 53.3,
     "compression_time_ms": 1200
+  },
+  "_debug": {
+    "embedding_time_ms": 45.2,
+    "search_time_ms": 123.4,
+    "rerank_time_ms": 89.1,
+    "llm_time_ms": 1567.8,
+    "total_time_ms": 1856.3,
+    "hyde_applied": true,
+    "config": {"enable_hyde": true, "enable_reranking": true}
   }
 }
 ```
@@ -749,6 +767,11 @@ python -m src.app
 - [x] ✅ **Adaptive Retrieval** - Ajuste dinâmico de top_k e min_similarity
 - [x] ✅ **Self-RAG** - Auto-avaliação e refinamento de respostas
 - [x] ✅ **Sentence Window** - Busca por sentença com janela expandida
+- [x] ✅ **Observabilidade** - Instrumentação com Prometheus e métricas de cache
+- [x] ✅ **Admin Dashboard** - Interface administrativa profissional
+- [x] ✅ **Modo Debug/Explain** - Visualização detalhada do pipeline no front e back
+- [x] ✅ **Suporte Multi-idioma** - Detecção automática com langdetect e spaCy dinâmico
+- [x] ✅ **Batch Embeddings** - Processamento em lote para alta performance na ingestão
 
 ### Próximas Sugestões (v2)
 - [ ] Multi-tenancy (coleções separadas)

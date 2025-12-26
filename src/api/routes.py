@@ -114,6 +114,7 @@ def query():
     temperature = data.get("temperature", 0.7)
     include_sources = data.get("include_sources", True)
     collection_id = data.get("collection", None)
+    debug_mode = data.get("debug", False)  # Modo debug/explain
     
     try:
         result = query_rag(
@@ -121,7 +122,8 @@ def query():
             top_k=top_k,
             temperature=temperature,
             include_sources=include_sources,
-            collection_id=collection_id
+            collection_id=collection_id,
+            debug_mode=debug_mode
         )
         
         log_api_response("/api/query", 200, time.time() - start_time)

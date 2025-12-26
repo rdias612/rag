@@ -34,7 +34,8 @@ export async function streamChat(
     question: string,
     sessionId: string | null,
     collectionId: string | null,
-    onToken: (token: string) => void
+    onToken: (token: string) => void,
+    debug: boolean = false
 ) {
     const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
@@ -42,7 +43,8 @@ export async function streamChat(
         body: JSON.stringify({
             question,
             session_id: sessionId,
-            collection: collectionId || undefined
+            collection: collectionId || undefined,
+            debug: debug
         })
     });
 
