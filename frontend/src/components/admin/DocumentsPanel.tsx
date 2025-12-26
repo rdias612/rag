@@ -14,6 +14,7 @@ import {
     RotateCcw
 } from 'lucide-react';
 import { ConfirmModal } from '../ConfirmModal';
+import { API_URL } from '../../api';
 
 interface DocumentStats {
     total_files: number;
@@ -49,7 +50,6 @@ interface IngestionStatus {
     }>;
 }
 
-const API_URL = "http://127.0.0.1:5000/api";
 
 export function DocumentsPanel() {
     const [docStats, setDocStats] = useState<DocumentStats | null>(null);
@@ -140,26 +140,12 @@ export function DocumentsPanel() {
         fetchData();
     }, []);
 
-    // Polling para status de ingestão quando em andamento
+    // Polling removido a pedido do usuário para reduzir logs (agora na Visão Geral)
     useEffect(() => {
-        if (ingestionStatus?.running) {
-            const interval = setInterval(async () => {
-                try {
-                    const statusRes = await fetch(`${API_URL}/documents/ingest-status`).then(r => r.json());
-                    setIngestionStatus(statusRes);
-
-                    // Se terminou, atualizar tudo
-                    if (!statusRes.running) {
-                        fetchData();
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch ingestion status:', error);
-                }
-            }, 2000);
-
-            return () => clearInterval(interval);
-        }
-    }, [ingestionStatus?.running]);
+        // Se houver uma ingestão rodando quando o painel abrir, 
+        // poderíamos fazer um refresh manual ou poll lento, 
+        // mas por enquanto seguiremos a instrução de focar na Visão Geral.
+    }, []);
 
     const startIngestion = async (force: boolean = false) => {
         try {

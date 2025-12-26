@@ -8,6 +8,7 @@ import {
     HardDrive,
     BarChart3
 } from 'lucide-react';
+import { API_URL } from '../../api';
 
 interface HealthData {
     status: string;
@@ -39,7 +40,14 @@ interface MetricsStatus {
     metrics_enabled: boolean;
 }
 
-const API_URL = "http://localhost:5000/api";
+interface IngestionStatus {
+    running: boolean;
+    progress: number;
+    total: number;
+    current_file: string | null;
+    message: string;
+}
+
 
 export function SystemOverview() {
     const [health, setHealth] = useState<HealthData | null>(null);
@@ -47,18 +55,20 @@ export function SystemOverview() {
     const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
     const [docStats, setDocStats] = useState<DocumentStats | null>(null);
     const [metricsStatus, setMetricsStatus] = useState<MetricsStatus | null>(null);
+    const [ingestionStatus, setIngestionStatus] = useState<IngestionStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [healthRes, statsRes, cacheRes, docsRes, metricsRes] = await Promise.all([
+            const [healthRes, statsRes, cacheRes, docsRes, metricsRes, ingestRes] = await Promise.all([
                 fetch(`${API_URL}/health`).then(r => r.json()),
                 fetch(`${API_URL}/stats`).then(r => r.json()),
                 fetch(`${API_URL}/cache/stats`).then(r => r.json()),
                 fetch(`${API_URL}/documents/stats`).then(r => r.json()),
-                fetch(`${API_URL}/metrics/status`).then(r => r.json()).catch(() => ({ prometheus_available: false, metrics_enabled: false }))
+                fetch(`${API_URL}/metrics/status`).then(r => r.json()).catch(() => ({ prometheus_available: false, metrics_enabled: false })),
+                fetch(`${API_URL}/documents/ingest-status`).then(r => r.json())
             ]);
 
             setHealth(healthRes);
@@ -66,6 +76,7 @@ export function SystemOverview() {
             setCacheStats(cacheRes);
             setDocStats(docsRes);
             setMetricsStatus(metricsRes);
+            setIngestionStatus(ingestRes);
             setLastRefresh(new Date());
         } catch (error) {
             console.error('Failed to fetch system data:', error);
@@ -161,6 +172,43 @@ export function SystemOverview() {
                     <p className="text-xs text-zinc-500 mt-1">
                         {cacheStats?.size || 0} / {cacheStats?.max_size || 1000} entries
                     </p>
+                </div>
+
+                {/* Ingestion Status Card */}
+                <div className={`bg-zinc-900/60 backdrop-blur-xl border rounded-xl p-4 transition-colors ${ingestionStatus?.running ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-white/5'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-zinc-400 text-sm">Ingestão</span>
+                        {ingestionStatus?.running ? (
+                            <RefreshCw size={16} className="text-indigo-400 animate-spin" />
+                        ) : (
+                            <HardDrive size={16} className="text-zinc-500" />
+                        )}
+                    </div>
+                    {ingestionStatus?.running ? (
+                        <>
+                            <p className="text-2xl font-bold text-white">
+                                {Math.round((ingestionStatus.progress / ingestionStatus.total) * 100)}%
+                            </p>
+                            <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
+                                <div
+                                    className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
+                                    style={{ width: `${(ingestionStatus.progress / ingestionStatus.total) * 100}%` }}
+                                />
+                            </div>
+                            <p className="text-[10px] text-zinc-400 mt-1 truncate">
+                                {ingestionStatus.current_file || 'Processando...'}
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-2xl font-bold text-zinc-400">
+                                Inativa
+                            </p>
+                            <p className="text-xs text-zinc-600 mt-1">
+                                Sistema pronto
+                            </p>
+                        </>
+                    )}
                 </div>
             </div>
 

@@ -914,7 +914,7 @@ def _run_bulk_ingestion(force: bool = False):
             file_name = doc_path.name
             
             with _bulk_ingestion_lock:
-                _bulk_ingestion_status["progress"] = i + 1
+                _bulk_ingestion_status["progress"] = i
                 _bulk_ingestion_status["current_file"] = file_name
                 _bulk_ingestion_status["message"] = f"Processando: {file_name}"
             
@@ -1094,13 +1094,14 @@ def get_bulk_ingestion_status():
         }
     """
     start_time = time.time()
-    log_api_request("/api/documents/ingest-status", "GET")
+    # Log removido para reduzir ruído, a menos que haja algo importante
+    # log_api_request("/api/documents/ingest-status", "GET")
     
     with _bulk_ingestion_lock:
         status = dict(_bulk_ingestion_status)
     
-    log_api_response("/api/documents/ingest-status", 200, time.time() - start_time)
-    return jsonify(status)
+    # log_api_response("/api/documents/ingest-status", 200, time.time() - start_time)
+    return jsonify(status), 200
 
 
 @api.route("/documents/reprocess", methods=["POST"])

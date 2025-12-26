@@ -104,13 +104,35 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         sorted_data = sorted(data["data"], key=lambda x: x["index"])
         batch_embeddings = [item.get("embedding") for item in sorted_data]
         
-        # Validar se algum embedding veio nulo
+        # Validar se algum embedding veio nulo ou malformado
         for idx, emb in enumerate(batch_embeddings):
+            is_invalid = False
+            error_reason = ""
+            
             if emb is None:
+                is_invalid = True
+                error_reason = "Embedding is None (null from model)"
+            elif not isinstance(emb, list):
+                is_invalid = True
+                error_reason = f"Embedding is not a list (type: {type(emb)})"
+            elif any(v is None for v in emb):
+                is_invalid = True
+                error_reason = "Embedding contains NULL values"
+                
+            if is_invalid:
                 orig_idx = i + idx
-                sample_text = texts[orig_idx][:50] + "..."
-                embedding_logger.error(f"Embedding NULL detectado no batch para o texto {orig_idx}: '{sample_text}'")
-                raise ValueError(f"O modelo de embeddings retornou NULL para o texto {orig_idx}. Verifique o LM Studio.")
+                problematic_text = texts[orig_idx]
+                text_len = len(problematic_text)
+                sample_text = problematic_text[:100] + "..." if text_len > 100 else problematic_text
+                
+                embedding_logger.error(f"ERRO: {error_reason}")
+                embedding_logger.error(f"Texto (index {orig_idx}, len {text_len}): '{sample_text}'")
+                
+                # Opcional: Logar o objeto retornado pelo LM Studio para debug profundo
+                embedding_logger.debug(f"Data from LM Studio for this index: {sorted_data[idx]}")
+                
+                raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) para o texto {orig_idx}. "
+                                 f"Verifique se o texto está vazio ou se o modelo no LM Studio parou de responder.")
 
         all_embeddings.extend(batch_embeddings)
         
