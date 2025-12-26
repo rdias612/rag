@@ -105,14 +105,12 @@ export function DocumentsPanel() {
             const [docsResult, collectionsResult, ingestedResult, statusResult] = results;
 
             if (docsResult.status === 'fulfilled') {
-                console.log('[DocumentsPanel] documents/stats data:', docsResult.value);
                 setDocStats(docsResult.value);
             } else {
                 console.error('[DocumentsPanel] documents/stats failed:', docsResult.reason);
             }
 
             if (collectionsResult.status === 'fulfilled') {
-                console.log('[DocumentsPanel] collections data:', collectionsResult.value);
                 setCollections(collectionsResult.value.collections || []);
             } else {
                 console.error('[DocumentsPanel] collections failed:', collectionsResult.reason);
@@ -120,7 +118,6 @@ export function DocumentsPanel() {
             }
 
             if (ingestedResult.status === 'fulfilled') {
-                console.log('[DocumentsPanel] documents/ingested data:', ingestedResult.value);
                 setIngestedDocs(ingestedResult.value.documents || []);
             } else {
                 console.error('[DocumentsPanel] documents/ingested failed:', ingestedResult.reason);
@@ -128,17 +125,13 @@ export function DocumentsPanel() {
             }
 
             if (statusResult.status === 'fulfilled') {
-                console.log('[DocumentsPanel] documents/ingest-status data:', statusResult.value);
                 setIngestionStatus(statusResult.value);
             } else {
                 console.error('[DocumentsPanel] documents/ingest-status failed:', statusResult.reason);
             }
-
-            console.log('[DocumentsPanel] All data set successfully');
         } catch (error) {
             console.error('[DocumentsPanel] Failed to fetch documents data:', error);
         } finally {
-            console.log('[DocumentsPanel] Setting loading to false');
             setLoading(false);
         }
     };
