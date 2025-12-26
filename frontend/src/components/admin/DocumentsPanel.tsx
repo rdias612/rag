@@ -49,12 +49,6 @@ interface IngestionStatus {
     }>;
 }
 
-interface PendingFile {
-    file: string;
-    path: string;
-    reason: 'new' | 'modified';
-    size: number;
-}
 
 
 export function DocumentsPanel() {
