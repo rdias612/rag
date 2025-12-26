@@ -38,6 +38,15 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     
     start_time = time.time()
     
+    # Limpeza básica do texto para evitar erros no modelo/LM Studio
+    # Remover caracteres não imprimíveis que podem causar problemas
+    text = "".join(char for char in text if char.isprintable() or char in "\n\r\t")
+    text = text.strip()
+    
+    if not text:
+        embedding_logger.warning("Texto vazio após limpeza. Retornando None.")
+        return None
+
     # Log do texto enviado para embedding
     log_embedding_request(text, EMBEDDING_MODEL)
     
@@ -66,7 +75,9 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
 
     if not is_valid:
         error_reason = "None" if embedding is None else ("not a list" if not isinstance(embedding, list) else "contains NULLs")
-        embedding_logger.warning(f"Embedding inválido retornado. Tentando retry único... Razão: {error_reason}")
+        # Logar o texto que causou problema para análise
+        text_sample = text[:100] + "..." if len(text) > 100 else text
+        embedding_logger.warning(f"Embedding inválido retornado para '{text_sample}'. Tentando retry único... Razão: {error_reason}")
         
         # Um pequeno sleep antes de tentar de novo
         time.sleep(1.0)
@@ -124,6 +135,10 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
     
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
+        
+        # Limpar textos do batch para evitar que um caracter estranho derrube o batch todo
+        batch = ["".join(char for char in t if char.isprintable() or char in "\n\r\t").strip() for t in batch]
+        
         batch_start = time.time()
         
         log_embedding_batch_request(len(batch), EMBEDDING_MODEL)
