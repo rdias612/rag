@@ -1105,6 +1105,16 @@ def start_bulk_ingestion():
     data = request.get_json() or {}
     log_api_input("/api/documents/ingest-all", "POST", data)
     
+    force = data.get("force", False)
+    
+    # Contar arquivos que serão realmente processados (antes do lock para evitar NameError)
+    if force:
+        document_files = get_all_documents(DOCUMENTS_DIR)
+        total_to_process = len(document_files)
+    else:
+        pending = _scan_documents()
+        total_to_process = len(pending)
+        
     with _bulk_ingestion_lock:
         if _bulk_ingestion_status["running"]:
             log_api_response("/api/documents/ingest-all", 409, time.time() - start_time)
@@ -1116,16 +1126,6 @@ def start_bulk_ingestion():
         _bulk_ingestion_status["current_file"] = None
         _bulk_ingestion_status["message"] = "Iniciando..."
         _bulk_ingestion_status["results"] = []
-    
-    force = data.get("force", False)
-    
-    # Contar arquivos que serão realmente processados
-    if force:
-        document_files = get_all_documents(DOCUMENTS_DIR)
-        total_to_process = len(document_files)
-    else:
-        pending = _scan_documents()
-        total_to_process = len(pending)
     
     # Iniciar em background
     thread = threading.Thread(target=_run_bulk_ingestion, args=(force,))
