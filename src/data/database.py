@@ -468,3 +468,33 @@ def remove_ingested_document_record(file_path: str) -> bool:
                 (file_path,)
             )
             return cur.rowcount > 0
+
+
+def clear_all_documents() -> dict:
+    """
+    Limpa todas as tabelas de documentos (documentos e documentos_ingeridos).
+    Usado para reprocessar toda a base de conhecimento do zero.
+    
+    Returns:
+        Dicionário com contagem de registros removidos
+    """
+    start_time = time.time()
+    
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # Limpar tabela de chunks
+            cur.execute("DELETE FROM documentos;")
+            chunks_deleted = cur.rowcount
+            
+            # Limpar tabela de controle de ingestão
+            cur.execute("DELETE FROM documentos_ingeridos;")
+            control_deleted = cur.rowcount
+    
+    duration = time.time() - start_time
+    db_logger.info(f"Cleared all documents: {chunks_deleted} chunks, {control_deleted} control records in {duration:.2f}s")
+    
+    return {
+        "chunks_deleted": chunks_deleted,
+        "control_records_deleted": control_deleted,
+        "duration_seconds": duration
+    }

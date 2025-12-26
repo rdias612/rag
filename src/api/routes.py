@@ -32,7 +32,8 @@ from src.data.database import (
     register_ingested_document,
     remove_document_chunks_by_source,
     list_ingested_documents,
-    remove_ingested_document_record
+    remove_ingested_document_record,
+    clear_all_documents
 )
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS, 
@@ -1087,6 +1088,64 @@ def get_bulk_ingestion_status():
     
     log_api_response("/api/documents/ingest-status", 200, time.time() - start_time)
     return jsonify(status)
+
+
+@api.route("/documents/reprocess", methods=["POST"])
+def reprocess_knowledge_base():
+    """
+    Limpa toda a base de conhecimento e reinicia ingestão.
+    
+    Response:
+        {
+            "message": "Reprocessamento iniciado",
+            "cleared": {...},
+            "total_files": 10
+        }
+    """
+    global _bulk_ingestion_status
+    
+    start_time = time.time()
+    log_api_request("/api/documents/reprocess", "POST")
+    
+    with _bulk_ingestion_lock:
+        if _bulk_ingestion_status["running"]:
+            log_api_response("/api/documents/reprocess", 409, time.time() - start_time)
+            return jsonify({"error": "Ingestão já está em andamento"}), 409
+    
+    try:
+        # Limpar todas as tabelas
+        cleared = clear_all_documents()
+        
+        # Iniciar reingestão
+        with _bulk_ingestion_lock:
+            _bulk_ingestion_status["running"] = True
+            _bulk_ingestion_status["progress"] = 0
+            _bulk_ingestion_status["total"] = 0
+            _bulk_ingestion_status["current_file"] = None
+            _bulk_ingestion_status["message"] = "Base limpa. Iniciando reprocessamento..."
+            _bulk_ingestion_status["results"] = []
+        
+        # Contar arquivos
+        document_files = get_all_documents(DOCUMENTS_DIR)
+        
+        # Iniciar em background com force=True (ignora verificação de hash já que limpamos tudo)
+        thread = threading.Thread(target=_run_bulk_ingestion, args=(True,))
+        thread.daemon = True
+        thread.start()
+        
+        api_logger.info(f"Reprocessing started: cleared {cleared}, processing {len(document_files)} files")
+        log_api_response("/api/documents/reprocess", 202, time.time() - start_time)
+        
+        return jsonify({
+            "message": "Reprocessamento iniciado",
+            "cleared": cleared,
+            "total_files": len(document_files)
+        }), 202
+        
+    except Exception as e:
+        api_logger.error(f"Error starting reprocess: {e}")
+        log_api_response("/api/documents/reprocess", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
 
 
 # =============================================================================

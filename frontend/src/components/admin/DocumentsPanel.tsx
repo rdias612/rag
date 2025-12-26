@@ -10,7 +10,8 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
-    Loader2
+    Loader2,
+    RotateCcw
 } from 'lucide-react';
 
 interface DocumentStats {
@@ -128,6 +129,35 @@ export function DocumentsPanel() {
         }
     };
 
+    const reprocessKnowledgeBase = async () => {
+        if (!confirm('Isso irá APAGAR todos os dados e reprocessar do zero. Continuar?')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/documents/reprocess`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setIngestionStatus({
+                    running: true,
+                    progress: 0,
+                    total: data.total_files,
+                    current_file: null,
+                    message: 'Base limpa. Reprocessando...',
+                    results: []
+                });
+                // Atualizar lista de documentos ingeridos (agora vazia)
+                setIngestedDocs([]);
+            }
+        } catch (error) {
+            console.error('Failed to reprocess:', error);
+        }
+    };
+
     const deleteDocument = async (filePath: string) => {
         setDeleting(filePath);
         try {
@@ -215,7 +245,16 @@ export function DocumentsPanel() {
                         ) : (
                             <Play size={14} />
                         )}
-                        {ingestionStatus?.running ? 'Ingerindo...' : 'Iniciar Ingestão'}
+                        {ingestionStatus?.running ? 'Processando...' : 'Atualizar Base de Conhecimento'}
+                    </button>
+                    <button
+                        onClick={reprocessKnowledgeBase}
+                        disabled={loading || ingestionStatus?.running}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Limpa todos os dados e reprocessa do zero"
+                    >
+                        <RotateCcw size={14} />
+                        Reprocessar Base
                     </button>
                     <button
                         onClick={fetchData}
