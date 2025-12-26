@@ -1112,27 +1112,32 @@ def start_bulk_ingestion():
         
         _bulk_ingestion_status["running"] = True
         _bulk_ingestion_status["progress"] = 0
-        _bulk_ingestion_status["total"] = 0
+        _bulk_ingestion_status["total"] = total_to_process
         _bulk_ingestion_status["current_file"] = None
         _bulk_ingestion_status["message"] = "Iniciando..."
         _bulk_ingestion_status["results"] = []
     
     force = data.get("force", False)
     
-    # Contar arquivos
-    document_files = get_all_documents(DOCUMENTS_DIR)
+    # Contar arquivos que serão realmente processados
+    if force:
+        document_files = get_all_documents(DOCUMENTS_DIR)
+        total_to_process = len(document_files)
+    else:
+        pending = _scan_documents()
+        total_to_process = len(pending)
     
     # Iniciar em background
     thread = threading.Thread(target=_run_bulk_ingestion, args=(force,))
     thread.daemon = True
     thread.start()
     
-    api_logger.info(f"Bulk ingestion started: {len(document_files)} files, force={force}")
+    api_logger.info(f"Bulk ingestion started: {total_to_process} files to process (force={force})")
     log_api_response("/api/documents/ingest-all", 202, time.time() - start_time)
     
     return jsonify({
         "message": "Ingestão iniciada",
-        "total_files": len(document_files)
+        "total_files": total_to_process
     }), 202
 
 
