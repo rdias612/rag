@@ -565,14 +565,14 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
         ext = f.suffix.lower()
         files_by_type[ext] = files_by_type.get(ext, 0) + 1
     
-    print(f"📁 Encontrados {len(document_files)} documentos")
+    logger.info(f"Encontrados {len(document_files)} documentos")
     for ext, count in sorted(files_by_type.items()):
-        print(f"   └─ {ext}: {count} arquivo(s)")
-    print(f"🔧 Modo de chunking: {chunking_mode}")
+        logger.info(f"   - {ext}: {count} arquivo(s)")
+    logger.info(f"Modo de chunking: {chunking_mode}")
     logger.info(f"Iniciando processamento: {len(document_files)} documentos, modo={chunking_mode}")
     
     if USE_SEMANTIC_CHUNKING:
-        print(f"   └─ max_chunk={CHUNK_SIZE}, min_chunk={MIN_CHUNK_SIZE}, overlap_sentences={CHUNK_OVERLAP_SENTENCES}")
+        logger.info(f"   - max_chunk={CHUNK_SIZE}, min_chunk={MIN_CHUNK_SIZE}, overlap_sentences={CHUNK_OVERLAP_SENTENCES}")
     
     total_chunks = 0
     
@@ -590,12 +590,12 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
         except ValueError:
             collection_id = "default"
             
-        print(f"📄 [{i}/{len(document_files)}] Processando: {doc_path.name} (Coleção: {collection_id})")
+        logger.info(f"[{i}/{len(document_files)}] Processando: {doc_path.name} (Coleção: {collection_id})")
         
         try:
             chunks = process_document(doc_path)
             total_chunks += len(chunks)
-            print(f"   ✂️ Gerados {len(chunks)} chunks")
+            logger.info(f"   Gerados {len(chunks)} chunks")
             logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks (Coleção: {collection_id})")
             
             for chunk in chunks:
@@ -604,11 +604,11 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
                 yield chunk
                 
         except Exception as e:
-            print(f"   ❌ Erro ao processar {doc_path.name}: {e}")
+            logger.error(f"Erro ao processar {doc_path.name}: {e}")
             logger.error(f"Erro ao processar {doc_path.name}: {e}")
             continue
     
-    print(f"\n✅ Total: {total_chunks} chunks gerados de {len(document_files)} arquivos")
+    logger.info(f"Total: {total_chunks} chunks gerados de {len(document_files)} arquivos")
     logger.info(f"Processamento concluído: {total_chunks} chunks de {len(document_files)} arquivos")
 
 

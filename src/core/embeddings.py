@@ -108,7 +108,7 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         batch_duration = time.time() - batch_start
         log_embedding_batch_response(len(batch), batch_duration, EMBEDDING_DIMENSION)
         
-        print(f"  📊 Processados {min(i + batch_size, len(texts))}/{len(texts)} embeddings")
+        embedding_logger.info(f"Processados {min(i + batch_size, len(texts))}/{len(texts)} embeddings")
     
     total_duration = time.time() - total_start
     embedding_logger.info(f"Batch embedding complete: {len(all_embeddings)} embeddings in {total_duration:.2f}s")

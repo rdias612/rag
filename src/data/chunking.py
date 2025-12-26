@@ -35,7 +35,8 @@ try:
     try:
         nlp = spacy.blank("pt")
         nlp.add_pipe("sentencizer")
-        logger.info("spaCy carregado com sucesso (sentencizer pt)")
+        nlp.max_length = 50000000  # Aumentar para 50 milhões de caracteres
+        logger.info("spaCy carregado com sucesso (sentencizer pt, max_length=50M)")
     except Exception as e:
         nlp = None
         logger.warning(f"Erro ao carregar spaCy padrão: {e}")
@@ -101,6 +102,17 @@ class SemanticChunker:
         # Se texto é menor que o máximo, retornar como único chunk
         if len(text) <= self.max_chunk_size:
             return [text.strip()]
+        
+        # Se o texto for extremamente grande, dividir em blocos para não sobrecarregar o spaCy
+        # (Embora nlp.max_length tenha aumentado, processar blocos de 1M é mais seguro)
+        MAX_SPACY_BLOCK = 1000000
+        if len(text) > MAX_SPACY_BLOCK:
+            logger.info(f"Texto muito grande ({len(text)} chars). Dividindo em blocos de {MAX_SPACY_BLOCK} para processamento.")
+            blocks = [text[i:i + MAX_SPACY_BLOCK] for i in range(0, len(text), MAX_SPACY_BLOCK)]
+            all_chunks = []
+            for block in blocks:
+                all_chunks.extend(self.chunk(block))
+            return all_chunks
         
         # Dividir em parágrafos primeiro
         paragraphs = self._split_into_paragraphs(text)

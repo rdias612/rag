@@ -77,7 +77,7 @@ def init_database():
 
     duration = time.time() - start_time
     db_logger.info(f"Database ready check completed in {duration:.2f}s")
-    print("✅ Banco de dados pronto (schema gerenciado pelo Alembic)")
+    db_logger.info("Banco de dados pronto (schema gerenciado pelo Alembic)")
 
 
 def insert_document(content: str, metadata: dict, embedding: list[float], collection_id: str = "default") -> int:
@@ -279,7 +279,7 @@ def clear_documents():
     
     duration = time.time() - start_time
     log_db_result("TRUNCATE", 0, duration)
-    print("⚠️ Todos os documentos foram removidos!")
+        db_logger.warning("Todos os documentos foram removidos!")
 
 
 def check_connection() -> bool:

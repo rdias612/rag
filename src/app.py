@@ -42,19 +42,20 @@ def create_app() -> Flask:
 
 def main():
     """Função principal para rodar a aplicação."""
-    print("🚀 Iniciando RAG API...")
+    api_logger.info("Iniciando RAG API...")
     
     # Verificar conexão com banco
-    print("📊 Verificando conexão com o banco de dados...")
+    api_logger.info("Verificando conexão com o banco de dados...")
     if not check_connection():
-        print("❌ Não foi possível conectar ao banco de dados!")
-        print("   Verifique se o PostgreSQL está rodando.")
-        return
+        api_logger.error("Não foi possível conectar ao banco de dados!")
+        api_logger.error("Verifique se o PostgreSQL está rodando.")
+        import sys
+        sys.exit(1)
     
-    print("✅ Conexão com banco de dados OK!")
+    api_logger.info("Conexão com banco de dados OK!")
     
     # Inicializar banco (criar tabelas se não existirem)
-    print("🔧 Inicializando banco de dados...")
+    api_logger.info("Inicializando banco de dados...")
     init_database()
     
     # Criar e rodar aplicação
