@@ -951,9 +951,13 @@ def _run_bulk_ingestion(force: bool = False):
                     collection_id = "default"
                 
                 # Processar documento
+                api_logger.info(f"[{i}/{total_files}] Iniciando: {file_name}")
+                
+                api_logger.info(f"  [1/3] Extraindo texto e criando chunks...")
                 chunks = process_document(doc_path)
                 
                 if not chunks:
+                    api_logger.warning(f"  [!] Nenhum texto extraído de {file_name}")
                     docs_failed += 1
                     register_ingested_document(file_path_str, file_hash, file_size, collection_id, 0, "error")
                     with _bulk_ingestion_lock:
@@ -964,11 +968,16 @@ def _run_bulk_ingestion(force: bool = False):
                         })
                     continue
                 
+                api_logger.info(f"  [2/3] Gerando embeddings para {len(chunks)} chunks...")
                 # Gerar embeddings
                 texts = [chunk["content"] for chunk in chunks]
                 embeddings = get_embeddings_batch(texts)
                 
+                if len(embeddings) != len(chunks):
+                    raise ValueError(f"Mismatch: {len(chunks)} chunks vs {len(embeddings)} embeddings")
+
                 # Preparar e inserir
+                api_logger.info(f"  [3/3] Inserindo no banco de dados...")
                 documents_to_insert = []
                 for chunk, embedding in zip(chunks, embeddings):
                     documents_to_insert.append({
@@ -984,6 +993,8 @@ def _run_bulk_ingestion(force: bool = False):
                 register_ingested_document(file_path_str, file_hash, file_size, collection_id, inserted, "success")
                 
                 docs_processed += 1
+                api_logger.info(f"  [V] Concluído: {file_name} ({inserted} chunks)")
+                
                 with _bulk_ingestion_lock:
                     _bulk_ingestion_status["results"].append({
                         "file": file_name,
@@ -993,7 +1004,7 @@ def _run_bulk_ingestion(force: bool = False):
                     
             except Exception as e:
                 docs_failed += 1
-                api_logger.error(f"Error processing {file_name}: {e}")
+                api_logger.error(f"  [X] ERRO ao processar {file_name}: {e}", exc_info=True)
                 with _bulk_ingestion_lock:
                     _bulk_ingestion_status["results"].append({
                         "file": file_name,

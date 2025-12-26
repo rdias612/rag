@@ -3,9 +3,11 @@ Aplicação Flask principal.
 """
 from flask import Flask
 from flask_cors import CORS
+import sys
 
 from src.api.routes import api
 from src.data.database import init_database, check_connection
+from src.core.logger import api_logger
 
 
 def create_app() -> Flask:
@@ -49,7 +51,6 @@ def main():
     if not check_connection():
         api_logger.error("Não foi possível conectar ao banco de dados!")
         api_logger.error("Verifique se o PostgreSQL está rodando.")
-        import sys
         sys.exit(1)
     
     api_logger.info("Conexão com banco de dados OK!")

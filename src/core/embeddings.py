@@ -102,7 +102,16 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         
         # Ordenar por índice para garantir ordem correta
         sorted_data = sorted(data["data"], key=lambda x: x["index"])
-        batch_embeddings = [item["embedding"] for item in sorted_data]
+        batch_embeddings = [item.get("embedding") for item in sorted_data]
+        
+        # Validar se algum embedding veio nulo
+        for idx, emb in enumerate(batch_embeddings):
+            if emb is None:
+                orig_idx = i + idx
+                sample_text = texts[orig_idx][:50] + "..."
+                embedding_logger.error(f"Embedding NULL detectado no batch para o texto {orig_idx}: '{sample_text}'")
+                raise ValueError(f"O modelo de embeddings retornou NULL para o texto {orig_idx}. Verifique o LM Studio.")
+
         all_embeddings.extend(batch_embeddings)
         
         batch_duration = time.time() - batch_start

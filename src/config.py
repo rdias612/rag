@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     
     # Modelo de embeddings (Nomic Embed v1.5)
     EMBEDDING_MODEL: str = Field(default="text-embedding-nomic-embed-text-v1.5", validation_alias="EMBEDDING_MODEL")
-    EMBEDDING_DIMENSION: int = Field(default=768, validation_alias="EMBEDDING_DIMENSION")
+    EMBEDDING_DIMENSION: int = Field(default=1024, validation_alias="EMBEDDING_DIMENSION")
     
     # Modelo LLM (Phi-3.5 Mini)
     LLM_MODEL: str = Field(default="phi-3.5-mini-instruct", validation_alias="LLM_MODEL")

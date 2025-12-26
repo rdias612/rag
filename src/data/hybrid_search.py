@@ -92,8 +92,7 @@ def init_fulltext_search():
             
         duration = time.time() - start_time
         db_logger.info(f"Full-Text Search initialized in {duration:.2f}s")
-        if logger:
-            logger.info("Full-Text Search inicializado com sucesso!")
+        db_logger.info("Full-Text Search inicializado com sucesso!")
         
     except Exception as e:
         conn.rollback()
@@ -358,8 +357,7 @@ def update_existing_documents_fts():
             
         duration = time.time() - start_time
         db_logger.info(f"Updated {updated} documents in {duration:.2f}s")
-        if logger:
-            logger.info(f"{updated} documentos atualizados com Full-Text Search!")
+        db_logger.info(f"{updated} documentos atualizados com Full-Text Search!")
         return updated
         
     except Exception as e:

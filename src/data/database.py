@@ -99,10 +99,14 @@ def insert_document(content: str, metadata: dict, embedding: list[float], collec
     
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # Garantir que o embedding é uma lista de floats e não contém None
+            if not isinstance(embedding, list) or any(v is None for v in embedding):
+                raise ValueError(f"Embedding inválido: contém valores nulos ou tipo incorreto. Tamanho: {len(embedding) if isinstance(embedding, list) else 'N/A'}")
+                
             cur.execute(
                 """
                 INSERT INTO documentos (content, metadata, embedding, collection_id)
-                VALUES (%s, %s, %s, %s)
+                VALUES (%s, %s, %s::vector, %s)
                 RETURNING id;
                 """,
                 (content, json.dumps(metadata), embedding, collection_id)
@@ -133,6 +137,11 @@ def insert_documents_batch(documents: list[dict]) -> int:
             # Preparar dados para inserção em batch
             values = []
             for doc in documents:
+                # Validar embedding
+                if not isinstance(doc["embedding"], list) or any(v is None for v in doc["embedding"]):
+                    file_info = doc.get("metadata", {}).get("source_path", "unknown")
+                    raise ValueError(f"Embedding inválido detectado para {file_info}: contém valores nulos ou tipo incorreto.")
+
                 values.append((
                     doc["content"],
                     json.dumps(doc["metadata"]),
@@ -144,7 +153,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
             cur.executemany(
                 """
                 INSERT INTO documentos (content, metadata, embedding, collection_id)
-                VALUES (%s, %s, %s, %s);
+                VALUES (%s, %s, %s::vector, %s);
                 """,
                 values
             )
@@ -279,7 +288,7 @@ def clear_documents():
     
     duration = time.time() - start_time
     log_db_result("TRUNCATE", 0, duration)
-        db_logger.warning("Todos os documentos foram removidos!")
+    db_logger.warning("Todos os documentos foram removidos!")
 
 
 def check_connection() -> bool:
