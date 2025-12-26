@@ -7,9 +7,11 @@ Formatos suportados:
 - Texto (.txt)
 - Markdown (.md)
 - HTML (.html, .htm)
+- CSV (.csv)
 """
 import os
 import re
+import csv
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -33,7 +35,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Formatos suportados
 # =============================================================================
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".html", ".htm"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".html", ".htm", ".csv"}
 
 
 def clean_pdf_text(text: str) -> str:
@@ -251,6 +253,69 @@ def extract_text_from_html(file_path: Path) -> list[dict]:
     return [{"text": text.strip(), "page": 1}]
 
 
+def extract_text_from_csv(file_path: Path) -> list[dict]:
+    """
+    Extrai texto de um arquivo CSV (.csv).
+    Converte a tabela para formato Markdown para preservar a estrutura.
+    
+    Args:
+        file_path: Caminho para o arquivo .csv
+        
+    Returns:
+        Lista de dicts com text (arquivo inteiro, page=1)
+    """
+    # Tentar diferentes encodings
+    encodings = ["utf-8", "latin-1", "cp1252"]
+    
+    for encoding in encodings:
+        try:
+            with open(file_path, "r", encoding=encoding, newline="") as f:
+                # Detectar delimitador automaticamente
+                sample = f.read(4096)
+                f.seek(0)
+                
+                try:
+                    dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+                except csv.Error:
+                    dialect = csv.excel  # Fallback para delimitador padrão (,)
+                
+                reader = csv.reader(f, dialect)
+                rows = list(reader)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        logger.error(f"Não foi possível decodificar {file_path}")
+        return []
+    
+    if not rows:
+        return []
+    
+    # Converter para formato Markdown
+    headers = rows[0]
+    data_rows = rows[1:]
+    
+    # Construir tabela Markdown
+    lines = []
+    
+    # Header
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+    
+    # Data rows
+    for row in data_rows:
+        # Garantir que a linha tenha o mesmo número de colunas que o header
+        padded_row = row + [""] * (len(headers) - len(row))
+        lines.append("| " + " | ".join(padded_row[:len(headers)]) + " |")
+    
+    text = "\n".join(lines)
+    
+    if not text.strip():
+        return []
+    
+    return [{"text": text.strip(), "page": 1}]
+
+
 def get_extractor_for_file(file_path: Path) -> Callable[[Path], list[dict]]:
     """
     Retorna a função extratora apropriada para o tipo de arquivo.
@@ -273,6 +338,7 @@ def get_extractor_for_file(file_path: Path) -> Callable[[Path], list[dict]]:
         ".md": extract_text_from_markdown,
         ".html": extract_text_from_html,
         ".htm": extract_text_from_html,
+        ".csv": extract_text_from_csv,
     }
     
     if ext not in extractors:
