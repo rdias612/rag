@@ -14,7 +14,8 @@ def run_app():
     # 1. Iniciar Backend (Flask)
     print("📡 Iniciando Backend na porta 5000...")
     backend_process = subprocess.Popen(
-        [sys.executable, "-m", "src.app"],
+        [sys.executable, "-c", 
+         "from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port=5000, debug=False)"],
         cwd=root_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

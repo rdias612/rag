@@ -130,6 +130,7 @@ settings = Settings()
 # =============================================================================
 # Compatibilidade (Exportando nomes originais)
 # =============================================================================
+BASE_DIR = settings.BASE_DIR
 DOCUMENTS_DIR = settings.DOCUMENTS_DIR
 DATABASE_CONFIG = settings.DATABASE_CONFIG
 DATABASE_URL = settings.DATABASE_URL
