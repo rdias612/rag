@@ -112,7 +112,7 @@ class ConversationManager:
             max_sessions: Número máximo de sessões simultâneas
         """
         self._sessions: dict[str, Conversation] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._session_timeout = session_timeout_minutes * 60  # Converter para segundos
         self._max_sessions = max_sessions
         
