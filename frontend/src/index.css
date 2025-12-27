@@ -64,7 +64,7 @@
     --surface-bg: #f1f5f9;
     --text-primary: #0f172a;
     --text-secondary: #64748b;
-    --border-color: rgba(0, 0, 0, 0.05);
+    --border-color: rgba(0, 0, 0, 0.1);
   }
 
   body {

@@ -139,12 +139,12 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                         exit={{ opacity: 0, scale: 0.95 }}
                         className="fixed inset-0 flex items-center justify-center z-[70] p-4 pointer-events-none"
                     >
-                        <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl pointer-events-auto">
+                        <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl pointer-events-auto">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-semibold text-white">Upload Document</h2>
+                                <h2 className="text-xl font-semibold text-text-primary">Upload Document</h2>
                                 <button
                                     onClick={onClose}
-                                    className="p-1 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white"
+                                    className="p-1 hover:bg-surface rounded-lg transition-colors text-text-secondary hover:text-text-primary"
                                 >
                                     <X size={20} />
                                 </button>
@@ -158,8 +158,8 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                                 className={cn(
                                     "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all gap-4 text-center",
                                     isDragging
-                                        ? "border-blue-500 bg-blue-500/10"
-                                        : "border-gray-700 hover:border-gray-500 hover:bg-white/5",
+                                        ? "border-accent-primary bg-accent-primary/10"
+                                        : "border-border hover:border-accent-primary/50 hover:bg-surface",
                                     status === 'error' && "border-red-500/50 bg-red-900/10",
                                     status === 'success' && "border-emerald-500/50 bg-emerald-900/10"
                                 )}
@@ -177,16 +177,16 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                                 ) : status === 'error' ? (
                                     <AlertCircle size={48} className="text-red-500" />
                                 ) : file ? (
-                                    <FileText size={48} className="text-blue-400" />
+                                    <FileText size={48} className="text-accent-primary" />
                                 ) : (
-                                    <Upload size={48} className="text-gray-500" />
+                                    <Upload size={48} className="text-text-secondary" />
                                 )}
 
                                 <div>
-                                    <p className="font-medium text-white mb-1">
+                                    <p className="font-medium text-text-primary mb-1">
                                         {file ? file.name : "Click to upload or drag and drop"}
                                     </p>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-text-secondary">
                                         {status === 'success' ? message : status === 'error' ? message : "PDF, TXT, MD, DOCX (Max 10MB)"}
                                     </p>
                                 </div>
@@ -195,7 +195,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                             <div className="mt-6 flex justify-end gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                                    className="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -203,7 +203,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                                     onClick={handleUpload}
                                     disabled={!file || status === 'uploading' || status === 'success'}
                                     className={cn(
-                                        "px-4 py-2 bg-blue-600 text-white rounded-lg font-medium transition-all",
+                                        "px-4 py-2 bg-accent-primary text-white rounded-lg font-medium transition-all hover:bg-accent-hover",
                                         (!file || status === 'uploading') && "opacity-50 cursor-not-allowed",
                                         status === 'success' && "bg-emerald-600"
                                     )}

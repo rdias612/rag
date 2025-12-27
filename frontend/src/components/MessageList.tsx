@@ -71,13 +71,13 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
             <div className="max-w-3xl mx-auto px-4 space-y-8">
                 {messages.length === 0 && (
                     <div className="h-[70vh] flex flex-col items-center justify-center text-center px-4 animate-fade-in">
-                        <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-500 p-[1px] mb-8 shadow-2xl shadow-indigo-500/20">
-                            <div className="w-full h-full rounded-[23px] bg-zinc-900 flex items-center justify-center">
-                                <Sparkles className="w-8 h-8 text-indigo-400" />
+                        <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-blue-500 to-blue-300 p-[1px] mb-8 shadow-2xl shadow-blue-500/20">
+                            <div className="w-full h-full rounded-[23px] bg-card flex items-center justify-center">
+                                <Sparkles className="w-8 h-8 text-blue-500" />
                             </div>
                         </div>
 
-                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400 mb-3">
+                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-blue-400 mb-3">
                             Hello, Rian.
                         </h1>
                         <p className="text-zinc-500 text-lg max-w-md mb-12">
@@ -89,12 +89,12 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                 { icon: Zap, label: "Deep Dive", text: "Analyze complex documents" },
                                 { icon: BookOpen, label: "Summarize", text: "Get quick overviews" },
                             ].map((item, i) => (
-                                <button key={i} className="flex flex-col items-start p-4 rounded-xl bg-[#18181b] border border-white/5 hover:border-indigo-500/30 hover:bg-white/5 transition-all text-left group">
-                                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
+                                <button key={i} className="flex flex-col items-start p-4 rounded-xl bg-card border border-border hover:border-accent-primary/30 hover:bg-accent-primary/5 transition-all text-left group">
+                                    <div className="p-2 rounded-lg bg-accent-primary/10 text-accent-primary mb-3 group-hover:scale-110 transition-transform">
                                         <item.icon size={20} />
                                     </div>
-                                    <span className="text-sm font-semibold text-zinc-200 mb-1">{item.label}</span>
-                                    <span className="text-xs text-zinc-500">{item.text}</span>
+                                    <span className="text-sm font-semibold text-text-primary mb-1">{item.label}</span>
+                                    <span className="text-xs text-text-secondary">{item.text}</span>
                                 </button>
                             ))}
                         </div>
@@ -112,7 +112,7 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                         )}
                     >
                         {msg.role === 'assistant' && (
-                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 mt-1">
+                            <div className="w-8 h-8 rounded-lg bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center text-accent-primary shrink-0 mt-1">
                                 <Bot size={18} />
                             </div>
                         )}
@@ -134,11 +134,11 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                         <div
                                             key={i}
                                             onClick={() => setSelectedSource(source)}
-                                            className="bg-[#18181b] border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all rounded-lg p-2.5 text-xs flex items-center gap-2 cursor-pointer group/source"
+                                            className="bg-card border border-border hover:border-accent-primary/30 hover:bg-accent-primary/5 transition-all rounded-lg p-2.5 text-xs flex items-center gap-2 cursor-pointer group/source"
                                             title="Clique para ver o conteúdo"
                                         >
-                                            <FileText size={14} className="text-indigo-400" />
-                                            <span className="text-zinc-300 max-w-[150px] truncate">
+                                            <FileText size={14} className="text-accent-primary" />
+                                            <span className="text-text-secondary max-w-[150px] truncate">
                                                 {source.filename}
                                                 {source.page ? <span className="opacity-50 ml-1">· P{source.page}</span> : null}
                                             </span>
@@ -201,16 +201,16 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                             exit={{ opacity: 0, y: 10 }}
                             className="flex gap-4 items-start"
                         >
-                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 mt-1">
+                            <div className="w-8 h-8 rounded-lg bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center text-accent-primary shrink-0 mt-1">
                                 <Bot size={18} />
                             </div>
                             <div className="flex flex-col gap-2">
                                 <div className="flex gap-1 h-6 items-center px-2">
-                                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></span>
+                                    <span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                    <span className="w-1.5 h-1.5 bg-accent-primary/60 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                    <span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-bounce"></span>
                                 </div>
-                                <span className="text-xs text-zinc-500 font-medium px-1">Pensando...</span>
+                                <span className="text-xs text-text-secondary font-medium px-1">Pensando...</span>
                             </div>
                         </motion.div>
                     )}

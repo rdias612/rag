@@ -116,46 +116,53 @@ def get_question_type_description(question_type: str) -> str:
 # Mapeamento de tipos para instruções específicas no prompt
 QUESTION_TYPE_INSTRUCTIONS = {
     "definition": """
-- Forneça uma definição clara e concisa
-- Explique o conceito de forma progressiva (do básico ao avançado)
-- Inclua exemplos práticos quando possível
-- Mencione contexto de uso se relevante""",
+### INSTRUÇÕES DE DEFINIÇÃO:
+- Forneça uma definição clara e concisa no primeiro parágrafo.
+- Explique o conceito de forma progressiva (do básico ao avançado).
+- Use **negrito** para termos técnicos importantes.
+- Inclua exemplos práticos extraídos do contexto para ilustrar o conceito.""",
     
     "comparison": """
-- Organize a comparação em formato estruturado (tabela ou tópicos)
-- Destaque semelhanças E diferenças
-- Se possível, indique quando usar cada opção
-- Seja objetivo e imparcial na comparação""",
+### INSTRUÇÕES DE COMPARAÇÃO:
+- **Obrigatoriamente** apresente uma tabela comparativa ou uma lista contrastante (Lado A vs Lado B).
+- Destaque semelhanças E diferenças fundamentais.
+- Ao final, forneça uma recomendação de uso para cada opção baseada no contexto.
+- Seja objetivo e cite fontes para cada característica comparada.""",
     
     "listing": """
-- Apresente os itens em lista numerada ou com bullets
-- Forneça breve descrição de cada item
-- Organize por relevância ou categoria lógica
-- Indique se a lista é exaustiva ou exemplificativa""",
+### INSTRUÇÕES DE LISTAGEM:
+- Use uma lista numerada ou com bullets para organizar os itens.
+- Forneça uma breve descrição (1-2 frases) para cada item listado.
+- Agrupe itens por categorias lógicas se a lista for longa (>5 itens).
+- Indique claramente se a lista apresentada é exaustiva ou apenas exemplificativa.""",
     
     "procedure": """
-- Apresente os passos em ordem sequencial numerada
-- Seja específico em cada etapa
-- Mencione pré-requisitos se houver
-- Alerte sobre possíveis erros ou armadilhas""",
+### INSTRUÇÕES DE PROCEDIMENTO:
+- Apresente os passos em ordem sequencial estritamente numerada.
+- Adicione uma seção de **"Pré-requisitos"** antes de iniciar os passos.
+- Utilize o formato `Passo X: [Ação]` para cada etapa.
+- Se houver alertas no contexto, inclua uma seção **"⚠️ IMPORTANTE"** para avisos de segurança ou erros comuns.""",
     
     "factual": """
-- Responda de forma direta e objetiva
-- Cite a fonte específica do contexto quando possível
-- Se houver múltiplas respostas possíveis, liste-as
-- Indique incerteza se a informação não for clara""",
+### INSTRUÇÕES FACTUAIS:
+- Responda de forma direta, sem introduções desnecessárias.
+- **Destaque o dado principal** (data, nome, valor) em negrito.
+- Cite exatamente a fonte e página de onde a informação foi extraída.
+- Se houver ambiguidade no contexto, mencione todas as versões encontradas.""",
     
     "reason": """
-- Explique a causa ou motivo de forma clara
-- Forneça contexto que ajude a entender o "porquê"
-- Se houver múltiplas causas, organize por relevância
-- Conecte causa e efeito de forma lógica""",
+### INSTRUÇÕES DE CAUSA/MOTIVO:
+- Explique a relação de causa e efeito de forma lógica e encadeada.
+- Use conectivos como "devido a", "consequentemente" e "visto que".
+- Se houver múltiplos fatores, organize-os por ordem de impacto.
+- Conecte a explicação a cenários reais mencionados no contexto.""",
     
     "general": """
-- Responda de forma clara e organizada
-- Use exemplos do contexto quando apropriado
-- Estruture a resposta em tópicos se for complexa
-- Seja conciso mas completo"""
+### INSTRUÇÕES GERAIS:
+- Estruture a resposta com títulos ou tópicos para facilitar a leitura.
+- Use exemplos do contexto para validar suas afirmações.
+- Se o tema for complexo, adicione um breve "Resumo Executivo" ao final.
+- Garanta que todas as afirmações técnicas tenham uma fonte citada."""
 }
 
 

@@ -69,7 +69,7 @@ export function Sidebar({
 
                 <div className="p-6">
                     <div className="flex items-center gap-3 mb-8">
-                        <div className="h-8 w-8 rounded-lg bg-accent-primary flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25">
+                        <div className="h-8 w-8 rounded-lg bg-accent-primary flex items-center justify-center font-bold text-white shadow-lg shadow-accent-primary/25">
                             R
                         </div>
                         <span className="font-semibold text-lg tracking-tight">RAG Assistant</span>
@@ -133,7 +133,7 @@ export function Sidebar({
                         setTemperature={setTemperature}
                     />
 
-                    <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-border">
+                    <div className="p-3 rounded-xl bg-accent-primary/5 border border-border">
                         <p className="text-xs text-text-secondary font-medium text-center">
                             Powered by <span className="text-accent-primary">Deepmind RAG</span>
                         </p>
