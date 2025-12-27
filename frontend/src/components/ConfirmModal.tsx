@@ -1,4 +1,5 @@
 import { X, AlertTriangle, Info } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -23,6 +24,18 @@ export function ConfirmModal({
     variant = 'warning',
     loading = false
 }: ConfirmModalProps) {
+    // Fechar modal com ESC
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     const variantStyles = {

@@ -1,5 +1,5 @@
 import { X, Upload, FileText, CheckCircle, AlertCircle } from "lucide-react";
-import { useState, useRef, type ChangeEvent } from "react";
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 
@@ -16,6 +16,18 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
     const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Fechar modal com ESC
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [isOpen, onClose]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
