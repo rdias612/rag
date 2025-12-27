@@ -1,8 +1,9 @@
-import { Plus, MessageSquare, Trash2, X, History } from "lucide-react";
+import { Plus, MessageSquare, Trash2, X, History, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Session } from "../types";
 import { TemperatureSelector } from "./TemperatureSelector";
+import { useState } from "react";
 
 interface SidebarProps {
     sessions: Session[];
@@ -27,6 +28,21 @@ export function Sidebar({
     temperature,
     setTemperature
 }: SidebarProps) {
+    const [showSettings, setShowSettings] = useState(false);
+
+    // Auto-open sidebar on desktop
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 768) {
+                setIsOpen(true);
+            }
+        };
+
+        handleResize(); // Run on mount
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [setIsOpen]);
+
     return (
         <>
             {/* Mobile Toggle & Overlay */}
@@ -48,12 +64,9 @@ export function Sidebar({
                 animate={{ x: isOpen ? 0 : "-100%" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-border flex flex-col md:translate-x-0 transition-transform duration-300 ease-in-out",
-                    // On desktop, we always want it visible if the layout allows, but for now we follow the isOpen prop for mobile
-                    // Actually, let's force it visible on desktop via CSS override if needed, or better, trust the parent layout.
-                    "md:relative md:translate-x-0"
+                    "fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-border flex flex-col transition-transform duration-300 ease-in-out",
+                    "md:relative md:translate-x-0 md:block"
                 )}
-                style={{ position: 'fixed', transform: undefined }} // Let CSS classes handle desktop reset
             >
                 {/* Mobile Close Button */}
                 <div className="md:hidden absolute -right-10 top-4">
@@ -67,7 +80,7 @@ export function Sidebar({
                     )}
                 </div>
 
-                <div className="p-6">
+                <div className="p-6 space-y-3">
                     <div className="flex items-center gap-3 mb-8">
                         <div className="h-8 w-8 rounded-lg bg-accent-primary flex items-center justify-center font-bold text-white shadow-lg shadow-accent-primary/25">
                             R
@@ -84,6 +97,45 @@ export function Sidebar({
                         </div>
                         <span className="font-medium text-sm">New Chat</span>
                     </button>
+
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border group",
+                            showSettings
+                                ? "bg-accent-primary/10 border-accent-primary/30 text-accent-primary"
+                                : "bg-surface hover:bg-surface/80 text-text-primary border-border"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-1 rounded-md transition-colors",
+                            showSettings
+                                ? "bg-accent-primary/20 text-accent-primary"
+                                : "bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white"
+                        )}>
+                            <Settings size={18} />
+                        </div>
+                        <span className="font-medium text-sm">Configurações</span>
+                    </button>
+
+                    <AnimatePresence>
+                        {showSettings && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="pt-2">
+                                    <TemperatureSelector
+                                        temperature={temperature}
+                                        setTemperature={setTemperature}
+                                    />
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-4 pb-4">
@@ -127,12 +179,7 @@ export function Sidebar({
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-border space-y-6">
-                    <TemperatureSelector
-                        temperature={temperature}
-                        setTemperature={setTemperature}
-                    />
-
+                <div className="p-4 border-t border-border">
                     <div className="p-3 rounded-xl bg-accent-primary/5 border border-border">
                         <p className="text-xs text-text-secondary font-medium text-center">
                             Powered by <span className="text-accent-primary">Deepmind RAG</span>

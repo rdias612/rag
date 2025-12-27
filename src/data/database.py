@@ -650,8 +650,267 @@ def list_prompts() -> list[dict]:
     try:
         with get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT name, description, is_active, updated_at FROM prompts ORDER BY name")
+                cur.execute("""
+                    SELECT id, name, category, priority, tags, description, 
+                           use_case, is_active, updated_at, created_by
+                    FROM prompts 
+                    ORDER BY category, priority DESC, name
+                """)
                 return [dict(row) for row in cur.fetchall()]
     except Exception as e:
         db_logger.error(f"Error listing prompts: {e}")
         return []
+
+
+def get_prompt_by_id(prompt_id: int) -> Optional[dict]:
+    """Busca um prompt específico pelo ID."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, name, template, category, priority, tags, 
+                           description, use_case, is_active, created_at, 
+                           updated_at, created_by, version
+                    FROM prompts 
+                    WHERE id = %s
+                """, (prompt_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+    except Exception as e:
+        db_logger.error(f"Error fetching prompt {prompt_id}: {e}")
+        return None
+
+
+def get_prompts_by_category(category: str, include_inactive: bool = False) -> list[dict]:
+    """Busca todos os prompts de uma categoria."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                query = """
+                    SELECT id, name, template, priority, tags, is_active
+                    FROM prompts 
+                    WHERE category = %s
+                """
+                params = [category]
+                
+                if not include_inactive:
+                    query += " AND is_active = TRUE"
+                
+                query += " ORDER BY priority DESC, updated_at DESC"
+                
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        db_logger.error(f"Error fetching prompts for category {category}: {e}")
+        return []
+
+
+def count_active_prompts_in_category(category: str) -> int:
+    """Conta quantos prompts ativos existem em uma categoria."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COUNT(*) 
+                    FROM prompts 
+                    WHERE category = %s AND is_active = TRUE
+                """, (category,))
+                return cur.fetchone()[0]
+    except Exception as e:
+        db_logger.error(f"Error counting prompts in category {category}: {e}")
+        return 0
+
+
+def create_prompt(
+    name: str,
+    template: str,
+    category: str,
+    description: str = None,
+    priority: int = 100,
+    tags: list[str] = None,
+    use_case: str = None,
+    created_by: str = 'user'
+) -> tuple[bool, int, str]:
+    """
+    Cria um novo prompt.
+    
+    Returns:
+        (success: bool, prompt_id: int, error_message: str)
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                # Verificar se nome já existe
+                cur.execute("SELECT id FROM prompts WHERE name = %s", (name,))
+                if cur.fetchone():
+                    return False, 0, f"Já existe um prompt com o nome '{name}'"
+                
+                cur.execute("""
+                    INSERT INTO prompts 
+                        (name, template, category, description, priority, tags, use_case, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (name, template, category, description, priority, tags or [], use_case, created_by))
+                
+                prompt_id = cur.fetchone()[0]
+                
+                # Invalidar cache
+                global PROMPT_CACHE
+                PROMPT_CACHE.clear()
+                
+                db_logger.info(f"Created prompt '{name}' (ID: {prompt_id}) in category '{category}'")
+                return True, prompt_id, ""
+                
+    except Exception as e:
+        db_logger.error(f"Error creating prompt: {e}")
+        return False, 0, str(e)
+
+
+def update_prompt_full(
+    prompt_id: int,
+    template: str = None,
+    description: str = None,
+    priority: int = None,
+    tags: list[str] = None,
+    use_case: str = None,
+    is_active: bool = None
+) -> tuple[bool, str]:
+    """
+    Atualiza um prompt existente.
+    
+    Returns:
+        (success: bool, error_message: str)
+    """
+    global PROMPT_CACHE
+    
+    try:
+        # Buscar prompt atual
+        prompt = get_prompt_by_id(prompt_id)
+        if not prompt:
+            return False, "Prompt não encontrado"
+        
+        # Construir query dinâmica
+        updates = []
+        params = []
+        
+        if template is not None:
+            updates.append("template = %s")
+            params.append(template)
+        
+        if description is not None:
+            updates.append("description = %s")
+            params.append(description)
+        
+        if priority is not None:
+            updates.append("priority = %s")
+            params.append(priority)
+        
+        if tags is not None:
+            updates.append("tags = %s")
+            params.append(tags)
+        
+        if use_case is not None:
+            updates.append("use_case = %s")
+            params.append(use_case)
+        
+        if is_active is not None:
+            updates.append("is_active = %s")
+            params.append(is_active)
+        
+        if not updates:
+            return False, "Nenhuma atualização fornecida"
+        
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        updates.append("version = version + 1")
+        params.append(prompt_id)
+        
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                query = f"UPDATE prompts SET {', '.join(updates)} WHERE id = %s"
+                cur.execute(query, params)
+                
+                if cur.rowcount == 0:
+                    return False, "Prompt não encontrado"
+                
+                # Invalidar cache
+                if prompt['name'] in PROMPT_CACHE:
+                    del PROMPT_CACHE[prompt['name']]
+                
+                db_logger.info(f"Updated prompt ID {prompt_id} ('{prompt['name']}')")
+                return True, ""
+                
+    except Exception as e:
+        db_logger.error(f"Error updating prompt {prompt_id}: {e}")
+        return False, str(e)
+
+
+# Categorias críticas que devem sempre ter pelo menos 1 prompt ativo
+CRITICAL_CATEGORIES = {
+    'rag_main': 'Prompt principal para RAG',
+    'hyde': 'Geração de documentos hipotéticos',
+    'query_expansion': 'Expansão de queries'
+}
+
+
+def can_delete_prompt(prompt_id: int) -> tuple[bool, str]:
+    """
+    Verifica se um prompt pode ser deletado.
+    
+    Returns:
+        (can_delete: bool, error_message: str)
+    """
+    prompt = get_prompt_by_id(prompt_id)
+    
+    if not prompt:
+        return False, "Prompt não encontrado"
+    
+    category = prompt.get('category')
+    
+    # Verificar se é categoria crítica
+    if category in CRITICAL_CATEGORIES:
+        count = count_active_prompts_in_category(category)
+        
+        # Se for o último ativo, não pode deletar
+        if prompt['is_active'] and count <= 1:
+            category_desc = CRITICAL_CATEGORIES[category]
+            return False, f"Não é possível deletar o último prompt ativo da categoria '{category}'. Esta categoria é essencial: {category_desc}."
+    
+    return True, ""
+
+
+def delete_prompt_safe(prompt_id: int) -> tuple[bool, str]:
+    """
+    Deleta um prompt com validação de segurança.
+    
+    Returns:
+        (success: bool, error_message: str)
+    """
+    global PROMPT_CACHE
+    
+    # Verificar se pode deletar
+    can_delete, error_msg = can_delete_prompt(prompt_id)
+    if not can_delete:
+        return False, error_msg
+    
+    try:
+        prompt = get_prompt_by_id(prompt_id)
+        if not prompt:
+            return False, "Prompt não encontrado"
+        
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM prompts WHERE id = %s", (prompt_id,))
+                
+                if cur.rowcount == 0:
+                    return False, "Prompt não encontrado"
+                
+                # Invalidar cache
+                if prompt['name'] in PROMPT_CACHE:
+                    del PROMPT_CACHE[prompt['name']]
+                
+                db_logger.info(f"Deleted prompt ID {prompt_id} ('{prompt['name']}')")
+                return True, ""
+                
+    except Exception as e:
+        db_logger.error(f"Error deleting prompt {prompt_id}: {e}")
+        return False, str(e)

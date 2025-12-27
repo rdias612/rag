@@ -388,22 +388,22 @@ export function DocumentsPanel() {
 
             {/* Ingestion Progress */}
             {ingestionStatus?.running && (
-                <div className="bg-indigo-900/30 border border-indigo-500/30 rounded-xl p-4">
+                <div className="bg-accent-primary/10 border border-accent-primary/30 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-indigo-300">
+                        <span className="text-sm font-medium text-accent-primary">
                             Ingestão em Andamento
                         </span>
-                        <span className="text-sm text-indigo-400">
+                        <span className="text-sm text-accent-primary">
                             {ingestionStatus.progress} / {ingestionStatus.total}
                         </span>
                     </div>
-                    <div className="w-full bg-indigo-900/50 rounded-full h-2 mb-2">
+                    <div className="w-full bg-surface rounded-full h-2 mb-2">
                         <div
-                            className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+                            className="bg-accent-primary h-2 rounded-full transition-all duration-300"
                             style={{ width: `${ingestionStatus.total > 0 ? (ingestionStatus.progress / ingestionStatus.total) * 100 : 0}%` }}
                         />
                     </div>
-                    <p className="text-xs text-indigo-400 truncate">
+                    <p className="text-xs text-text-secondary truncate">
                         {ingestionStatus.message}
                     </p>
                 </div>
@@ -426,7 +426,7 @@ export function DocumentsPanel() {
                                     </span>
                                 )}
                                 {result.message && result.status !== 'success' && (
-                                    <span className="text-zinc-500">{result.message}</span>
+                                    <span className="text-text-secondary">{result.message}</span>
                                 )}
                             </div>
                         ))}
@@ -436,7 +436,7 @@ export function DocumentsPanel() {
 
             {loading ? (
                 <div className="flex items-center justify-center py-12">
-                    <RefreshCw size={24} className="animate-spin text-zinc-500" />
+                    <RefreshCw size={24} className="animate-spin text-text-secondary" />
                 </div>
             ) : (
                 <>
@@ -628,8 +628,8 @@ export function DocumentsPanel() {
                     </div>
 
                     {/* Files by Type */}
-                    <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-xl p-4">
-                        <h3 className="text-sm font-medium text-zinc-300 mb-4">Arquivos por Tipo (no diretório)</h3>
+                    <div className="glass rounded-xl p-4">
+                        <h3 className="text-sm font-medium text-text-primary mb-4">Arquivos por Tipo (no diretório)</h3>
                         {docStats?.files_by_type && Object.keys(docStats.files_by_type).length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {Object.entries(docStats.files_by_type).map(([ext, count]) => (
@@ -646,7 +646,7 @@ export function DocumentsPanel() {
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-zinc-500 text-sm">Nenhum documento encontrado</p>
+                            <p className="text-text-secondary text-sm">Nenhum documento encontrado</p>
                         )}
                     </div>
 
@@ -684,15 +684,15 @@ export function DocumentsPanel() {
                         <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-fade-in overflow-hidden">
                             <div className="p-6">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-indigo-500/10 rounded-xl">
-                                        <RefreshCw className="text-indigo-400" size={24} />
+                                    <div className="p-2 bg-accent-primary/10 rounded-xl">
+                                        <RefreshCw className="text-accent-primary" size={24} />
                                     </div>
-                                    <h3 className="text-lg font-semibold text-white">
+                                    <h3 className="text-lg font-semibold text-text-primary">
                                         Documentos Pendentes
                                     </h3>
                                 </div>
 
-                                <p className="text-zinc-400 text-sm mb-4">
+                                <p className="text-text-secondary text-sm mb-4">
                                     Os seguintes arquivos foram detectados como novos ou modificados e serão processados:
                                 </p>
 
@@ -704,9 +704,9 @@ export function DocumentsPanel() {
                                                     }`}>
                                                     {file.reason === 'new' ? 'Novo' : 'Modificado'}
                                                 </span>
-                                                <span className="text-zinc-300 text-sm truncate">{file.file}</span>
+                                                <span className="text-text-primary text-sm truncate">{file.file}</span>
                                             </div>
-                                            <span className="text-zinc-500 text-[10px] font-mono whitespace-nowrap">
+                                            <span className="text-text-secondary text-[10px] font-mono whitespace-nowrap">
                                                 {(file.size / 1024).toFixed(1)} KB
                                             </span>
                                         </div>
@@ -746,10 +746,10 @@ export function DocumentsPanel() {
                                 <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <CheckCircle className="text-emerald-500" size={32} />
                                 </div>
-                                <h3 className="text-lg font-semibold text-white mb-2">
+                                <h3 className="text-lg font-semibold text-text-primary mb-2">
                                     Tudo Atualizado!
                                 </h3>
-                                <p className="text-zinc-400 text-sm mb-6">
+                                <p className="text-text-secondary text-sm mb-6">
                                     Nenhum arquivo novo ou modificado foi detectado no diretório de documentos.
                                 </p>
                                 <button
