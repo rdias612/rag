@@ -4,13 +4,15 @@ import {
     Activity,
     HardDrive,
     MessageSquare,
-    ArrowLeft
+    ArrowLeft,
+    FileText
 } from 'lucide-react';
 import { SystemOverview } from './admin/SystemOverview';
 import { DocumentsPanel } from './admin/DocumentsPanel';
 import { SessionsPanel } from './admin/SessionsPanel';
+import { PromptsManagement } from './admin/PromptsManagement';
 
-type TabId = 'overview' | 'documents' | 'sessions';
+type TabId = 'overview' | 'documents' | 'sessions' | 'prompts';
 
 interface Tab {
     id: TabId;
@@ -22,6 +24,7 @@ const TABS: Tab[] = [
     { id: 'overview', label: 'Visão Geral', icon: Activity },
     { id: 'documents', label: 'Documentos', icon: HardDrive },
     { id: 'sessions', label: 'Sessões', icon: MessageSquare },
+    { id: 'prompts', label: 'Prompts', icon: FileText },
 ];
 
 interface AdminDashboardProps {
@@ -39,6 +42,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 return <DocumentsPanel />;
             case 'sessions':
                 return <SessionsPanel />;
+            case 'prompts':
+                return <PromptsManagement />;
             default:
                 return <SystemOverview />;
         }

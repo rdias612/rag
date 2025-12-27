@@ -674,7 +674,7 @@ def query_rag(
     
     # Log final
     total_duration = time.time() - start_time
-    source_names = [s["source"] for s in sources]
+    source_names = [s["filename"] for s in sources]
     log_rag_result(len(similar_docs), source_names, total_duration)
     
     # Métricas Prometheus
@@ -972,7 +972,7 @@ def query_rag_with_history(
     
     # Log final
     total_duration = time.time() - start_time
-    source_names = [s["source"] for s in sources]
+    source_names = [s["filename"] for s in sources]
     log_rag_result(len(similar_docs), source_names, total_duration)
     
     return result

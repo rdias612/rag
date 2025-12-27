@@ -15,6 +15,8 @@ interface SidebarProps {
     setIsOpen: (open: boolean) => void;
     temperature: number | undefined;
     setTemperature: (temp: number | undefined) => void;
+    promptMode: string;
+    setPromptMode: (mode: string) => void;
 }
 
 export function Sidebar({
@@ -24,7 +26,9 @@ export function Sidebar({
     onNewChat,
     onDeleteSession,
     temperature,
-    setTemperature
+    setTemperature,
+    promptMode,
+    setPromptMode
 }: SidebarProps) {
     const [showSettings, setShowSettings] = useState(false);
 
@@ -77,11 +81,31 @@ export function Sidebar({
                             transition={{ duration: 0.2 }}
                             className="overflow-hidden"
                         >
-                            <div className="pt-2">
+                            <div className="pt-2 space-y-3">
                                 <TemperatureSelector
                                     temperature={temperature}
                                     setTemperature={setTemperature}
                                 />
+
+                                {/* Prompt Mode Selector */}
+                                <div className="bg-surface rounded-lg p-3 border border-border">
+                                    <label className="block text-xs font-medium text-text-secondary mb-2">
+                                        Modo de Seleção de Prompts
+                                    </label>
+                                    <select
+                                        value={promptMode}
+                                        onChange={(e) => setPromptMode(e.target.value)}
+                                        className="w-full bg-chat border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                                    >
+                                        <option value="category">📂 Cat egoria (Rápido)</option>
+                                        <option value="llm_router">🤖 Inteligente (LLM)</option>
+                                    </select>
+                                    <p className="text-xs text-text-secondary mt-2">
+                                        {promptMode === 'category'
+                                            ? 'Busca automática por prioridade'
+                                            : 'LLM escolhe o melhor prompt (+200ms)'}
+                                    </p>
+                                </div>
                             </div>
                         </motion.div>
                     )}
