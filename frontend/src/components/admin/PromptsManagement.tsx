@@ -37,6 +37,19 @@ export function PromptsManagement() {
         fetchPrompts();
     }, []);
 
+    // Fechar modal com ESC
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && editingPrompt) {
+                setEditingPrompt(null);
+                setIsCreating(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [editingPrompt]);
+
     const fetchPrompts = async () => {
         try {
             setLoading(true);
