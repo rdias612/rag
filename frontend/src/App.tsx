@@ -224,18 +224,18 @@ function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2 text-zinc-400 hover:text-white"
+              className="md:hidden p-2 text-text-secondary hover:text-text-primary"
             >
               <Menu size={20} />
             </button>
             <div className="md:hidden flex items-center gap-2">
-              <span className="font-semibold text-sm">RAG Assistant</span>
+              <span className="font-semibold text-sm text-text-primary">RAG Assistant</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <select
-              className="bg-zinc-900 text-xs font-medium text-zinc-300 px-3 py-1.5 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="bg-card text-xs font-medium text-text-primary px-3 py-1.5 rounded-lg border border-border focus:border-accent-primary focus:outline-none hover:bg-surface transition-colors cursor-pointer"
               value={selectedCollection || ""}
               onChange={(e) => setSelectedCollection(e.target.value || null)}
             >
@@ -269,7 +269,7 @@ function App() {
 
             <button
               onClick={() => setIsAdminOpen(true)}
-              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-surface text-text-secondary hover:text-text-primary transition-colors"
               title="Painel de Administração"
             >
               <Settings size={18} />

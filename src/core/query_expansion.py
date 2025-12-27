@@ -9,6 +9,7 @@ from typing import Optional
 
 from src.core.llm import generate_response
 from src.core.logger import rag_logger
+from src.core.prompts import get_active_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ def expand_query(
     
     try:
         # Gerar variações usando LLM
-        prompt = QUERY_EXPANSION_PROMPT.format(
+        prompt_template = get_active_prompt('query_expansion_prompt')
+        prompt = prompt_template.format(
             query=query,
             num_variations=num_variations
         )

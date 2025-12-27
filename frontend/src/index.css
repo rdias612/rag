@@ -42,7 +42,7 @@
 @layer base {
   :root {
     --sidebar-width: 18rem;
-    
+
     /* Dark Theme (Default) */
     --sidebar-bg: #09090b;
     --chat-bg: #09090b;
@@ -68,7 +68,7 @@
   }
 
   body {
-    @apply bg-chat text-text-primary antialiased selection:bg-indigo-500/30 selection:text-indigo-200;
+    @apply bg-chat text-text-primary antialiased selection:bg-accent-primary/20 selection:text-accent-primary;
   }
 }
 
@@ -83,14 +83,14 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-800/50 rounded-full hover:bg-zinc-700/80 transition-colors;
+  @apply bg-border rounded-full hover:bg-text-secondary/50 transition-colors;
 }
 
 /* Utils */
 .glass {
-  @apply bg-zinc-900/60 backdrop-blur-xl border border-white/5;
+  @apply bg-card/60 backdrop-blur-xl border border-border;
 }
 
 .glass-hover {
-  @apply hover:bg-white/5 hover:border-white/10 transition-all duration-200;
+  @apply hover:bg-surface hover:border-accent-primary/20 transition-all duration-200;
 }

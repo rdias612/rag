@@ -11,6 +11,7 @@ from typing import Optional
 from src.core.llm import generate_response
 from src.core.embeddings import get_embedding
 from src.core.logger import rag_logger
+from src.core.prompts import get_active_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,8 @@ def generate_hypothetical_document(
     """
     start_time = time.time()
     
-    prompt = HYDE_PROMPT_CONCISE if concise else HYDE_PROMPT
-    prompt = prompt.format(question=question)
+    prompt_template = get_active_prompt('hyde_prompt_concise' if concise else 'hyde_prompt')
+    prompt = prompt_template.format(question=question)
     
     try:
         hypothetical_doc = generate_response(

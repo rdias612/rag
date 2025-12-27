@@ -18,6 +18,12 @@ from src.core.logger import (
     log_db_search_results
 )
 
+# Cache em memória para prompts para evitar queries repetitivas
+PROMPT_CACHE = {}
+# Tempo de expiração do cache em segundos (ex: 5 minutos)
+PROMPT_CACHE_TTL = 300
+PROMPT_CACHE_LAST_UPDATE = 0
+
 
 @contextmanager
 def get_connection():
@@ -549,3 +555,103 @@ def clear_all_documents() -> dict:
         "control_records_deleted": control_deleted,
         "duration_seconds": duration
     }
+
+
+# =============================================================================
+# Gestão de Prompts
+# =============================================================================
+
+def get_prompt(name: str, use_cache: bool = True) -> Optional[str]:
+    """
+    Busca um prompt pelo nome no banco de dados.
+    Utiliza um cache em memória para otimizar a performance.
+    
+    Args:
+        name: Nome único do prompt
+        use_cache: Se deve usar o cache ou forçar busca no banco
+        
+    Returns:
+        Template do prompt ou None se não encontrado
+    """
+    global PROMPT_CACHE, PROMPT_CACHE_LAST_UPDATE
+    
+    current_time = time.time()
+    
+    # Verificar cache
+    if use_cache and name in PROMPT_CACHE:
+        if current_time - PROMPT_CACHE_LAST_UPDATE < PROMPT_CACHE_TTL:
+            db_logger.debug(f"Prompt '{name}' retrieved from cache")
+            return PROMPT_CACHE[name]
+    
+    # Buscar no banco
+    db_logger.debug(f"Fetching prompt '{name}' from database...")
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT template FROM prompts WHERE name = %s AND is_active = TRUE",
+                    (name,)
+                )
+                row = cur.fetchone()
+                if row:
+                    template = row[0]
+                    # Atualizar cache
+                    PROMPT_CACHE[name] = template
+                    PROMPT_CACHE_LAST_UPDATE = current_time
+                    return template
+                else:
+                    db_logger.warning(f"Prompt '{name}' not found in database")
+                    return None
+    except Exception as e:
+        db_logger.error(f"Error fetching prompt '{name}': {e}")
+        return None
+
+
+def update_prompt(name: str, template: str) -> bool:
+    """
+    Atualiza o template de um prompt.
+    
+    Args:
+        name: Nome do prompt
+        template: Novo conteúdo do template
+        
+    Returns:
+        True se atualizado com sucesso
+    """
+    global PROMPT_CACHE
+    
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE prompts 
+                    SET template = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE name = %s
+                    """,
+                    (template, name)
+                )
+                updated = cur.rowcount > 0
+                
+                if updated:
+                    # Invalidar cache
+                    if name in PROMPT_CACHE:
+                        del PROMPT_CACHE[name]
+                    db_logger.info(f"Prompt '{name}' updated successfully")
+                    return True
+                return False
+    except Exception as e:
+        db_logger.error(f"Error updating prompt '{name}': {e}")
+        return False
+
+
+def list_prompts() -> list[dict]:
+    """Lista todos os prompts disponíveis."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT name, description, is_active, updated_at FROM prompts ORDER BY name")
+                return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        db_logger.error(f"Error listing prompts: {e}")
+        return []

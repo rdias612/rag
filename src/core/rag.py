@@ -47,6 +47,8 @@ from src.core.question_classifier import (
     get_instructions_for_type,
     get_question_type_description
 )
+from src.core.prompts import get_active_prompt
+from src.data.database import get_prompt
 from src.core.metrics import (
     LatencyTracker,
     inc_query,
@@ -338,19 +340,26 @@ def _build_prompt(
     # Obter instruções específicas para o tipo de pergunta
     instrucoes_tipo = ""
     if question_type and USE_ENHANCED_PROMPTS:
-        instrucoes_tipo = get_instructions_for_type(question_type)
+        # Tentar buscar do banco: instruction_{type}
+        db_instructions = get_prompt(f"instruction_{question_type}")
+        if db_instructions:
+            instrucoes_tipo = db_instructions
+        else:
+            instrucoes_tipo = get_instructions_for_type(question_type)
     
     # Escolher template baseado nas configurações
     if USE_ENHANCED_PROMPTS:
         if history:
-            return RAG_PROMPT_ENHANCED_WITH_HISTORY.format(
+            template = get_active_prompt('rag_prompt_enhanced_with_history')
+            return template.format(
                 historico=history,
                 contexto=context,
                 pergunta=question,
                 instrucoes_tipo=instrucoes_tipo
             )
         else:
-            return RAG_PROMPT_ENHANCED.format(
+            template = get_active_prompt('rag_prompt_enhanced')
+            return template.format(
                 contexto=context,
                 pergunta=question,
                 instrucoes_tipo=instrucoes_tipo
@@ -358,13 +367,15 @@ def _build_prompt(
     else:
         # Templates originais (sem instruções por tipo)
         if history:
-            return RAG_PROMPT_TEMPLATE_WITH_HISTORY.format(
+            template = get_active_prompt('rag_prompt_template_with_history')
+            return template.format(
                 historico=history,
                 contexto=context,
                 pergunta=question
             )
         else:
-            return RAG_PROMPT_TEMPLATE.format(
+            template = get_active_prompt('rag_prompt_template')
+            return template.format(
                 contexto=context,
                 pergunta=question
             )
@@ -746,7 +757,8 @@ def query_rag_stream(
     context = "\n\n---\n\n".join(context_parts)
     
     # 4. Montar prompt final
-    prompt = RAG_PROMPT_TEMPLATE.format(
+    template = get_active_prompt('rag_prompt_template')
+    prompt = template.format(
         contexto=context,
         pergunta=question
     )

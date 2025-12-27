@@ -32,8 +32,8 @@ export function TemperatureSelector({ temperature, setTemperature }: Temperature
                     className={cn(
                         "text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full transition-all",
                         isAdvanced
-                            ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
-                            : "text-zinc-500 hover:text-zinc-300"
+                            ? "bg-accent-primary/20 text-accent-primary border border-accent-primary/30"
+                            : "text-text-secondary hover:text-text-primary"
                     )}
                 >
                     {isAdvanced ? "Simples" : "Avançado"}
@@ -52,19 +52,19 @@ export function TemperatureSelector({ temperature, setTemperature }: Temperature
                                 className={cn(
                                     "flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group",
                                     isSelected
-                                        ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 shadow-sm shadow-indigo-500/5"
-                                        : "bg-surface border-border text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                                        ? "bg-accent-primary/10 border-accent-primary/30 text-accent-primary shadow-sm shadow-accent-primary/5"
+                                        : "bg-surface border-border text-text-secondary hover:border-text-primary hover:text-text-primary"
                                 )}
                             >
                                 <div className={cn(
                                     "p-1.5 rounded-lg transition-colors",
-                                    isSelected ? "bg-indigo-500/20 text-indigo-400" : "bg-zinc-800 text-zinc-500 group-hover:text-zinc-400"
+                                    isSelected ? "bg-accent-primary/20 text-accent-primary" : "bg-card text-text-secondary group-hover:text-text-primary"
                                 )}>
                                     <Icon size={16} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="text-xs font-bold leading-tight">{preset.label}</div>
-                                    <div className="text-[10px] text-zinc-500 truncate">{preset.description}</div>
+                                    <div className="text-[10px] text-text-secondary truncate">{preset.description}</div>
                                 </div>
                             </button>
                         );
@@ -73,8 +73,8 @@ export function TemperatureSelector({ temperature, setTemperature }: Temperature
             ) : (
                 <div className="space-y-3 p-3 rounded-xl bg-surface border border-border">
                     <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-400">Valor Manual</span>
-                        <span className="font-mono text-indigo-400 font-bold">{temperature ?? "0.70 (Padrão)"}</span>
+                        <span className="text-text-secondary">Valor Manual</span>
+                        <span className="font-mono text-accent-primary font-bold">{temperature ?? "0.70 (Padrão)"}</span>
                     </div>
                     <input
                         type="range"
@@ -83,9 +83,9 @@ export function TemperatureSelector({ temperature, setTemperature }: Temperature
                         step="0.01"
                         value={temperature ?? 0.7}
                         onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        className="w-full h-1.5 bg-card rounded-lg appearance-none cursor-pointer accent-accent-primary"
                     />
-                    <div className="flex justify-between text-[10px] text-zinc-500 font-medium">
+                    <div className="flex justify-between text-[10px] text-text-secondary font-medium">
                         <span>Preciso (0.0)</span>
                         <span>Criativo (2.0)</span>
                     </div>
@@ -101,7 +101,7 @@ export function TemperatureSelector({ temperature, setTemperature }: Temperature
                                 const val = e.target.value === "" ? undefined : parseFloat(e.target.value);
                                 setTemperature(val);
                             }}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
+                            className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent-primary/50 transition-colors"
                         />
                     </div>
                 </div>
