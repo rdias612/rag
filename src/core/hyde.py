@@ -16,15 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 # Prompt para gerar documento hipotético
-HYDE_PROMPT = """Por favor, escreva uma passagem detalhada que responda diretamente à seguinte pergunta.
-Escreva como se fosse um trecho de um documento técnico ou manual.
+HYDE_PROMPT = """Como um redator técnico sênior, escreva um parágrafo detalhado que seria a resposta técnica ideal para a pergunta abaixo. 
+Não use frases como "Eu acho que" ou "Este documento descreve". Escreva como se fosse o próprio conteúdo original de um manual ou documentação técnica oficial.
 
 Pergunta: "{question}"
 
-Passagem:"""
+Conteúdo Técnico Esperado:"""
 
 
-HYDE_PROMPT_CONCISE = """Responda de forma direta e técnica à pergunta:
+HYDE_PROMPT_CONCISE = """Escreva uma resposta direta, técnica e factual para a pergunta abaixo, como se estivesse em uma documentação técnica:
 
 Pergunta: "{question}"
 

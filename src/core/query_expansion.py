@@ -14,19 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 # Prompt para gerar variações da query
-QUERY_EXPANSION_PROMPT = """Você é um assistente especializado em reformular perguntas.
+QUERY_EXPANSION_PROMPT = """Você é um especialista em recuperação de informação e semântica técnica.
+Dada a pergunta original do usuário, gere {num_variations} variações de busca que ajudem a encontrar documentos relevantes.
 
-Dada a pergunta original do usuário, gere {num_variations} variações que busquem a mesma informação usando diferentes palavras ou perspectivas.
+Regras:
+1. Use sinônimos técnicos e termos relacionados para expandir o recall.
+2. Reformule de forma a cobrir diferentes maneiras que um humano escreveria isso em um documento.
+3. Mantenha a intenção original da busca.
+4. Gere apenas uma variação por linha, sem numeração ou marcadores.
 
 Pergunta original: "{query}"
 
-Regras:
-- Mantenha o mesmo significado/intenção
-- Use sinônimos e reformulações
-- Inclua possíveis termos técnicos relacionados
-- Seja conciso (máximo 1 linha por variação)
-
-Gere apenas as variações, uma por linha, sem numeração:"""
+Variações:"""
 
 
 def expand_query(
