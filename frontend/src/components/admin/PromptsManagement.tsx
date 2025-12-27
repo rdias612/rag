@@ -51,6 +51,20 @@ export function PromptsManagement() {
         }
     };
 
+    const handleEdit = async (promptId: number) => {
+        try {
+            // Buscar dados completos do prompt (incluindo template)
+            const response = await fetch(`http://localhost:5000/api/prompts/${promptId}`);
+            const promptData = await response.json();
+
+            setEditingPrompt(promptData);
+            setIsCreating(false);
+        } catch (err) {
+            alert('Erro ao carregar dados do prompt');
+            console.error(err);
+        }
+    };
+
     const handleDelete = async (id: number) => {
         try {
             // Verificar se pode deletar
@@ -175,98 +189,158 @@ export function PromptsManagement() {
                 </button>
             </div>
 
-            {/* Prompts List */}
-            <div className="grid gap-3">
-                {prompts.map((prompt) => (
-                    <div
-                        key={prompt.id}
-                        className="bg-surface border border-border rounded-lg p-4 hover:border-accent-primary/30 transition-colors"
-                    >
-                        <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <FileText size={16} className="text-accent-primary shrink-0" />
-                                    <h3 className="font-medium text-text-primary truncate">
-                                        {prompt.name}
-                                    </h3>
-                                    <span className="px-2 py-0.5 bg-accent-primary/10 text-accent-primary text-xs rounded-full shrink-0">
-                                        {prompt.category}
-                                    </span>
-                                    <span className="text-xs text-text-secondary shrink-0">
-                                        Priority: {prompt.priority}
-                                    </span>
-                                </div>
-
-                                {prompt.description && (
-                                    <p className="text-sm text-text-secondary mb-2">
-                                        {prompt.description}
-                                    </p>
-                                )}
-
-                                {prompt.tags && prompt.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-2">
-                                        {prompt.tags.map((tag, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface border border-border text-xs text-text-secondary rounded"
-                                            >
-                                                <Tag size={12} />
-                                                {tag}
+            {/* Prompts Table */}
+            <div className="bg-surface border border-border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-chat border-b border-border">
+                            <tr>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Nome
+                                </th>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Categoria
+                                </th>
+                                <th className="text-center px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Prioridade
+                                </th>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Tags
+                                </th>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Descrição
+                                </th>
+                                <th className="text-center px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th className="text-right px-4 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">
+                                    Ações
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                            {prompts.map((prompt) => (
+                                <>
+                                    <tr
+                                        key={prompt.id}
+                                        className="hover:bg-chat/50 transition-colors"
+                                    >
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <FileText size={14} className="text-accent-primary shrink-0" />
+                                                <span className="text-sm font-medium text-text-primary truncate max-w-[200px]">
+                                                    {prompt.name}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="inline-flex px-2 py-1 bg-accent-primary/10 text-accent-primary text-xs rounded-full">
+                                                {prompt.category}
                                             </span>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div className="flex items-center gap-4 text-xs text-text-secondary">
-                                    <span>Atualizado: {new Date(prompt.updated_at).toLocaleString('pt-BR')}</span>
-                                    {!prompt.is_active && (
-                                        <span className="text-yellow-500">Inativo</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <span className="text-sm text-text-primary font-mono">
+                                                {prompt.priority}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-wrap gap-1">
+                                                {prompt.tags && prompt.tags.length > 0 ? (
+                                                    prompt.tags.slice(0, 2).map((tag, idx) => (
+                                                        <span
+                                                            key={idx}
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface border border-border text-xs text-text-secondary rounded"
+                                                        >
+                                                            <Tag size={10} />
+                                                            {tag}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-text-secondary">—</span>
+                                                )}
+                                                {prompt.tags && prompt.tags.length > 2 && (
+                                                    <span className="text-xs text-text-secondary">
+                                                        +{prompt.tags.length - 2}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="text-sm text-text-secondary truncate max-w-[300px] block">
+                                                {prompt.description || '—'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            {prompt.is_active ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/10 text-green-500 text-xs rounded-full">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                                    Ativo
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/10 text-yellow-500 text-xs rounded-full">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
+                                                    Inativo
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEdit(prompt.id)}
+                                                    className="p-1.5 hover:bg-accent-primary/10 text-text-secondary hover:text-accent-primary rounded transition-colors"
+                                                    title="Editar"
+                                                >
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteConfirm(prompt.id)}
+                                                    className="p-1.5 hover:bg-red-500/10 text-text-secondary hover:text-red-500 rounded transition-colors"
+                                                    title="Deletar"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {/* Delete Confirmation Row */}
+                                    {deleteConfirm === prompt.id && (
+                                        <tr className="bg-red-500/5">
+                                            <td colSpan={7} className="px-4 py-3">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-sm text-text-secondary">
+                                                        Tem certeza que deseja deletar este prompt?
+                                                    </span>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleDelete(prompt.id)}
+                                                            className="px-3 py-1.5 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
+                                                        >
+                                                            Confirmar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteConfirm(null)}
+                                                            className="px-3 py-1.5 bg-surface text-text-secondary text-sm rounded hover:bg-surface/80 transition-colors border border-border"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     )}
-                                </div>
-                            </div>
+                                </>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                    onClick={() => setEditingPrompt(prompt)}
-                                    className="p-2 hover:bg-accent-primary/10 text-text-secondary hover:text-accent-primary rounded-lg transition-colors"
-                                    title="Editar"
-                                >
-                                    <Edit2 size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setDeleteConfirm(prompt.id)}
-                                    className="p-2 hover:bg-red-500/10 text-text-secondary hover:text-red-500 rounded-lg transition-colors"
-                                    title="Deletar"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Delete Confirmation */}
-                        {deleteConfirm === prompt.id && (
-                            <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
-                                <span className="text-sm text-text-secondary">
-                                    Tem certeza que deseja deletar este prompt?
-                                </span>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleDelete(prompt.id)}
-                                        className="px-3 py-1.5 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
-                                    >
-                                        Confirmar
-                                    </button>
-                                    <button
-                                        onClick={() => setDeleteConfirm(null)}
-                                        className="px-3 py-1.5 bg-surface text-text-secondary text-sm rounded hover:bg-surface/80 transition-colors"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                {/* Empty State */}
+                {prompts.length === 0 && (
+                    <div className="text-center py-12">
+                        <FileText size={48} className="mx-auto text-text-secondary opacity-50 mb-3" />
+                        <p className="text-text-secondary">Nenhum prompt encontrado</p>
                     </div>
-                ))}
+                )}
             </div>
 
             {/* Editor Modal */}
