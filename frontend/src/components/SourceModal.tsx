@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, FileText, BookOpen } from "lucide-react";
 import type { Source } from "../types";
+import { useEffect } from "react";
 
 interface SourceModalProps {
     source: Source | null;
@@ -9,6 +10,18 @@ interface SourceModalProps {
 }
 
 export function SourceModal({ source, isOpen, onClose }: SourceModalProps) {
+    // Fechar modal com ESC
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [isOpen, onClose]);
+
     if (!source) return null;
 
     return (
