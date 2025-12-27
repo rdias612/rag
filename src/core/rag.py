@@ -602,8 +602,9 @@ def query_rag(
         context_parts.append(full_chunk_text)
         
         source_info = {
-            "source": doc["metadata"].get("source", "Desconhecido"),
-            "page": doc["metadata"].get("page", "N/A"),
+            "filename": doc["metadata"].get("source", "Desconhecido"),
+            "page": doc["metadata"].get("page"),
+            "content": doc["content"],
             "similarity": round(doc.get("similarity", 0), 4)
         }
         
@@ -897,8 +898,9 @@ def query_rag_with_history(
         context_parts.append(content)
         
         source_info = {
-            "source": doc["metadata"].get("source", "Desconhecido"),
-            "page": doc["metadata"].get("page", "N/A"),
+            "filename": doc["metadata"].get("source", "Desconhecido"),
+            "page": doc["metadata"].get("page"),
+            "content": doc["content"],
             "similarity": round(doc.get("similarity", 0), 4)
         }
         
