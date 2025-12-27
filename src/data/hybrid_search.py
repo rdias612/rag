@@ -104,7 +104,8 @@ def init_fulltext_search():
 
 def search_fulltext(
     query: str,
-    top_k: int = TOP_K_RESULTS
+    top_k: int = TOP_K_RESULTS,
+    collection_id: Optional[str] = None
 ) -> list[dict]:
     """
     Busca documentos usando Full-Text Search (BM25-like ranking).
@@ -122,8 +123,15 @@ def search_fulltext(
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Buscar com ranking ts_rank
-            cur.execute("""
+            # Construir query com filtro de coleção facultativo
+            where_clause = "WHERE search_vector @@ query"
+            params = [query, top_k]
+            
+            if collection_id:
+                where_clause += " AND collection_id = %s"
+                params = [query, collection_id, top_k]
+
+            cur.execute(f"""
                 SELECT 
                     id,
                     content,
@@ -132,10 +140,10 @@ def search_fulltext(
                 FROM 
                     documentos,
                     plainto_tsquery('portuguese', %s) query
-                WHERE search_vector @@ query
+                {where_clause}
                 ORDER BY rank DESC
                 LIMIT %s;
-            """, (query, top_k))
+            """, tuple(params))
             
             results = cur.fetchall()
             
@@ -155,7 +163,8 @@ def search_hybrid(
     query_embedding: list[float],
     top_k: int = TOP_K_RESULTS,
     alpha: float = None,
-    min_similarity: Optional[float] = None
+    min_similarity: Optional[float] = None,
+    collection_id: Optional[str] = None
 ) -> list[dict]:
     """
     Busca híbrida combinando busca vetorial e Full-Text Search.
@@ -191,21 +200,36 @@ def search_hybrid(
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # 1. Busca Vetorial
-            cur.execute("""
+            where_clause_v = ""
+            params_v = [query_embedding, query_embedding, search_k]
+            
+            if collection_id:
+                where_clause_v = "WHERE collection_id = %s"
+                params_v = [query_embedding, collection_id, query_embedding, search_k]
+
+            cur.execute(f"""
                 SELECT 
                     id,
                     content,
                     metadata,
                     1 - (embedding <=> %s::vector) as similarity
                 FROM documentos
+                {where_clause_v}
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s;
-            """, (query_embedding, query_embedding, search_k))
+            """, tuple(params_v))
             
             vector_results = cur.fetchall()
             
             # 2. Busca Full-Text
-            cur.execute("""
+            where_clause_f = "WHERE search_vector @@ query"
+            params_f = [query, search_k]
+            
+            if collection_id:
+                where_clause_f += " AND collection_id = %s"
+                params_f = [query, collection_id, search_k]
+
+            cur.execute(f"""
                 SELECT 
                     id,
                     content,
@@ -214,10 +238,10 @@ def search_hybrid(
                 FROM 
                     documentos,
                     plainto_tsquery('portuguese', %s) query
-                WHERE search_vector @@ query
+                {where_clause_f}
                 ORDER BY rank DESC
                 LIMIT %s;
-            """, (query, search_k))
+            """, tuple(params_f))
             
             fts_results = cur.fetchall()
             

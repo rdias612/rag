@@ -21,6 +21,7 @@ function App() {
   const [collections, setCollections] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
+  const [temperature, setTemperature] = useState<number | undefined>(undefined);
   const { theme, toggleTheme } = useTheme();
   const { toast, showToast, hideToast } = useToast();
 
@@ -110,7 +111,7 @@ function App() {
           }
           return newMessages;
         });
-      }, debugMode);
+      }, debugMode, temperature);
 
       // Update with final message including sources
       setMessages(prev => {
@@ -211,6 +212,8 @@ function App() {
         onDeleteSession={handleDeleteSession}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
+        temperature={temperature}
+        setTemperature={setTemperature}
       />
 
       {/* Main Content */}

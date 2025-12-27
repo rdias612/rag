@@ -2,6 +2,7 @@ import { Plus, MessageSquare, Trash2, X, History } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Session } from "../types";
+import { TemperatureSelector } from "./TemperatureSelector";
 
 interface SidebarProps {
     sessions: Session[];
@@ -11,6 +12,8 @@ interface SidebarProps {
     onDeleteSession: (e: React.MouseEvent, id: string) => void;
     isOpen: boolean;
     setIsOpen: (open: boolean) => void;
+    temperature: number | undefined;
+    setTemperature: (temp: number | undefined) => void;
 }
 
 export function Sidebar({
@@ -20,7 +23,9 @@ export function Sidebar({
     onNewChat,
     onDeleteSession,
     isOpen,
-    setIsOpen
+    setIsOpen,
+    temperature,
+    setTemperature
 }: SidebarProps) {
     return (
         <>
@@ -122,7 +127,12 @@ export function Sidebar({
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-border">
+                <div className="p-4 border-t border-border space-y-6">
+                    <TemperatureSelector
+                        temperature={temperature}
+                        setTemperature={setTemperature}
+                    />
+
                     <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-border">
                         <p className="text-xs text-text-secondary font-medium text-center">
                             Powered by <span className="text-accent-primary">Deepmind RAG</span>

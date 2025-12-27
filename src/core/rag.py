@@ -121,18 +121,13 @@ def _search_documents(
             alpha = hybrid_alpha if hybrid_alpha is not None else HYBRID_SEARCH_ALPHA
             search_metrics["hybrid_alpha"] = alpha
             
-            # TODO: Atualizar search_hybrid para suportar collection_id
-            # Por enquanto, fallback para busca vetorial se collection_id for usado
-            if collection_id:
-                 rag_logger.warning("Hybrid search does not support collection_id yet, falling back to vector search")
-                 return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
-
             results = search_hybrid(
                 query=question,
                 query_embedding=question_embedding,
                 top_k=top_k,
                 alpha=alpha,
-                min_similarity=min_similarity
+                min_similarity=min_similarity,
+                collection_id=collection_id
             )
             
             # Extrair métricas dos resultados
