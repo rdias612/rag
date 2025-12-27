@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, Trash2, X, History, Settings } from "lucide-react";
+import { Plus, MessageSquare, Trash2, History, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Session } from "../types";
@@ -23,170 +23,119 @@ export function Sidebar({
     onSelectSession,
     onNewChat,
     onDeleteSession,
-    isOpen,
-    setIsOpen,
     temperature,
     setTemperature
 }: SidebarProps) {
     const [showSettings, setShowSettings] = useState(false);
 
-    // Auto-open sidebar on desktop
-    useEffect(() => {
-        const handleResize = () => {
-            if (window.innerWidth >= 768) {
-                setIsOpen(true);
-            }
-        };
-
-        handleResize(); // Run on mount
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [setIsOpen]);
-
     return (
-        <>
-            {/* Mobile Toggle & Overlay */}
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setIsOpen(false)}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
-                    />
-                )}
-            </AnimatePresence>
+        <aside className="relative w-72 bg-sidebar border-r border-border flex flex-col h-full">
+            <div className="p-6 space-y-3">
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="h-8 w-8 rounded-lg bg-accent-primary flex items-center justify-center font-bold text-white shadow-lg shadow-accent-primary/25">
+                        R
+                    </div>
+                    <span className="font-semibold text-lg tracking-tight">RAG Assistant</span>
+                </div>
 
-            {/* Sidebar Container */}
-            <motion.aside
-                initial={false}
-                animate={{ x: isOpen ? 0 : "-100%" }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className={cn(
-                    "fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-border flex flex-col transition-transform duration-300 ease-in-out",
-                    "md:relative md:translate-x-0 md:block"
-                )}
-            >
-                {/* Mobile Close Button */}
-                <div className="md:hidden absolute -right-10 top-4">
-                    {isOpen && (
-                        <button
-                            onClick={() => setIsOpen(false)}
-                            className="p-2 text-white/70 hover:text-white"
-                        >
-                            <X size={24} />
-                        </button>
+                <button
+                    onClick={onNewChat}
+                    className="w-full flex items-center gap-3 bg-surface hover:bg-surface/80 text-text-primary px-4 py-3 rounded-xl transition-all border border-border group"
+                >
+                    <div className="p-1 rounded-md bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white transition-colors">
+                        <Plus size={18} />
+                    </div>
+                    <span className="font-medium text-sm">New Chat</span>
+                </button>
+
+                <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border group",
+                        showSettings
+                            ? "bg-accent-primary/10 border-accent-primary/30 text-accent-primary"
+                            : "bg-surface hover:bg-surface/80 text-text-primary border-border"
                     )}
-                </div>
-
-                <div className="p-6 space-y-3">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="h-8 w-8 rounded-lg bg-accent-primary flex items-center justify-center font-bold text-white shadow-lg shadow-accent-primary/25">
-                            R
-                        </div>
-                        <span className="font-semibold text-lg tracking-tight">RAG Assistant</span>
+                >
+                    <div className={cn(
+                        "p-1 rounded-md transition-colors",
+                        showSettings
+                            ? "bg-accent-primary/20 text-accent-primary"
+                            : "bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white"
+                    )}>
+                        <Settings size={18} />
                     </div>
+                    <span className="font-medium text-sm">Configurações</span>
+                </button>
 
-                    <button
-                        onClick={onNewChat}
-                        className="w-full flex items-center gap-3 bg-surface hover:bg-surface/80 text-text-primary px-4 py-3 rounded-xl transition-all border border-border group"
-                    >
-                        <div className="p-1 rounded-md bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white transition-colors">
-                            <Plus size={18} />
-                        </div>
-                        <span className="font-medium text-sm">New Chat</span>
-                    </button>
-
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border group",
-                            showSettings
-                                ? "bg-accent-primary/10 border-accent-primary/30 text-accent-primary"
-                                : "bg-surface hover:bg-surface/80 text-text-primary border-border"
-                        )}
-                    >
-                        <div className={cn(
-                            "p-1 rounded-md transition-colors",
-                            showSettings
-                                ? "bg-accent-primary/20 text-accent-primary"
-                                : "bg-accent-primary/10 text-accent-primary group-hover:bg-accent-primary group-hover:text-white"
-                        )}>
-                            <Settings size={18} />
-                        </div>
-                        <span className="font-medium text-sm">Configurações</span>
-                    </button>
-
-                    <AnimatePresence>
-                        {showSettings && (
-                            <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="overflow-hidden"
-                            >
-                                <div className="pt-2">
-                                    <TemperatureSelector
-                                        temperature={temperature}
-                                        setTemperature={setTemperature}
-                                    />
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-4 pb-4">
-                    <div className="text-xs font-medium text-text-secondary mb-3 px-2 flex items-center gap-2">
-                        <History size={12} />
-                        RECENT ACTIVITY
-                    </div>
-
-                    <div className="space-y-1">
-                        {sessions.map((session) => (
-                            <div
-                                key={session.session_id}
-                                onClick={() => onSelectSession(session.session_id)}
-                                className={cn(
-                                    "group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all",
-                                    currentSessionId === session.session_id
-                                        ? "bg-accent-primary/10 text-accent-primary border border-accent-primary/10"
-                                        : "text-text-secondary hover:bg-surface hover:text-text-primary border border-transparent"
-                                )}
-                            >
-                                <MessageSquare size={16} className={cn(
-                                    "shrink-0",
-                                    currentSessionId === session.session_id ? "text-accent-primary" : "text-text-secondary"
-                                )} />
-                                <div className="flex-1 truncate text-xs font-medium">
-                                    {session.last_activity
-                                        ? new Date(session.last_activity).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                                        : `Session ${session.session_id.slice(0, 8)}`}
-                                </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteSession(e, session.session_id);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-md transition-all"
-                                >
-                                    <Trash2 size={13} />
-                                </button>
+                <AnimatePresence>
+                    {showSettings && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                        >
+                            <div className="pt-2">
+                                <TemperatureSelector
+                                    temperature={temperature}
+                                    setTemperature={setTemperature}
+                                />
                             </div>
-                        ))}
-                    </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+                <div className="text-xs font-medium text-text-secondary mb-3 px-2 flex items-center gap-2">
+                    <History size={12} />
+                    RECENT ACTIVITY
                 </div>
 
-                <div className="p-4 border-t border-border">
-                    <div className="p-3 rounded-xl bg-accent-primary/5 border border-border">
-                        <p className="text-xs text-text-secondary font-medium text-center">
-                            Powered by <span className="text-accent-primary">Deepmind RAG</span>
-                        </p>
-                    </div>
+                <div className="space-y-1">
+                    {sessions.map((session) => (
+                        <div
+                            key={session.session_id}
+                            onClick={() => onSelectSession(session.session_id)}
+                            className={cn(
+                                "group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all",
+                                currentSessionId === session.session_id
+                                    ? "bg-accent-primary/10 text-accent-primary border border-accent-primary/10"
+                                    : "text-text-secondary hover:bg-surface hover:text-text-primary border border-transparent"
+                            )}
+                        >
+                            <MessageSquare size={16} className={cn(
+                                "shrink-0",
+                                currentSessionId === session.session_id ? "text-accent-primary" : "text-text-secondary"
+                            )} />
+                            <div className="flex-1 truncate text-xs font-medium">
+                                {session.last_activity
+                                    ? new Date(session.last_activity).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                    : `Session ${session.session_id.slice(0, 8)}`}
+                            </div>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteSession(e, session.session_id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-md transition-all"
+                            >
+                                <Trash2 size={13} />
+                            </button>
+                        </div>
+                    ))}
                 </div>
-            </motion.aside>
-        </>
+            </div>
+
+            <div className="p-4 border-t border-border">
+                <div className="p-3 rounded-xl bg-accent-primary/5 border border-border">
+                    <p className="text-xs text-text-secondary font-medium text-center">
+                        Powered by <span className="text-accent-primary">Deepmind RAG</span>
+                    </p>
+                </div>
+            </div>
+        </aside>
     );
 }

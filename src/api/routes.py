@@ -1479,3 +1479,313 @@ def metrics_status():
     log_api_response("/api/metrics/status", 200, time.time() - start_time)
     
     return jsonify(status)
+
+
+# =============================================================================
+# Endpoints de Gerenciamento de Prompts
+# =============================================================================
+
+from src.data.database import (
+    list_prompts,
+    get_prompt_by_id,
+    get_prompts_by_category,
+    create_prompt,
+    update_prompt_full,
+    delete_prompt_safe,
+    can_delete_prompt
+)
+
+
+@api.route("/prompts", methods=["GET"])
+def get_all_prompts():
+    """
+    Lista todos os prompts disponíveis.
+    
+    Response:
+        {
+            "prompts": [
+                {
+                    "id": 1,
+                    "name": "rag_prompt_enhanced",
+                    "category": "rag_main",
+                    "priority": 100,
+                    "tags": ["default"],
+                    "description": "Prompt RAG principal",
+                    "use_case": "...",
+                    "is_active": true
+                }
+            ],
+            "count": 13
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/prompts", "GET")
+    
+    try:
+        prompts = list_prompts()
+        log_api_response("/api/prompts", 200, time.time() - start_time)
+        
+        return jsonify({
+            "prompts": prompts,
+            "count": len(prompts)
+        })
+    except Exception as e:
+        api_logger.error(f"Error in /prompts: {e}")
+        log_api_response("/api/prompts", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/prompts/<int:prompt_id>", methods=["GET"])
+def get_prompt_detail(prompt_id: int):
+    """
+    Retorna detalhes completos de um prompt específico.
+    
+    Response:
+        {
+            "id": 1,
+            "name": "rag_prompt_enhanced",
+            "template": "Você é...",
+            "category": "rag_main",
+            "priority": 100,
+            "tags": ["default"],
+            "description": "...",
+            "use_case": "...",
+            "is_active": true,
+            "created_at": "2025-12-26T00:00:00",
+            "updated_at": "2025-12-26T00:00:00",
+            "created_by": "system",
+            "version": 1
+        }
+    """
+    start_time = time.time()
+    log_api_request(f"/api/prompts/{prompt_id}", "GET")
+    
+    try:
+        prompt = get_prompt_by_id(prompt_id)
+        
+        if not prompt:
+            log_api_response(f"/api/prompts/{prompt_id}", 404, time.time() - start_time)
+            return jsonify({"error": "Prompt não encontrado"}), 404
+        
+        log_api_response(f"/api/prompts/{prompt_id}", 200, time.time() - start_time)
+        return jsonify(prompt)
+        
+    except Exception as e:
+        api_logger.error(f"Error in /prompts/{prompt_id}: {e}")
+        log_api_response(f"/api/prompts/{prompt_id}", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/prompts", methods=["POST"])
+def create_new_prompt():
+    """
+    Cria um novo prompt.
+    
+    Body:
+        {
+            "name": "my_custom_prompt",
+            "template": "Responda: {pergunta}...",
+            "category": "rag_main",
+            "description": "Meu prompt customizado",
+            "priority": 120,
+            "tags": ["custom", "quick"],
+            "use_case": "Respostas rápidas"
+        }
+        
+    Response:
+        {
+            "success": true,
+            "prompt_id": 14,
+            "message": "Prompt criado com sucesso"
+        }
+    """
+    start_time = time.time()
+    data = request.get_json() or {}
+    log_api_input("/api/prompts", "POST", {**data, "template": "..."})
+    
+    # Validar campos obrigatórios
+    required_fields = ["name", "template", "category"]
+    missing_fields = [f for f in required_fields if f not in data]
+    
+    if missing_fields:
+        log_api_response("/api/prompts", 400, time.time() - start_time)
+        return jsonify({
+            "error": "Campos obrigatórios faltando",
+            "missing_fields": missing_fields
+        }), 400
+    
+    try:
+        success, prompt_id, error_msg = create_prompt(
+            name=data["name"],
+            template=data["template"],
+            category=data["category"],
+            description=data.get("description"),
+            priority=data.get("priority", 100),
+            tags=data.get("tags", []),
+            use_case=data.get("use_case"),
+            created_by="user"
+        )
+        
+        if not success:
+            log_api_response("/api/prompts", 400, time.time() - start_time)
+            return jsonify({"error": error_msg}), 400
+        
+        log_api_response("/api/prompts", 201, time.time() - start_time)
+        return jsonify({
+            "success": True,
+            "prompt_id": prompt_id,
+            "message": "Prompt criado com sucesso"
+        }), 201
+        
+    except Exception as e:
+        api_logger.error(f"Error creating prompt: {e}")
+        log_api_response("/api/prompts", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/prompts/<int:prompt_id>", methods=["PUT"])
+def update_prompt_endpoint(prompt_id: int):
+    """
+    Atualiza um prompt existente.
+    
+    Body:
+        {
+            "template": "Novo template...",
+            "description": "Nova descrição",
+            "priority": 150,
+            "tags": ["updated"],
+            "use_case": "...",
+            "is_active": true
+        }
+        
+    Response:
+        {
+            "success": true,
+            "message": "Prompt atualizado com sucesso"
+        }
+    """
+    start_time = time.time()
+    data = request.get_json() or {}
+    log_api_input(f"/api/prompts/{prompt_id}", "PUT", data)
+    
+    try:
+        success, error_msg = update_prompt_full(
+            prompt_id=prompt_id,
+            template=data.get("template"),
+            description=data.get("description"),
+            priority=data.get("priority"),
+            tags=data.get("tags"),
+            use_case=data.get("use_case"),
+            is_active=data.get("is_active")
+        )
+        
+        if not success:
+            log_api_response(f"/api/prompts/{prompt_id}", 400, time.time() - start_time)
+            return jsonify({"error": error_msg}), 400
+        
+        log_api_response(f"/api/prompts/{prompt_id}", 200, time.time() - start_time)
+        return jsonify({
+            "success": True,
+            "message": "Prompt atualizado com sucesso"
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error updating prompt {prompt_id}: {e}")
+        log_api_response(f"/api/prompts/{prompt_id}", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/prompts/<int:prompt_id>/can-delete", methods=["GET"])
+def check_can_delete_prompt(prompt_id: int):
+    """
+    Verifica se um prompt pode ser deletado (sem deletar).
+    
+    Response:
+        {
+            "can_delete": false,
+            "reason": "Não é possível deletar o último prompt..."
+        }
+    """
+    start_time = time.time()
+    log_api_request(f"/api/prompts/{prompt_id}/can-delete", "GET")
+    
+    try:
+        can_delete, reason = can_delete_prompt(prompt_id)
+        
+        log_api_response(f"/api/prompts/{prompt_id}/can-delete", 200, time.time() - start_time)
+        
+        return jsonify({
+            "can_delete": can_delete,
+            "reason": reason
+        })
+    except Exception as e:
+        api_logger.error(f"Error checking delete permission for prompt {prompt_id}: {e}")
+        log_api_response(f"/api/prompts/{prompt_id}/can-delete", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/prompts/<int:prompt_id>", methods=["DELETE"])
+def delete_prompt_endpoint(prompt_id: int):
+    """
+    Deleta um prompt (com validação).
+    
+    Response:
+        {
+            "success": true,
+            "message": "Prompt deletado com sucesso"
+        }
+        
+    Ou erro se não puder deletar:
+        {
+            "error": "Não é possível deletar..."
+        }
+    """
+    start_time = time.time()
+    log_api_request(f"/api/prompts/{prompt_id}", "DELETE")
+    
+    try:
+        success, error_msg = delete_prompt_safe(prompt_id)
+        
+        if not success:
+            log_api_response(f"/api/prompts/{prompt_id}", 400, time.time() - start_time)
+            return jsonify({"error": error_msg}), 400
+        
+        log_api_response(f"/api/prompts/{prompt_id}", 200, time.time() - start_time)
+        return jsonify({
+            "success": True,
+            "message": "Prompt deletado com sucesso"
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error deleting prompt {prompt_id}: {e}")
+        log_api_response(f"/api/prompts/{prompt_id}", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/prompts/categories", methods=["GET"])
+def get_prompt_categories():
+    """
+    Retorna as categorias disponíveis e suas descrições.
+    
+    Response:
+        {
+            "categories": {
+                "rag_main": "Prompt principal para RAG",
+                "hyde": "Geração de documentos hipotéticos",
+                "query_expansion": "Expansão de queries"
+            }
+        }
+    """
+    from src.data.database import CRITICAL_CATEGORIES
+    
+    start_time = time.time()
+    log_api_request("/api/prompts/categories", "GET")
+    
+    categories = {
+        **CRITICAL_CATEGORIES,
+        "instruction": "Instruções específicas por tipo de pergunta"
+    }
+    
+    log_api_response("/api/prompts/categories", 200, time.time() - start_time)
+    
+    return jsonify({"categories": categories})

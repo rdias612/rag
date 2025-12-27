@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Menu, Bug, Sun, Moon } from "lucide-react";
+import { Settings, Bug, Sun, Moon } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { UploadModal } from "./components/UploadModal";
@@ -15,7 +15,7 @@ function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [collections, setCollections] = useState<string[]>([]);
@@ -43,7 +43,6 @@ function App() {
 
   async function handleSelectSession(sessionId: string) {
     setCurrentSessionId(sessionId);
-    setIsSidebarOpen(false); // close on mobile
     setIsLoading(true);
     try {
       const history = await fetchHistory(sessionId);
@@ -73,7 +72,6 @@ function App() {
       const newSession = await createSession();
       setCurrentSessionId(newSession.session_id);
       setMessages([]);
-      setIsSidebarOpen(false);
       loadSessions();
     } catch (error) {
       console.error("Failed to create session", error);
@@ -203,35 +201,24 @@ function App() {
   return (
     <div className={`flex h-screen bg-chat text-text-primary font-sans overflow-hidden selection:bg-accent-primary/20 ${theme}`}>
 
-      {/* Sidebar - Fixed on desktop, Drawer on mobile */}
+      {/* Sidebar - Always visible (desktop only) */}
       <Sidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
         onSelectSession={handleSelectSession}
         onNewChat={handleNewChat}
         onDeleteSession={handleDeleteSession}
-        isOpen={isSidebarOpen}
-        setIsOpen={setIsSidebarOpen}
+        isOpen={true}
+        setIsOpen={() => { }}
         temperature={temperature}
         setTemperature={setTemperature}
       />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full relative w-full md:pl-0 transition-all duration-300">
+      <main className="flex-1 flex flex-col h-full relative w-full">
 
         {/* Header */}
-        <header className="h-16 border-b border-border bg-chat/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2 text-text-secondary hover:text-text-primary"
-            >
-              <Menu size={20} />
-            </button>
-            <div className="md:hidden flex items-center gap-2">
-              <span className="font-semibold text-sm text-text-primary">RAG Assistant</span>
-            </div>
-          </div>
+        <header className="h-16 border-b border-border bg-chat/80 backdrop-blur-md flex items-center justify-end px-4 sticky top-0 z-30">
 
           <div className="flex items-center gap-3">
             <select
