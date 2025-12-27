@@ -22,8 +22,16 @@ function App() {
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [temperature, setTemperature] = useState<number | undefined>(undefined);
+  const [promptMode, setPromptMode] = useState<string>(
+    () => localStorage.getItem('promptMode') || 'category'
+  );
   const { theme, toggleTheme } = useTheme();
   const { toast, showToast, hideToast } = useToast();
+
+  // Persist promptMode to localStorage
+  useEffect(() => {
+    localStorage.setItem('promptMode', promptMode);
+  }, [promptMode]);
 
   // Load initial sessions
   useEffect(() => {
@@ -212,6 +220,8 @@ function App() {
         setIsOpen={() => { }}
         temperature={temperature}
         setTemperature={setTemperature}
+        promptMode={promptMode}
+        setPromptMode={setPromptMode}
       />
 
       {/* Main Content */}
