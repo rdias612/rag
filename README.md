@@ -1,6 +1,6 @@
 # RAG System - Sistema de Recuperação e Geração Aumentada
 
-Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de documentos com suporte a múltiplos formatos, histórico de conversas e ingestão via API.
+Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de documentos com suporte a múltiplos formatos, histórico de conversas, busca híbrida e ingestão via API.
 
 ## 🚀 Tecnologias Utilizadas
 
@@ -12,6 +12,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **API** | Flask | Backend REST API |
 | **NLP** | spaCy | Chunking semântico por sentenças |
 | **Ingestão** | pypdf, python-docx, beautifulsoup4 | Extração de múltiplos formatos |
+| **Testes** | pytest | Testes automatizados |
 
 ---
 
@@ -25,6 +26,8 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - 📤 **Upload via API**: Ingestão de documentos com processamento assíncrono
 - ✂️ **Chunking semântico**: Divisão inteligente por sentenças (spaCy)
 - 🔄 **Streaming**: Respostas em tempo real
+- 📊 **Logging detalhado**: Sistema de logs para API, RAG e ingestão
+- 🧪 **Testes automatizados**: Suíte de testes para validação de funcionalidades
 
 ---
 
@@ -34,7 +37,8 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 rag/
 ├── db/
 │   ├── docker-compose.yml    # PostgreSQL + pgvector + Adminer
-│   └── init.sql              # Script de inicialização do banco
+│   ├── init.sql              # Script de inicialização do banco
+│   └── connections.md        # Documentação de conexões
 ├── scripts/
 │   └── ingest.py             # CLI para ingestão de documentos
 ├── src/
@@ -54,8 +58,12 @@ rag/
 │   │   └── chunking.py       # Chunking semântico com spaCy
 │   ├── app.py                # Aplicação Flask principal
 │   └── config.py             # Configurações centralizadas
+├── tests/
+│   └── test_chunking_comparison.py  # Testes de chunking
 ├── docs/
-│   └── MELHORIAS.md          # Roadmap de melhorias
+│   ├── MELHORIAS.md          # Roadmap de melhorias
+│   ├── PLANO_CHUNKING_SEMANTICO.md  # Plano de implementação do chunking
+│   └── EVOLUCAO_LANGCHAIN_SGLANG.md  # Evolução futura com LangChain
 ├── requirements.txt
 └── README.md
 ```
@@ -145,6 +153,13 @@ python -m src.app
 ```
 
 A API estará disponível em `http://localhost:5000`
+
+### Executar Testes
+
+```bash
+# Testar qualidade do chunking
+python tests/test_chunking_comparison.py
+```
 
 ---
 
@@ -599,6 +614,7 @@ Todas as configurações estão em `src/config.py`:
 | `CHUNK_SIZE` | `800` | Tamanho máximo do chunk |
 | `MIN_CHUNK_SIZE` | `200` | Tamanho mínimo do chunk |
 | `USE_SEMANTIC_CHUNKING` | `True` | Usar chunking por sentenças |
+| `CHUNK_OVERLAP_SENTENCES` | `1` | Sentenças de overlap |
 
 ### RAG
 
@@ -661,6 +677,9 @@ python -m scripts.ingest --clear
 
 # Iniciar API
 python -m src.app
+
+# Testar qualidade do chunking
+python tests/test_chunking_comparison.py
 ```
 
 ---
@@ -674,6 +693,8 @@ python -m src.app
 - [x] ✅ Endpoint de ingestão via API
 - [x] ✅ **Busca Híbrida** - Combina busca vetorial (pgvector) com Full-Text Search (BM25)
 - [x] ✅ **Compressão de Contexto** - Reduz contexto grande antes de enviar ao LLM
+- [x] ✅ **Sistema de Logging** - Logs detalhados para API, RAG e ingestão
+- [x] ✅ **Testes Automatizados** - Validação de funcionalidades do chunking
 
 ### Próximos Passos
 
@@ -682,7 +703,7 @@ python -m src.app
 - [ ] Métricas e monitoramento
 - [ ] Interface de chat (frontend)
 - [ ] Autenticação na API
-- [ ] Testes automatizados
+- [ ] Expansão da suíte de testes
 
 Veja o roadmap completo em [docs/MELHORIAS.md](docs/MELHORIAS.md).
 
@@ -703,6 +724,24 @@ Isso irá:
 2. Criar o índice GIN para Full-Text Search
 3. Atualizar os documentos existentes
 4. Criar trigger para atualização automática
+
+---
+
+## 🚀 Evolução Futura: LangChain e sglang
+
+O projeto possui documentação para evolução futura com tecnologias avançadas:
+
+### LangChain
+- Blocos prontos para loaders, splitters, embeddings e retrievers
+- Observabilidade com callbacks/tracing
+- Composição de chains/runnables para flexibilidade
+
+### sglang
+- Servidor de inferência otimizado com batching e speculative decoding
+- Redução de latência e custo
+- Cache KV para melhor performance
+
+Para mais detalhes sobre o plano de migração, consulte [docs/EVOLUCAO_LANGCHAIN_SGLANG.md](docs/EVOLUCAO_LANGCHAIN_SGLANG.md).
 
 ---
 
