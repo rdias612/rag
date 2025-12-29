@@ -8,6 +8,8 @@ import sys
 from src.api.routes import api
 from src.data.database import init_database, check_connection
 from src.core.logger import api_logger
+from src.core.security import init_security, get_ssl_context
+from src.config import ENABLE_HTTPS
 
 
 def create_app() -> Flask:
@@ -23,6 +25,9 @@ def create_app() -> Flask:
     
     # Registrar blueprint da API
     app.register_blueprint(api, url_prefix="/api")
+    
+    # Inicializar middleware de segurança (headers de segurança e HTTPS)
+    init_security(app)
     
     # Rota raiz
     @app.route("/")
@@ -63,13 +68,26 @@ def main():
     app = create_app()
     
     print("\n" + "=" * 50)
-    print("🎉 RAG API rodando em: http://localhost:5000")
+    
+    # Determinar protocolo (HTTP ou HTTPS)
+    protocol = "https" if ENABLE_HTTPS else "http"
+    print(f"🎉 RAG API rodando em: {protocol}://localhost:5000")
+    
+    if ENABLE_HTTPS:
+        print(f"🔒 HTTPS habilitado com TLS")
+    else:
+        print("⚠️  HTTPS desabilitado (use apenas em desenvolvimento)")
+    
     print("=" * 50 + "\n")
+    
+    # Configurar SSL context se HTTPS estiver habilitado
+    ssl_context = get_ssl_context()
     
     app.run(
         host="0.0.0.0",
         port=5000,
-        debug=True
+        debug=True,
+        ssl_context=ssl_context
     )
 
 

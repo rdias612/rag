@@ -135,6 +135,26 @@ class Settings(BaseSettings):
     DB_CONNECTION_TIMEOUT: int = 10
     DB_STATEMENT_TIMEOUT: int = 30
 
+    # =========================================================================
+    # Criptografia de Dados (Phase 5.4)
+    # =========================================================================
+    ENABLE_ENCRYPTION: bool = False
+    ENCRYPTION_KEY: Optional[str] = None
+    
+    # Criptografia de campos específicos
+    ENCRYPT_DOCUMENT_CONTENT: bool = True
+    ENCRYPT_METADATA: bool = True
+    ENCRYPT_FEEDBACK_COMMENTS: bool = True
+
+    # =========================================================================
+    # Segurança em Trânsito (TLS/HTTPS)
+    # =========================================================================
+    ENABLE_HTTPS: bool = False
+    SSL_CERT_PATH: Optional[str] = None
+    SSL_KEY_PATH: Optional[str] = None
+    SSL_PROTOCOL: str = "TLSv1.3"
+    SSL_CIPHERS: str = "HIGH:!aNULL:!MD5"
+
     model_config = SettingsConfigDict(
         # Prioridade: .env.{APP_ENV} > .env
         env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),
@@ -202,6 +222,24 @@ ADVANCED_BATCH_MAX_WORKERS = settings.ADVANCED_BATCH_MAX_WORKERS
 ADVANCED_BATCH_SIZE = settings.ADVANCED_BATCH_SIZE
 ADVANCED_WORKER_TIMEOUT = settings.ADVANCED_WORKER_TIMEOUT
 USE_ASYNC_BATCH_PROCESSING = settings.USE_ASYNC_BATCH_PROCESSING
+
+# =============================================================================#
+# Criptografia (Phase 5.4)
+# =============================================================================
+ENABLE_ENCRYPTION = settings.ENABLE_ENCRYPTION
+ENCRYPTION_KEY = settings.ENCRYPTION_KEY
+ENCRYPT_DOCUMENT_CONTENT = settings.ENCRYPT_DOCUMENT_CONTENT
+ENCRYPT_METADATA = settings.ENCRYPT_METADATA
+ENCRYPT_FEEDBACK_COMMENTS = settings.ENCRYPT_FEEDBACK_COMMENTS
+
+# =============================================================================
+# Segurança em Trânsito (TLS/HTTPS)
+# =============================================================================
+ENABLE_HTTPS = settings.ENABLE_HTTPS
+SSL_CERT_PATH = settings.SSL_CERT_PATH
+SSL_KEY_PATH = settings.SSL_KEY_PATH
+SSL_PROTOCOL = settings.SSL_PROTOCOL
+SSL_CIPHERS = settings.SSL_CIPHERS
 
 # =============================================================================
 # Prompts (Mantidos como constantes por não precisarem de override via env)

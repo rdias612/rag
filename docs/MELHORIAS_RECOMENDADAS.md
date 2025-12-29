@@ -1726,21 +1726,14 @@ ROLE_PERMISSIONS = {
         "delete:all",
         "manage:users",
         "manage:prompts",
-        "manage:documents"
+        "manage:documents",
+        "view:analytics"
     ],
     Role.USER: [
         "read:own",
         "write:own",
         "create:documents",
         "query:all"
-    ],
-    Role.VIEWER: [
-        "read:own"
-    ],
-    Role.ANALYST: [
-        "read:all",
-        "query:all",
-        "view:analytics"
     ]
 }
 

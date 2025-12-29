@@ -16,9 +16,10 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **Monitoramento** | Prometheus | 0.19+ | Coleta de métricas de performance |
 | **Re-ranking** | sentence-transformers | 2.2+ | Cross-encoder para melhoria de relevância |
 | **Validação** | Pydantic | 2.0+ | Validação de dados e configurações |
-| **Migrações** | Alembic | 1.13+ | Gerenciamento de schema do banco |
+| **Migrações** | Alembic |1.13+ | Gerenciamento de schema do banco |
 | **Agendamento** | APScheduler | 3.10+ | Tarefas em background |
 | **Ingestão** | pypdf, python-docx, bs4 | - | Extração de múltiplos formatos |
+| **Segurança** | cryptography | 41.0+ | Criptografia em repouso (AES-128) |
 
 ---
 
@@ -61,6 +62,15 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **Categorias organizadas**: RAG principal, HyDE, Query Expansion, Instruções
 - **Priorização**: Sistema de prioridade para seleção automática
 - **Versionamento**: Controle de versões de prompts
+
+### 🔒 Segurança e Criptografia
+- **Criptografia em Repouso**: Dados sensíveis criptografados no banco (AES-128 + HMAC-SHA256)
+- **Criptografia em Trânsito**: HTTPS/TLS 1.3 com headers de segurança
+- **Headers de Segurança**: HSTS, CSP, X-Frame-Options, etc.
+- **Campos Criptografados**: conteúdo de documentos, metadados, comentários de feedback
+- **Criptografia Condicional**: Habilitável/desabilitável por campo
+- **Geração de Chaves Seguras**: Script dedicado para gerenciar chaves
+- **Compliance**: Auxilia no cumprimento de LGPD (Art. 46) e ISO 27001
 
 ### 🔬 Observabilidade e Monitoramento
 - **Métricas Prometheus**: Métricas nativas em cada fase do RAG
@@ -124,7 +134,9 @@ rag/
 │   │   ├── question_classifier.py # Classificador de perguntas
 │   │   ├── evaluation.py          # Avaliação de respostas
 │   │   ├── metrics.py             # Métricas Prometheus
-│   │   └── logger.py              # Logging estruturado
+│   │   ├── logger.py              # Logging estruturado
+│   │   ├── encryption.py           # Criptografia de dados (AES-128)
+│   │   └── security.py            # Middleware de segurança (HTTPS/TLS)
 │   ├── data/                      # Camada de dados
 │   │   ├── database.py            # Conexão PostgreSQL
 │   │   ├── ingestion.py           # Ingestão de documentos
@@ -201,6 +213,43 @@ Variáveis principais:
 - `DOCUMENTS_DIR`: Diretório de documentos
 - `DATABASE_*`: Configurações PostgreSQL
 - `ENABLE_*`: Ativar/desativar funcionalidades (HyDE, MMR, etc.)
+
+### Configuração de Segurança (Opcional)
+
+Para habilitar criptografia de dados sensíveis:
+
+```bash
+# Criptografia em Repouso (dados no banco)
+ENABLE_ENCRYPTION=true
+ENCRYPTION_KEY=your-generated-key-here  # Gerar com: python scripts/generate_encryption_key.py
+ENCRYPT_DOCUMENT_CONTENT=true
+ENCRYPT_METADATA=true
+ENCRYPT_FEEDBACK_COMMENTS=true
+
+# Criptografia em Trânsito (HTTPS/TLS 1.3)
+ENABLE_HTTPS=true
+SSL_CERT_PATH=./certs/cert.pem
+SSL_KEY_PATH=./certs/key.pem
+SSL_PROTOCOL=TLSv1.3
+SSL_CIPHERS=HIGH:!aNULL:!MD5
+```
+
+**Gerar chave de criptografia:**
+```bash
+python scripts/generate_encryption_key.py
+```
+
+**Gerar certificado SSL (para HTTPS):**
+```bash
+mkdir -p certs
+openssl req -x509 -newkey rsa:4096 \
+  -keyout certs/key.pem \
+  -out certs/cert.pem \
+  -days 365 \
+  -nodes
+```
+
+📚 **Documentação completa**: Ver `docs/IMPLEMENTACAO_5.4_CRIPTOGRAFIA.md` e `docs/QUICK_START_ENCRYPTION.md`
 
 ---
 

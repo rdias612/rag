@@ -4,6 +4,9 @@
 flask>=3.0.0
 flask-cors>=4.0.0
 
+# Security - Encryption (Phase 5.4)
+cryptography>=41.0.0
+
 # Database
 psycopg2-binary>=2.9.9
 SQLAlchemy>=2.0.36

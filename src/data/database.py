@@ -14,7 +14,11 @@ from src.config import (
     EMBEDDING_DIMENSION, 
     TOP_K_RESULTS, 
     MIN_SIMILARITY_THRESHOLD,
-    ENABLE_CONNECTION_POOL
+    ENABLE_CONNECTION_POOL,
+    ENABLE_ENCRYPTION,
+    ENCRYPT_DOCUMENT_CONTENT,
+    ENCRYPT_METADATA,
+    ENCRYPT_FEEDBACK_COMMENTS
 )
 from src.core.logger import (
     db_logger,
@@ -24,6 +28,20 @@ from src.core.logger import (
     log_db_search_results
 )
 from src.core.connection_pool import get_db_connection as get_pooled_connection
+
+# Importar funções de criptografia
+try:
+    from src.core.encryption import (
+        encrypt_data,
+        decrypt_data,
+        encrypt_metadata,
+        decrypt_metadata,
+        is_encryption_enabled
+    )
+    ENCRYPTION_AVAILABLE = True
+except ImportError:
+    ENCRYPTION_AVAILABLE = False
+    db_logger.warning("Encryption module not available, encryption disabled")
 
 # Cache em memória para prompts para evitar queries repetitivas
 PROMPT_CACHE = {}
@@ -120,6 +138,17 @@ def insert_document(content: str, metadata: dict, embedding: list[float], collec
     query = "INSERT INTO documentos (content, metadata, embedding, collection_id) VALUES (%s, %s, %s, %s) RETURNING id"
     log_db_query("INSERT", query, (content[:100], metadata, f"[{len(embedding)} dims]", collection_id))
     
+    # Criptografar conteúdo e metadados se habilitado
+    if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION:
+        if ENCRYPT_DOCUMENT_CONTENT:
+            content = encrypt_data(content)
+        if ENCRYPT_METADATA:
+            metadata_str = encrypt_metadata(metadata)
+        else:
+            metadata_str = json.dumps(metadata)
+    else:
+        metadata_str = json.dumps(metadata)
+    
     with get_connection() as conn:
         with conn.cursor() as cur:
             # Garantir que o embedding é uma lista de floats e não contém None
@@ -132,7 +161,7 @@ def insert_document(content: str, metadata: dict, embedding: list[float], collec
                 VALUES (%s, %s, %s::vector, %s)
                 RETURNING id;
                 """,
-                (content, json.dumps(metadata), embedding, collection_id)
+                (content, metadata_str, embedding, collection_id)
             )
             doc_id = cur.fetchone()[0]
     
@@ -183,9 +212,23 @@ def insert_documents_batch(documents: list[dict]) -> int:
                     db_logger.warning(f"SKIPPING CHUNK due to invalid embedding for {file_info}: {error_detail}")
                     continue
 
+                # Criptografar conteúdo e metadados se habilitado
+                content = doc["content"]
+                metadata = doc["metadata"]
+                
+                if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION:
+                    if ENCRYPT_DOCUMENT_CONTENT:
+                        content = encrypt_data(content)
+                    if ENCRYPT_METADATA:
+                        metadata_str = encrypt_metadata(metadata)
+                    else:
+                        metadata_str = json.dumps(metadata)
+                else:
+                    metadata_str = json.dumps(metadata)
+
                 values.append((
-                    doc["content"],
-                    json.dumps(doc["metadata"]),
+                    content,
+                    metadata_str,
                     doc["embedding"],
                     doc.get("collection_id", "default")
                 ))
@@ -268,7 +311,28 @@ def search_similar(
             results = cur.fetchall()
     
     duration = time.time() - start_time
-    results_list = [dict(row) for row in results]
+    # Descriptografar conteúdo e metadados se necessário
+    results_list = []
+    for row in results:
+        row_dict = dict(row)
+        
+        if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION:
+            # Descriptografar conteúdo
+            if ENCRYPT_DOCUMENT_CONTENT and row_dict.get("content"):
+                try:
+                    row_dict["content"] = decrypt_data(row_dict["content"])
+                except Exception as e:
+                    db_logger.warning(f"Failed to decrypt content for doc {row_dict.get('id')}: {e}")
+            
+            # Descriptografar metadados
+            if ENCRYPT_METADATA and row_dict.get("metadata"):
+                try:
+                    row_dict["metadata"] = decrypt_metadata(row_dict["metadata"])
+                except Exception as e:
+                    db_logger.warning(f"Failed to decrypt metadata for doc {row_dict.get('id')}: {e}")
+                    row_dict["metadata"] = json.loads(row_dict["metadata"]) if row_dict["metadata"] else {}
+        
+        results_list.append(row_dict)
     
     # Filtrar por similaridade mínima
     if min_similarity > 0:
@@ -359,6 +423,25 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
     log_db_query("INSERT FEEDBACK", query, (session_id, message_index, rating, comment))
     
     try:
+        # Criptografar comentário se habilitado
+        encrypted_comment = comment
+        if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION and ENCRYPT_FEEDBACK_COMMENTS and comment:
+            try:
+                encrypted_comment = encrypt_data(comment)
+            except Exception as e:
+                db_logger.warning(f"Failed to encrypt comment: {e}")
+        
+        # Criptografar metadados se habilitado
+        encrypted_metadata = metadata
+        if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION and ENCRYPT_METADATA and metadata:
+            try:
+                encrypted_metadata = encrypt_metadata(metadata)
+            except Exception as e:
+                db_logger.warning(f"Failed to encrypt feedback metadata: {e}")
+                encrypted_metadata = json.dumps(metadata) if metadata else None
+        else:
+            encrypted_metadata = json.dumps(metadata) if metadata else None
+        
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -366,7 +449,7 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
                     INSERT INTO feedback (session_id, message_index, rating, comment, metadata)
                     VALUES (%s, %s, %s, %s, %s);
                     """,
-                    (session_id, message_index, rating, comment, json.dumps(metadata) if metadata else None)
+                    (session_id, message_index, rating, encrypted_comment, encrypted_metadata)
                 )
         
         duration = time.time() - start_time
