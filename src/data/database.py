@@ -9,7 +9,13 @@ from contextlib import contextmanager
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-from src.config import DATABASE_CONFIG, EMBEDDING_DIMENSION, TOP_K_RESULTS, MIN_SIMILARITY_THRESHOLD
+from src.config import (
+    DATABASE_CONFIG, 
+    EMBEDDING_DIMENSION, 
+    TOP_K_RESULTS, 
+    MIN_SIMILARITY_THRESHOLD,
+    ENABLE_CONNECTION_POOL
+)
 from src.core.logger import (
     db_logger,
     log_db_query,
@@ -17,6 +23,7 @@ from src.core.logger import (
     log_db_search_with_embedding,
     log_db_search_results
 )
+from src.core.connection_pool import get_db_connection as get_pooled_connection
 
 # Cache em memória para prompts para evitar queries repetitivas
 PROMPT_CACHE = {}
@@ -27,26 +34,36 @@ PROMPT_CACHE_LAST_UPDATE = 0
 
 @contextmanager
 def get_connection():
-    """Context manager para conexão com o banco de dados."""
-    # Adiciona timeout de conexão e statement para evitar travamentos
-    config_with_timeout = {
-        **DATABASE_CONFIG,
-        'connect_timeout': 10,  # 10 segundos para conectar
-        'options': '-c statement_timeout=30000'  # 30 segundos max por query
-    }
-    db_logger.debug("Opening database connection...")
-    conn = psycopg2.connect(**config_with_timeout)
-    db_logger.debug("Database connection opened successfully")
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        db_logger.error(f"Database transaction error: {e}")
-        raise e
-    finally:
-        conn.close()
-        db_logger.debug("Database connection closed")
+    """Context manager para conexão com o banco de dados.
+    
+    Usa o pool de conexões avançado se ENABLE_CONNECTION_POOL=True,
+    caso contrário usa conexões diretas (método original).
+    """
+    if ENABLE_CONNECTION_POOL:
+        # Usar pool de conexões avançado
+        db_logger.debug("Using connection pool...")
+        with get_pooled_connection() as conn:
+            yield conn
+    else:
+        # Método original (fallback)
+        config_with_timeout = {
+            **DATABASE_CONFIG,
+            'connect_timeout': 10,  # 10 segundos para conectar
+            'options': '-c statement_timeout=30000'  # 30 segundos max por query
+        }
+        db_logger.debug("Opening database connection (direct)...")
+        conn = psycopg2.connect(**config_with_timeout)
+        db_logger.debug("Database connection opened successfully")
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            db_logger.error(f"Database transaction error: {e}")
+            raise e
+        finally:
+            conn.close()
+            db_logger.debug("Database connection closed")
 
 
 def init_database():

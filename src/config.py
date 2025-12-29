@@ -126,6 +126,15 @@ class Settings(BaseSettings):
     ADVANCED_WORKER_TIMEOUT: int = 120
     USE_ASYNC_BATCH_PROCESSING: bool = True
 
+    # =========================================================================
+    # Connection Pooling Avançado (Phase 6.2)
+    # =========================================================================
+    ENABLE_CONNECTION_POOL: bool = True
+    DB_POOL_MIN_CONN: int = 5
+    DB_POOL_MAX_CONN: int = 20
+    DB_CONNECTION_TIMEOUT: int = 10
+    DB_STATEMENT_TIMEOUT: int = 30
+
     model_config = SettingsConfigDict(
         # Prioridade: .env.{APP_ENV} > .env
         env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),

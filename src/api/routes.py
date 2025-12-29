@@ -1863,3 +1863,91 @@ def reset_advanced_batch_processor_stats():
         api_logger.error(f"Error in /api/embeddings/advanced-stats/reset: {e}")
         log_api_response("/api/embeddings/advanced-stats/reset", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Endpoints de Connection Pooling Avançado (Phase 6.2)
+# =============================================================================
+
+@api.route("/admin/pool-stats", methods=["GET"])
+def get_connection_pool_stats():
+    """
+    Retorna estatísticas do pool de conexões.
+    
+    Response:
+        {
+            "healthy": true,
+            "stats": {
+                "total_acquisitions": 1000,
+                "total_releases": 1000,
+                "failed_acquisitions": 0,
+                "active_connections": 5,
+                "max_concurrent_connections": 8,
+                "total_queries": 1000,
+                "avg_query_time_ms": 45.5,
+                "slow_queries": 2,
+                "failed_queries": 0,
+                "error_rate_percent": 0.0,
+                "errors_by_type": {}
+            },
+            "config": {
+                "min_connections": 5,
+                "max_connections": 20,
+                "pool_closed": false
+            }
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/admin/pool-stats", "GET")
+    
+    try:
+        from src.core.connection_pool import get_connection_pool
+        from src.config import ENABLE_CONNECTION_POOL
+        
+        pool = get_connection_pool()
+        
+        # Health check
+        healthy = pool.health_check()
+        
+        # Get stats
+        stats = pool.get_stats()
+        
+        log_api_response("/api/admin/pool-stats", 200, time.time() - start_time)
+        
+        return jsonify({
+            "healthy": healthy,
+            "stats": stats,
+            "enabled": ENABLE_CONNECTION_POOL
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error in /api/admin/pool-stats: {e}")
+        log_api_response("/api/admin/pool-stats", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/admin/pool-stats/reset", methods=["POST"])
+def reset_connection_pool_stats():
+    """
+    Reseta as estatísticas do pool de conexões.
+    
+    Response:
+        {"message": "Estatísticas do pool resetadas com sucesso"}
+    """
+    start_time = time.time()
+    log_api_request("/api/admin/pool-stats/reset", "POST")
+    
+    try:
+        from src.core.connection_pool import get_connection_pool
+        
+        pool = get_connection_pool()
+        pool.reset_stats()
+        
+        log_api_response("/api/admin/pool-stats/reset", 200, time.time() - start_time)
+        
+        return jsonify({"message": "Estatísticas do pool resetadas com sucesso"})
+        
+    except Exception as e:
+        api_logger.error(f"Error in /api/admin/pool-stats/reset: {e}")
+        log_api_response("/api/admin/pool-stats/reset", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
