@@ -25,6 +25,8 @@
 
 **O que é:** Sistema que sugere perguntas relevantes baseadas no histórico do usuário e nos documentos disponíveis.
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Reduz a barreira de entrada para novos usuários
 - Aumenta a taxa de engajamento e retenção
@@ -73,6 +75,12 @@ def get_personalized_suggestions(user_id: str, count: int = 5) -> list[str]:
 ### 1.2. Explanação Detalhada de Fontes
 
 **O que é:** Sistema que mostra não apenas de onde veio a resposta, mas também como os chunks foram selecionados e por quê.
+
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Mostra fontes com similaridade scores
+- ✅ Mostra informações de busca híbrida quando disponível
+- ❌ Não mostra explicação detalhada do processo de seleção (HyDE, re-ranking, MMR)
+- ❌ Não mostra timeline de como a resposta foi construída
 
 **Por que é interessante:**
 - Aumenta a confiança do usuário nas respostas
@@ -132,6 +140,13 @@ const SourceExplanation = ({ answer, chunks }) => {
 
 **O que é:** Feedback do usuário em diferentes níveis: útil, preciso, completo, confiável.
 
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Feedback simples (good/bad) implementado (frontend/src/App.tsx, insert_feedback no backend)
+- ✅ Armazena feedback no banco de dados
+- ❌ Não tem feedback granular (precisão, completude, clareza, relevância)
+- ❌ Não tem comentários qualitativos ou tags
+- ❌ Não tem dashboard de análise de feedback
+
 **Por que é interessante:**
 - Feedback mais granular e acionável
 - Permite identificar problemas específicos (precisão vs. completude)
@@ -178,6 +193,8 @@ def analyze_feedback_quality():
 ### 1.4. Modo "Conversa com Especialista"
 
 **O que é:** Chat com follow-up automático onde o sistema pergunta "Você quer saber mais sobre X?" baseado na resposta.
+
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Simula experiência de conversar com um especialista humano
@@ -232,6 +249,14 @@ const ChatWithFollowUp = () => {
 ### 1.5. Histórico de Consultas com Busca e Filtros
 
 **O que é:** Histórico completo de todas as consultas do usuário com busca avançada e filtros.
+
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Lista de sessões disponível
+- ✅ Histórico de conversas por sessão
+- ✅ Possibilidade de navegar entre sessões
+- ❌ Não tem busca no histórico
+- ❌ Não tem filtros avançados (data, rating, coleção)
+- ❌ Não tem ordenação por relevância/avaliação
 
 **Por que é interessante:**
 - Permite encontrar rapidamente respostas anteriores
@@ -292,6 +317,16 @@ const HistoryPanel = () => {
 ### 2.1. Dashboard de Monitoramento em Tempo Real
 
 **O que é:** Dashboard com métricas em tempo real, alertas e visualizações avançadas.
+
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ AdminDashboard component existe (frontend/src/components/AdminDashboard.tsx)
+- ✅ Painel de documentos, sessões e prompts
+- ✅ Status de ingestão em tempo real
+- ✅ Métricas Prometheus implementadas (src/core/metrics.py)
+- ✅ Endpoint /metrics disponível
+- ❌ Não tem visualizações avançadas tipo Grafana
+- ❌ Não tem alertas automáticos
+- ❌ Não tem predições baseadas em tendências
 
 **Por que é interessante:**
 - Detecção imediata de problemas
@@ -376,6 +411,14 @@ class GrafanaDashboardConfig:
 
 **O que é:** Sistema que permite organizar coleções em estrutura de árvore com permissões granulares.
 
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Coleções suportadas no sistema
+- ✅ Filtro por coleção no frontend
+- ✅ Coleções criadas automaticamente baseadas em estrutura de diretórios
+- ❌ Não tem estrutura hierárquica (árvore)
+- ❌ Não tem permissões granulares por coleção
+- ❌ Não tem API para gerenciar estrutura de coleções
+
 **Por que é interessante:**
 - Organização mais intuitiva para grandes volumes de documentos
 - Permite permissões granulares por coleção
@@ -428,6 +471,15 @@ def move_collection_node(node_id: str):
 ### 2.3. Sistema de Auditoria Completa
 
 **O que é:** Registro detalhado de todas as ações no sistema para compliance e debugging.
+
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Sistema de logging estruturado implementado (src/core/logger.py)
+- ✅ Logs de API requests/responses (log_api_request, log_api_response, log_api_input)
+- ✅ Logs de queries RAG (log_rag_query, log_rag_result, log_rag_context)
+- ❌ Não tem tabela de auditoria no banco de dados
+- ❌ Não tem logs de ações específicas (delete, update)
+- ❌ Não tem API para consulta de logs de auditoria
+- ❌ Não tem integração com ELK Stack ou similar
 
 **Por que é interessante:**
 - Compliance com LGPD e outras regulações
@@ -500,6 +552,8 @@ def get_audit_logs():
 ### 2.4. Sistema de Backup e Restore Automatizado
 
 **O que é:** Sistema automatizado de backup do banco de dados, configurações e documentos.
+
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Proteção contra perda de dados
@@ -576,6 +630,14 @@ def trigger_backup():
 
 **O que é:** Sistema que identifica e limpa automaticamente dados obsoletos, logs antigos e caches.
 
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Limpeza de sessões expiradas implementada (cleanup_expired_sessions no conversation_manager)
+- ✅ Agendado para rodar a cada 10 minutos (scheduler no routes.py)
+- ✅ API para limpar cache de embeddings (/api/cache/clear)
+- ❌ Não limpa logs antigos automaticamente
+- ❌ Não limpa embeddings não usados
+- ❌ Não limpa cache com baixo hit rate automaticamente
+
 **Por que é interessante:**
 - Mantém o sistema performático
 - Reduz custos de storage
@@ -647,6 +709,8 @@ scheduler.add_job(
 ### 3.1. Microserviços com Message Queue
 
 **O que é:** Quebrar o sistema monolítico em microserviços (Ingestion, Query, Embeddings) comunicando-se via message queue.
+
+**Status:** ❌ **NÃO IMPLEMENTADO** (Sistema é monolítico Flask)
 
 **Por que é interessante:**
 - Escalabilidade independente de cada componente
@@ -727,6 +791,15 @@ class QueryService:
 ### 3.2. Sistema de Caching Multi-Nível
 
 **O que é:** Cache em múltiplos níveis (memória, Redis, CDN) com invalidação inteligente.
+
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Cache de embeddings em memória implementado (src/core/embedding_cache.py)
+- ✅ LRU cache com tamanho configurável
+- ✅ Estatísticas de cache (hits, misses, hit rate)
+- ✅ API para gerenciar cache (/api/cache/stats, /api/cache/clear)
+- ❌ Não tem Redis (apenas memória)
+- ❌ Não tem CDN
+- ❌ Não tem invalidação inteligente por pattern
 
 **Por que é interessante:**
 - Redução drástica de latência
@@ -812,6 +885,8 @@ async def query_rag_cached(question: str):
 ### 3.3. Sistema de Rate Limiting Granular
 
 **O que é:** Rate limiting por usuário, por tipo de endpoint, por coleção, etc.
+
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Prevenção de abuso e DDoS
@@ -904,7 +979,7 @@ def check_rate_limit():
 
 ### 3.4. Sistema de Circuit Breaker
 
-**O que é:** Padrão de resiliência que abre "circuito" quando serviços dependentes falham.
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Previne cascata de falhas
@@ -968,6 +1043,8 @@ def get_circuit_status():
 ### 3.5. Sistema de Replicação e Failover
 
 **O que é:** Replicação do banco de dados e serviços para alta disponibilidade.
+
+**Status:** ❌ **NÃO IMPLEMENTADO** (Existe docker-compose para DB mas não tem replicação configurada)
 
 **Por que é interessante:**
 - Alta disponibilidade (HA)
@@ -1044,6 +1121,8 @@ backend postgres
 ### 4.1. Sistema de Testes E2E Automatizados
 
 **O que é:** Suíte de testes end-to-end que testam todo o fluxo do usuário.
+
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Detecta regressões antes de chegar em produção
@@ -1149,6 +1228,8 @@ jobs:
 
 **O que é:** Centralização de logs com Elasticsearch, Logstash e Kibana.
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Busca avançada em logs
 - Visualizações e dashboards
@@ -1249,6 +1330,8 @@ count() / count() over documents level:ERROR
 
 **O que é:** Pipeline CI/CD completo com GitOps para deployments automatizados.
 
+**Status:** ❌ **NÃO IMPLEMENTADO** (Pelo menos não documentado visível no projeto)
+
 **Por que é interessante:**
 - Deployments automatizados e consistentes
 - Rollback rápido
@@ -1341,6 +1424,8 @@ spec:
 
 **O que é:** Documentação gerada automaticamente a partir do código e mantida em versionamento.
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Documentação sempre atualizada
 - Versionamento da documentação
@@ -1427,6 +1512,8 @@ app.register_blueprint(swaggerui_blueprint)
 
 **O que é:** Sistema que permite ligar/desligar features sem deployment.
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Deploy independente de releases
 - A/B testing de features
@@ -1507,6 +1594,8 @@ def toggle_feature_flag(flag_name: str):
 ### 5.1. Sistema de Autenticação JWT com Refresh Tokens
 
 **O que é:** Sistema de autenticação robusto com JWT access tokens (curto prazo) e refresh tokens (longo prazo).
+
+**Status:** ❌ **NÃO IMPLEMENTADO** (Sem autenticação no sistema atual)
 
 **Por que é interessante:**
 - Segurança robusta
@@ -1612,6 +1701,8 @@ def query():
 
 **O que é:** Sistema de controle de acesso baseado em roles (admin, user, viewer, etc.).
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Controle granular de permissões
 - Múltiplos níveis de acesso
@@ -1708,6 +1799,8 @@ def list_documents():
 ### 5.3. Sistema de Auditoria de Segurança
 
 **O que é:** Logs detalhados de ações sensíveis para compliance e investigação.
+
+**Status:** ❌ **NÃO IMPLEMENTADO** (Existe logging mas não específico para segurança)
 
 **Por que é interessante:**
 - Compliance com LGPD, SOX, etc.
@@ -1817,6 +1910,8 @@ def security_audit():
 
 **O que é:** Criptografia de dados em repouso (no banco) e em trânsito (TLS 1.3).
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Proteção contra vazamento de dados
 - Compliance com regulamentações
@@ -1902,6 +1997,8 @@ def add_security_headers(response):
 ### 5.5. Sistema de Rate Limiting e Proteção DDoS
 
 **O que é:** Rate limiting avançado e proteção contra ataques DDoS.
+
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Prevenção de abuso
@@ -2005,11 +2102,13 @@ def check_ddos():
 
 **O que é:** Versão avançada do batch processing existente com processamento paralelo e assíncrono de múltiplos batches simultaneamente.
 
-**Status Atual:** ✅ **JÁ IMPLEMENTADO** (versão básica em `src/core/embeddings.py`)
-- O sistema já possui `get_embeddings_batch()` que processa múltiplos textos em lote
-- Implementação atual: processamento sequencial de batches (batch_size=32)
+**Status:** ✅ **PARCIALMENTE IMPLEMENTADO**
+- ✅ O sistema possui `get_embeddings_batch()` que processa múltiplos textos em lote
+- ✅ Batch processing assíncrono para ingestão em massa (threading no routes.py)
+- ❌ Não tem processamento paralelo de múltiplos batches simultâneos
+- ❌ Implementação atual é sequencial
 
-**Melhoria Proposta:** Otimização para processamento paralelo
+**Melhoria Proposta:** Otimização para processamento paralelo de múltiplos batches
 
 **Por que é interessante:**
 - Otimiza o throughput existente de embeddings
@@ -2090,6 +2189,8 @@ async def ingest_document_optimized(file_path: Path):
 ### 6.2. Sistema de Connection Pooling Avançado
 
 **O que é:** Pool de conexões avançado com balanceamento de carga e health checks.
+
+**Status:** ❌ **NÃO IMPLEMENTADO** (Usa conexões diretas sem pool)
 
 **Por que é interessante:**
 - Reduz latência de conexões
@@ -2209,6 +2310,8 @@ def get_pool_stats():
 
 **O que é:** Cache que prevê e pre-fetch embeddings de perguntas prováveis.
 
+**Status:** ❌ **NÃO IMPLEMENTADO** (Cache existe mas não tem pre-fetching inteligente)
+
 **Por que é interessante:**
 - Cache hit rate ainda maior
 - Latência reduzida para queries previstas
@@ -2302,6 +2405,8 @@ def get_embedding_cached(question: str) -> list[float]:
 ### 7.1. Sistema de Cost Tracking e Alerts
 
 **O que é:** Monitoramento detalhado de custos (API calls, storage, compute) com alertas.
+
+**Status:** ❌ **NÃO IMPLEMENTADO**
 
 **Por que é interessante:**
 - Controle de custos
@@ -2413,6 +2518,8 @@ scheduler.add_job(check_cost_alerts, 'interval', hours=6)
 
 **O que é:** Escalamento automático horizontal baseado em load.
 
+**Status:** ❌ **NÃO IMPLEMENTADO**
+
 **Por que é interessante:**
 - Adapta-se automaticamente à demanda
 - Otimiza custos (só paga pelo que usa)
@@ -2501,6 +2608,12 @@ spec:
 ### 8.1. Sistema de Dark Mode Automático com Persistência
 
 **O que é:** Dark mode que segue preferência do sistema e é persistente.
+
+**Status:** ✅ **COMPLETAMENTE IMPLEMENTADO**
+- ✅ Dark mode automático detecta preferência do sistema
+- ✅ Persistência em localStorage
+- ✅ Toggle entre light/dark mode
+- ✅ Implementado em ThemeContext.tsx
 
 **Por que é interessante:**
 - Conforto visual para usuários
@@ -2597,6 +2710,13 @@ const SettingsPanel = () => {
 ### 8.2. Sistema de Feedback Visual em Tempo Real
 
 **O que é:** Feedback visual imediato para todas as ações (loading, sucesso, erro).
+
+**Status:** ✅ **COMPLETAMENTE IMPLEMENTADO**
+- ✅ Toast notifications para sucesso, erro e info
+- ✅ Animações com framer-motion
+- ✅ Auto-dismiss configurável
+- ✅ Feedback visual para loading (isLoading states)
+- ✅ Implementado em Toast.tsx e hooks/useToast.ts
 
 **Por que é interessante:**
 - Clareza sobre o estado do sistema
@@ -2737,6 +2857,13 @@ const UploadModal = () => {
 
 **O que é:** Analytics detalhados de uso do sistema para tomada de decisão.
 
+**Status:** ⚠️ **PARCIALMENTE IMPLEMENTADO**
+- ✅ Métricas Prometheus implementadas (queries, chunks, latência, etc.)
+- ✅ Dashboard administrativo com estatísticas
+- ❌ Não tem analytics detalhados de usuário
+- ❌ Não tem relatórios de padrões de uso
+- ❌ Não tem insights de business (ROI, etc.)
+
 **Por que é interessante:**
 - Entender padrões de uso
 - Identificar oportunidades de melhoria
@@ -2830,14 +2957,98 @@ def get_usage_analytics():
 
 ---
 
-## 🎯 Priorização de Melhorias
+## 📊 Resumo de Implementação
 
-### Alta Prioridade (Implementar em 1-3 meses)
-1. Sistema de Autenticação JWT
-2. Rate Limiting Avançado
-3. Dashboard de Monitoramento
-4. Sistema de Backup Automatizado
-5. Testes E2E Automatizados
+### ✅ Completamente Implementados (2 itens)
+- 8.1. Sistema de Dark Mode Automático com Persistência
+- 8.2. Sistema de Feedback Visual em Tempo Real
+
+### ⚠️ Parcialmente Implementados (10 itens)
+- 1.2. Explanação Detalhada de Fontes
+- 1.3. Sistema de Feedback Contextual
+- 1.5. Histórico de Consultas com Busca e Filtros
+- 2.1. Dashboard de Monitoramento em Tempo Real
+- 2.2. Sistema de Gerenciamento de Coleções Hierárquico
+- 2.3. Sistema de Auditoria Completa
+- 2.5. Sistema de Limpeza Automática Inteligente
+- 3.2. Sistema de Caching Multi-Nível
+- 6.1. Otimização de Batch Processing Assíncrono
+- 9.1. Sistema de Analytics de Uso
+
+### ❌ Não Implementados (20 itens)
+- 1.1. Sistema de Sugestões Inteligentes
+- 1.4. Modo "Conversa com Especialista"
+- 2.4. Sistema de Backup e Restore Automatizado
+- 3.1. Microserviços com Message Queue
+- 3.3. Sistema de Rate Limiting Granular
+- 3.4. Sistema de Circuit Breaker
+- 3.5. Sistema de Replicação e Failover
+- 4.1. Sistema de Testes E2E Automatizados
+- 4.2. Sistema de Logging Centralizado com ELK Stack
+- 4.3. Sistema de CI/CD com GitOps
+- 4.4. Sistema de Documentation as Code
+- 4.5. Sistema de Feature Flags
+- 5.1. Sistema de Autenticação JWT com Refresh Tokens
+- 5.2. Sistema de RBAC (Role-Based Access Control)
+- 5.3. Sistema de Auditoria de Segurança
+- 5.4. Sistema de Criptografia em Repouso e em Trânsito
+- 5.5. Sistema de Rate Limiting e Proteção DDoS
+- 6.2. Sistema de Connection Pooling Avançado
+- 6.3. Sistema de Caching Inteligente com Pre-fetching
+- 7.1. Sistema de Cost Tracking e Alerts
+- 7.2. Sistema de Auto-scaling Horizontal
+
+**Total: 32 itens**
+- ✅ 6.25% completamente implementados
+- ⚠️ 31.25% parcialmente implementados
+- ❌ 62.5% não implementados
+
+## 🎯 Priorização de Melhorias Atualizada
+
+### 🔥 Alta Prioridade (Segurança Crítica - Implementar IMEDIATAMENTE)
+1. **5.1. Sistema de Autenticação JWT com Refresh Tokens** - SEM autenticação atualmente
+2. **5.5. Sistema de Rate Limiting e Proteção DDoS** - Sistema exposto sem proteção
+3. **5.4. Sistema de Criptografia em Repouso e em Trânsito** - Dados não criptografados
+
+### 📈 Média-Alta Prioridade (Melhorias Imediatas com Alto Impacto)
+4. **2.4. Sistema de Backup e Restore Automatizado** - Risco de perda de dados
+5. **5.2. Sistema de RBAC (Role-Based Access Control)** - Controle de acesso necessário
+6. **3.3. Sistema de Rate Limiting Granular** - Proteção contra abuso
+7. **2.3. Sistema de Auditoria Completa** - Compliance e debugging
+
+### 🚀 Alta Prioridade (Implementar em 1-2 meses)
+8. **4.1. Sistema de Testes E2E Automatizados** - Qualidade e confiança
+9. **3.2. Sistema de Caching Multi-Nível** - Melhoria de performance já existe base
+10. **1.2. Explanação Detalhada de Fontes** - Transparência para usuários
+11. **6.1. Otimização de Batch Processing** - Performance (já tem base implementada)
+12. **3.4. Sistema de Circuit Breaker** - Resiliência
+
+### 📊 Média Prioridade (Implementar em 3-4 meses)
+13. **1.3. Sistema de Feedback Contextual** - Já tem base, precisa expansão
+14. **2.1. Dashboard de Monitoramento** - Já tem base, precisa melhorias
+15. **6.2. Sistema de Connection Pooling Avançado** - Performance
+16. **6.3. Sistema de Caching Inteligente** - Performance
+17. **7.1. Sistema de Cost Tracking e Alerts** - Controle de custos
+
+### 🔧 Média-Baixa Prioridade (Implementar em 4-6 meses)
+18. **1.5. Histórico de Consultas com Filtros** - Já tem base
+19. **2.2. Sistema de Coleções Hierárquico** - Já tem base
+20. **2.5. Sistema de Limpeza Automática** - Já tem base, precisa expansão
+21. **9.1. Sistema de Analytics de Uso** - Já tem base
+22. **4.2. Sistema de Logging Centralizado** - Já tem logging
+23. **5.3. Sistema de Auditoria de Segurança** - Específico para segurança
+
+### 🏗️ Baixa Prioridade (Implementar em 6-12 meses)
+24. **4.3. Sistema de CI/CD com GitOps** - Infraestrutura
+25. **4.4. Sistema de Documentation as Code** - Melhoria de DX
+26. **4.5. Sistema de Feature Flags** - Melhoria de DX
+27. **3.1. Microserviços com Message Queue** - Arquitetura complexa
+28. **3.5. Sistema de Replicação e Failover** - Alta disponibilidade
+29. **7.2. Sistema de Auto-scaling Horizontal** - Escalabilidade
+
+### 💡 Baixa Prioridade - Melhorias de UX (Implementar quando possível)
+30. **1.1. Sistema de Sugestões Inteligentes**
+31. **1.4. Modo "Conversa com Especialista"**
 
 ### Média Prioridade (Implementar em 3-6 meses)
 6. Sistema de Feature Flags
