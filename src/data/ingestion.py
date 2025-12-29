@@ -15,9 +15,11 @@ import csv
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Generator, Callable
+from typing import Generator, Callable, Optional
 
 import pypdf
+from src.core.embeddings import get_embeddings_batch
+from src.core.advanced_batch_processor import get_advanced_processor
 
 from src.config import (
     DOCUMENTS_DIR, 
@@ -25,7 +27,8 @@ from src.config import (
     CHUNK_OVERLAP,
     USE_SEMANTIC_CHUNKING,
     MIN_CHUNK_SIZE,
-    CHUNK_OVERLAP_SENTENCES
+    CHUNK_OVERLAP_SENTENCES,
+    ENABLE_ADVANCED_BATCH_PROCESSING
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 
@@ -605,7 +608,6 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
                 
         except Exception as e:
             logger.error(f"Erro ao processar {doc_path.name}: {e}")
-            logger.error(f"Erro ao processar {doc_path.name}: {e}")
             continue
     
     logger.info(f"Total: {total_chunks} chunks gerados de {len(document_files)} arquivos")
@@ -650,3 +652,61 @@ def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
         "supported_formats": list(SUPPORTED_EXTENSIONS),
         "files": [p.name for p in document_files]
     }
+
+
+def process_document_advanced(
+    file_path: Path,
+    use_advanced: Optional[bool] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None
+) -> list[dict]:
+    """
+    Processa documento usando processador avançado quando disponível.
+    
+    Extrai texto, cria chunks e gera embeddings usando o processador
+    avançado com paralelismo quando apropriado.
+    
+    Args:
+        file_path: Caminho do arquivo para processar
+        use_advanced: Força uso do processador avançado (None usa config)
+        progress_callback: Callback para progresso (current, total)
+        
+    Returns:
+        Lista de chunks com metadados e embeddings
+    """
+    # Extrair texto e criar chunks (mesmo processamento atual)
+    chunks = process_document(file_path)
+    
+    if not chunks:
+        return []
+    
+    # Decidir se usa processador avançado
+    should_use_advanced = (
+        use_advanced if use_advanced is not None 
+        else ENABLE_ADVANCED_BATCH_PROCESSING
+    )
+    
+    texts = [chunk["content"] for chunk in chunks]
+    
+    if should_use_advanced and len(texts) >= 32:  # Mínimo de 32 textos para valer a pena
+        logger.info(
+            f"Using advanced batch processor for {file_path.name} "
+            f"({len(texts)} texts)"
+        )
+        
+        processor = get_advanced_processor()
+        embeddings = processor.process_batch_sync(texts, progress_callback)
+        
+    else:
+        # Usar processamento padrão
+        mode = "standard" if not should_use_advanced else "small document (<32 chunks)"
+        logger.info(
+            f"Using standard batch processor for {file_path.name} "
+            f"({len(texts)} texts, mode={mode})"
+        )
+        embeddings = get_embeddings_batch(texts)
+    
+    # Adicionar embeddings aos chunks
+    for chunk, embedding in zip(chunks, embeddings):
+        chunk["embedding"] = embedding
+    
+    return chunks

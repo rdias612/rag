@@ -117,6 +117,15 @@ class Settings(BaseSettings):
     ENABLE_SENTENCE_WINDOW: bool = False
     SENTENCE_WINDOW_SIZE: int = 2
 
+    # =========================================================================
+    # Batch Processing Avançado (Phase 6.1)
+    # =========================================================================
+    ENABLE_ADVANCED_BATCH_PROCESSING: bool = True
+    ADVANCED_BATCH_MAX_WORKERS: int = 4
+    ADVANCED_BATCH_SIZE: int = 32
+    ADVANCED_WORKER_TIMEOUT: int = 120
+    USE_ASYNC_BATCH_PROCESSING: bool = True
+
     model_config = SettingsConfigDict(
         # Prioridade: .env.{APP_ENV} > .env
         env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),
@@ -179,6 +188,11 @@ ENABLE_SELF_RAG = settings.ENABLE_SELF_RAG
 SELF_RAG_MIN_SCORE = settings.SELF_RAG_MIN_SCORE
 ENABLE_SENTENCE_WINDOW = settings.ENABLE_SENTENCE_WINDOW
 SENTENCE_WINDOW_SIZE = settings.SENTENCE_WINDOW_SIZE
+ENABLE_ADVANCED_BATCH_PROCESSING = settings.ENABLE_ADVANCED_BATCH_PROCESSING
+ADVANCED_BATCH_MAX_WORKERS = settings.ADVANCED_BATCH_MAX_WORKERS
+ADVANCED_BATCH_SIZE = settings.ADVANCED_BATCH_SIZE
+ADVANCED_WORKER_TIMEOUT = settings.ADVANCED_WORKER_TIMEOUT
+USE_ASYNC_BATCH_PROCESSING = settings.USE_ASYNC_BATCH_PROCESSING
 
 # =============================================================================
 # Prompts (Mantidos como constantes por não precisarem de override via env)

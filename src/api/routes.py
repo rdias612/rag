@@ -1789,3 +1789,77 @@ def get_prompt_categories():
     log_api_response("/api/prompts/categories", 200, time.time() - start_time)
     
     return jsonify({"categories": categories})
+
+
+# =============================================================================
+# Endpoints de Batch Processing Avançado (Phase 6.1)
+# =============================================================================
+
+@api.route("/embeddings/advanced-stats", methods=["GET"])
+def get_advanced_batch_processor_stats():
+    """
+    Retorna estatísticas do processador avançado de embeddings.
+    
+    Response:
+        {
+            "stats": {
+                "total_batches_processed": 100,
+                "total_texts_processed": 3200,
+                "total_errors": 2,
+                "total_time_seconds": 64.5,
+                "avg_throughput_texts_per_second": 49.6,
+                "batch_size": 32,
+                "max_workers": 4,
+                "error_rate": 0.02
+            },
+            "enabled": true
+        }
+    """
+    start_time = time.time()
+    log_api_request("/api/embeddings/advanced-stats", "GET")
+    
+    try:
+        from src.core.advanced_batch_processor import get_advanced_processor
+        from src.config import ENABLE_ADVANCED_BATCH_PROCESSING
+        
+        processor = get_advanced_processor()
+        stats = processor.get_stats()
+        
+        log_api_response("/api/embeddings/advanced-stats", 200, time.time() - start_time)
+        
+        return jsonify({
+            "stats": stats,
+            "enabled": ENABLE_ADVANCED_BATCH_PROCESSING
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error in /api/embeddings/advanced-stats: {e}")
+        log_api_response("/api/embeddings/advanced-stats", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route("/embeddings/advanced-stats/reset", methods=["POST"])
+def reset_advanced_batch_processor_stats():
+    """
+    Reseta as estatísticas do processador avançado.
+    
+    Response:
+        {"message": "Estatísticas resetadas com sucesso"}
+    """
+    start_time = time.time()
+    log_api_request("/api/embeddings/advanced-stats/reset", "POST")
+    
+    try:
+        from src.core.advanced_batch_processor import get_advanced_processor
+        
+        processor = get_advanced_processor()
+        processor.reset_stats()
+        
+        log_api_response("/api/embeddings/advanced-stats/reset", 200, time.time() - start_time)
+        
+        return jsonify({"message": "Estatísticas resetadas com sucesso"})
+        
+    except Exception as e:
+        api_logger.error(f"Error in /api/embeddings/advanced-stats/reset: {e}")
+        log_api_response("/api/embeddings/advanced-stats/reset", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
