@@ -177,3 +177,70 @@ def metrics_status():
     log_api_response("/api/metrics/status", 200, time.time() - start_time)
     
     return jsonify(status)
+
+
+# =========================================================================
+# Adaptive Retrieval Metrics Endpoints
+# =========================================================================
+
+@metrics_bp.route("/metrics/adaptive-retrieval/stats", methods=["GET"])
+def adaptive_retrieval_stats():
+    """Retorna estatísticas agregadas do Adaptive Retrieval."""
+    start_time = time.time()
+    log_api_request("/api/metrics/adaptive-retrieval/stats", "GET")
+    
+    try:
+        from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
+        
+        days = request.args.get("days", 7, type=int)
+        stats = adaptive_retrieval_repo.get_stats(days=days)
+        
+        log_api_response("/api/metrics/adaptive-retrieval/stats", 200, time.time() - start_time)
+        return jsonify(stats)
+        
+    except Exception as e:
+        api_logger.error(f"Error in /metrics/adaptive-retrieval/stats: {e}")
+        log_api_response("/api/metrics/adaptive-retrieval/stats", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@metrics_bp.route("/metrics/adaptive-retrieval/recent", methods=["GET"])
+def adaptive_retrieval_recent():
+    """Retorna as métricas mais recentes do Adaptive Retrieval."""
+    start_time = time.time()
+    log_api_request("/api/metrics/adaptive-retrieval/recent", "GET")
+    
+    try:
+        from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
+        
+        limit = request.args.get("limit", 50, type=int)
+        metrics = adaptive_retrieval_repo.get_recent_metrics(limit=limit)
+        
+        log_api_response("/api/metrics/adaptive-retrieval/recent", 200, time.time() - start_time)
+        return jsonify({"metrics": metrics, "count": len(metrics)})
+        
+    except Exception as e:
+        api_logger.error(f"Error in /metrics/adaptive-retrieval/recent: {e}")
+        log_api_response("/api/metrics/adaptive-retrieval/recent", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@metrics_bp.route("/metrics/adaptive-retrieval/performance", methods=["GET"])
+def adaptive_retrieval_performance():
+    """Retorna métricas de performance do Adaptive Retrieval."""
+    start_time = time.time()
+    log_api_request("/api/metrics/adaptive-retrieval/performance", "GET")
+    
+    try:
+        from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
+        
+        days = request.args.get("days", 7, type=int)
+        perf = adaptive_retrieval_repo.get_performance_metrics(days=days)
+        
+        log_api_response("/api/metrics/adaptive-retrieval/performance", 200, time.time() - start_time)
+        return jsonify(perf)
+        
+    except Exception as e:
+        api_logger.error(f"Error in /metrics/adaptive-retrieval/performance: {e}")
+        log_api_response("/api/metrics/adaptive-retrieval/performance", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500

@@ -20,6 +20,7 @@ from src.core.metrics import LatencyTracker, inc_query, observe_chunks_retrieved
 from src.core.conversation import conversation_manager
 from src.core.self_rag import self_rag_pipeline
 from src.core.adaptive_retrieval import get_adaptive_params
+from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
 
 from src.core.rag.services.search_service import SearchService
 from src.core.rag.services.context_service import ContextService
@@ -76,6 +77,7 @@ class RAGPipeline:
                 question_type = classify_question(question)
                 
                 # 1.5 Aplicar Adaptive Retrieval se habilitado
+                adaptive_start_time = time.time()
                 if ENABLE_ADAPTIVE_RETRIEVAL and enable_adaptive:
                     base_min_sim = min_similarity if min_similarity is not None else MIN_SIMILARITY_THRESHOLD
                     adaptive_result = get_adaptive_params(
@@ -186,6 +188,27 @@ class RAGPipeline:
                         )
                 
                 # 8. Formatar resposta
+                total_duration = time.time() - start_time
+                
+                # 8.1 Salvar métricas de adaptive retrieval se aplicado
+                if adaptive_metrics.get("applied") and collection_id:
+                    try:
+                        adaptive_retrieval_repo.save_metric(
+                            session_id=collection_id,  # Usando collection_id como session_id temporariamente
+                            question=question,
+                            complexity_score=adaptive_metrics["complexity_score"],
+                            word_count=adaptive_metrics["word_count"],
+                            top_k_original=adaptive_metrics["original_top_k"],
+                            top_k_adjusted=adaptive_metrics["top_k"],
+                            min_similarity_original=adaptive_metrics["original_min_similarity"],
+                            min_similarity_adjusted=adaptive_metrics["min_similarity"],
+                            adjustment_reason=adaptive_metrics["adjustment_reason"],
+                            characteristics=adaptive_metrics["characteristics"],
+                            duration_ms=int(total_duration * 1000)
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to save adaptive metric: {e}")
+                
                 return self.responses.format_response(
                     answer=answer,
                     documents=documents if include_sources else [],
@@ -194,7 +217,7 @@ class RAGPipeline:
                     search_metrics=search_metrics,
                     self_rag_metrics=self_rag_metrics,
                     adaptive_params_used=adaptive_metrics,
-                    duration=time.time() - start_time
+                    duration=total_duration
                 )
                 
         except Exception as e:
