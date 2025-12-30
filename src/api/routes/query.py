@@ -57,7 +57,8 @@ def query():
             include_sources=req.include_sources,
             collection_id=req.collection,
             response_style=req.response_style,
-            debug_mode=req.debug or include_explanation
+            debug_mode=req.debug or include_explanation,
+            enable_adaptive=req.enable_adaptive
         )
         
         if include_explanation and "_debug" in result and "search" in result:
@@ -161,7 +162,8 @@ def chat():
             temperature=req.temperature,
             include_sources=req.include_sources,
             collection_id=req.collection,
-            response_style=req.response_style
+            response_style=req.response_style,
+            enable_adaptive=req.enable_adaptive
         )
         
         log_api_response("/api/chat", 200, time.time() - start_time)

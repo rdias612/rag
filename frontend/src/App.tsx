@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Bug, Sun, Moon, Sparkles } from "lucide-react";
+import { Settings, Bug, Sun, Moon, Sparkles, Target } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { UploadModal } from "./components/UploadModal";
@@ -22,6 +22,9 @@ function App() {
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [explanationMode, setExplanationMode] = useState(true);
+  const [adaptiveRetrieval, setAdaptiveRetrieval] = useState<boolean>(
+    () => localStorage.getItem('adaptiveRetrieval') !== 'false'  // default true
+  );
   const [temperature, setTemperature] = useState<number | undefined>(undefined);
   const [promptMode, setPromptMode] = useState<string>(
     () => localStorage.getItem('promptMode') || 'category'
@@ -40,6 +43,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('responseStyle', responseStyle);
   }, [responseStyle]);
+
+  useEffect(() => {
+    localStorage.setItem('adaptiveRetrieval', String(adaptiveRetrieval));
+  }, [adaptiveRetrieval]);
 
   // Load initial sessions
   useEffect(() => {
@@ -125,7 +132,7 @@ function App() {
           }
           return newMessages;
         });
-      }, debugMode, temperature, explanationMode, responseStyle);
+      }, debugMode, temperature, explanationMode, responseStyle, adaptiveRetrieval);
 
       // Update with final message including sources
       setMessages((prev: Message[]) => {
@@ -261,6 +268,19 @@ function App() {
               title={theme === 'dark' ? "Mudar para tema claro" : "Mudar para tema escuro"}
             >
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            {/* Adaptive Retrieval Toggle */}
+            <button
+              onClick={() => setAdaptiveRetrieval(!adaptiveRetrieval)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-all ${adaptiveRetrieval
+                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                : 'bg-surface text-text-secondary border-border hover:border-text-secondary'
+                }`}
+              title={adaptiveRetrieval ? "Adaptive Retrieval ativado" : "Adaptive Retrieval desativado"}
+            >
+              <Target size={14} />
+              <span className="hidden sm:inline">{adaptiveRetrieval ? 'ON' : 'OFF'}</span>
             </button>
 
             {/* Debug Toggle */}

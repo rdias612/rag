@@ -8,7 +8,26 @@ import re
 import logging
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from src.config import (
+    ADAPTIVE_TOP_K_MIN,
+    ADAPTIVE_TOP_K_MAX,
+    ADAPTIVE_MIN_SIM_MIN,
+    ADAPTIVE_MIN_SIM_MAX,
+    ADAPTIVE_RETRIEVAL_LOG_LEVEL
+)
+
+# Configurar nível de log
+adaptive_logger = logging.getLogger("rag.adaptive_retrieval")
+log_level = logging.DEBUG if ADAPTIVE_RETRIEVAL_LOG_LEVEL.upper() == "DEBUG" else logging.INFO
+adaptive_logger.setLevel(log_level)
+
+# Se não tiver handler, adicionar um
+if not adaptive_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(log_level)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    adaptive_logger.addHandler(handler)
 
 
 def analyze_query_complexity(question: str) -> dict:
@@ -84,36 +103,72 @@ def get_adaptive_params(
         # Query curta: buscar mais para compensar falta de contexto
         top_k = base_top_k + 5
         min_similarity = base_min_similarity + 0.05  # Mais restritivo
+        adjustment_reason = "Query curta (<5 palavras)"
     elif word_count > 15:
         # Query detalhada: menos resultados, mais precisos
         top_k = max(3, base_top_k - 2)
         min_similarity = base_min_similarity - 0.1  # Menos restritivo
+        adjustment_reason = "Query detalhada (>15 palavras)"
     else:
         # Query média
         top_k = base_top_k
         min_similarity = base_min_similarity
+        adjustment_reason = "Query média"
     
     # Ajustes por características especiais
     if analysis["is_compound"]:
         # Comparações precisam de mais chunks
         top_k = min(15, top_k + 3)
+        if adjustment_reason:
+            adjustment_reason += ", composta"
+        else:
+            adjustment_reason = "Query composta"
     
     if analysis["has_quotes"]:
         # Busca específica: ser mais restritivo
         min_similarity = min(0.7, min_similarity + 0.1)
+        if adjustment_reason:
+            adjustment_reason += ", com aspas"
+        else:
+            adjustment_reason = "Query com aspas"
     
     if analysis["has_technical_terms"]:
         # Termos técnicos: confiar mais nos resultados
         min_similarity = max(0.3, min_similarity - 0.05)
+        if adjustment_reason:
+            adjustment_reason += ", com termos técnicos"
+        else:
+            adjustment_reason = "Query com termos técnicos"
+
+    # Aplicar limites de segurança (clamping)
+    top_k = max(ADAPTIVE_TOP_K_MIN, min(ADAPTIVE_TOP_K_MAX, top_k))
+    min_similarity = max(ADAPTIVE_MIN_SIM_MIN, min(ADAPTIVE_MIN_SIM_MAX, min_similarity))
     
     result = {
         "top_k": top_k,
         "min_similarity": round(min_similarity, 2),
         "analysis": analysis,
-        "adaptive_applied": True
+        "adaptive_applied": True,
+        "original_top_k": base_top_k,
+        "original_min_similarity": round(base_min_similarity, 2),
+        "adjustment_reason": adjustment_reason
     }
     
-    logger.info(f"Adaptive params: top_k={top_k}, min_sim={min_similarity:.2f} for query ({word_count} words)")
+    adaptive_logger.info(
+        f"Adaptive params: top_k={top_k} (orig: {base_top_k}), "
+        f"min_sim={min_similarity:.2f} (orig: {base_min_similarity:.2f}), "
+        f"reason={adjustment_reason}, "
+        f"complexity={complexity}/10, words={word_count}"
+    )
+    
+    adaptive_logger.debug(
+        f"Query analysis details: word_count={word_count}, "
+        f"complexity_score={complexity}, "
+        f"has_technical_terms={analysis['has_technical_terms']}, "
+        f"has_numbers={analysis['has_numbers']}, "
+        f"has_quotes={analysis['has_quotes']}, "
+        f"is_compound={analysis['is_compound']}"
+    )
     
     return result
 

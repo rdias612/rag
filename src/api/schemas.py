@@ -15,6 +15,7 @@ class QueryRequest(BaseModel):
     collection: Optional[str] = Field(default=None, description="Filtrar por coleção")
     response_style: str = Field(default="detailed", description="Estilo da resposta: 'concise' ou 'detailed'")
     debug: bool = Field(default=False, description="Ativar modo debug/explain")
+    enable_adaptive: bool = Field(default=True, description="Ativar Adaptive Retrieval (ajuste dinâmico de top_k e min_similarity)")
 
     class Config:
         extra = "ignore"
@@ -39,6 +40,7 @@ class ChatRequest(BaseModel):
     collection: Optional[str] = Field(default=None, description="Filtrar por coleção")
     response_style: str = Field(default="detailed", description="Estilo da resposta: 'concise' ou 'detailed'")
     debug: bool = Field(default=False, description="Ativar modo debug/explain")
+    enable_adaptive: bool = Field(default=True, description="Ativar Adaptive Retrieval (ajuste dinâmico de top_k e min_similarity)")
 
     class Config:
         extra = "ignore"

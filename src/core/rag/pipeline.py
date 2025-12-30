@@ -5,13 +5,21 @@ import time
 import logging
 from typing import Optional, Dict, Any, List
 
-from src.config import TOP_K_RESULTS, ENABLE_SELF_RAG, SELF_RAG_MIN_SCORE, SELF_RAG_MAX_ITERATIONS
+from src.config import (
+    TOP_K_RESULTS,
+    MIN_SIMILARITY_THRESHOLD,
+    ENABLE_SELF_RAG,
+    SELF_RAG_MIN_SCORE,
+    SELF_RAG_MAX_ITERATIONS,
+    ENABLE_ADAPTIVE_RETRIEVAL
+)
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
 from src.core.question_classifier import classify_question
 from src.core.metrics import LatencyTracker, inc_query, observe_chunks_retrieved, inc_error
 from src.core.conversation import conversation_manager
 from src.core.self_rag import self_rag_pipeline
+from src.core.adaptive_retrieval import get_adaptive_params
 
 from src.core.rag.services.search_service import SearchService
 from src.core.rag.services.context_service import ContextService
@@ -52,16 +60,46 @@ class RAGPipeline:
         collection_id: str = None,
         response_style: str = "detailed",
         debug_mode: bool = False,
-        history: str = None
+        history: str = None,
+        enable_adaptive: bool = None
     ) -> Dict[str, Any]:
         """Executa query RAG completa."""
         start_time = time.time()
         inc_query()
         
+        # Inicializar métricas de adaptive retrieval
+        adaptive_metrics = {"applied": False, "reason": "disabled_by_config"}
+        
         try:
             with LatencyTracker("rag_total"):
                 # 1. Classificar pergunta
                 question_type = classify_question(question)
+                
+                # 1.5 Aplicar Adaptive Retrieval se habilitado
+                if ENABLE_ADAPTIVE_RETRIEVAL and enable_adaptive:
+                    base_min_sim = min_similarity if min_similarity is not None else MIN_SIMILARITY_THRESHOLD
+                    adaptive_result = get_adaptive_params(
+                        question,
+                        base_top_k=top_k,
+                        base_min_similarity=base_min_sim
+                    )
+                    top_k = adaptive_result["top_k"]
+                    min_similarity = adaptive_result["min_similarity"]
+                    adaptive_metrics = {
+                        "applied": True,
+                        "complexity_score": adaptive_result["analysis"]["complexity_score"],
+                        "word_count": adaptive_result["analysis"]["word_count"],
+                        "top_k": top_k,
+                        "min_similarity": min_similarity,
+                        "original_top_k": adaptive_result["original_top_k"],
+                        "original_min_similarity": adaptive_result["original_min_similarity"],
+                        "adjustment_reason": adaptive_result["adjustment_reason"],
+                        "characteristics": adaptive_result["analysis"]
+                    }
+                elif enable_adaptive and not ENABLE_ADAPTIVE_RETRIEVAL:
+                    adaptive_metrics = {"applied": False, "reason": "disabled_in_config"}
+                else:
+                    adaptive_metrics = {"applied": False, "reason": "disabled_by_user"}
                 
                 # 2. Gerar embedding (com HyDE se habilitado)
                 with LatencyTracker("embedding"):
@@ -155,6 +193,7 @@ class RAGPipeline:
                     was_compressed=context_result["was_compressed"],
                     search_metrics=search_metrics,
                     self_rag_metrics=self_rag_metrics,
+                    adaptive_params_used=adaptive_metrics,
                     duration=time.time() - start_time
                 )
                 

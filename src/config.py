@@ -121,6 +121,16 @@ class Settings(BaseSettings):
     SENTENCE_WINDOW_SIZE: int = 2
 
     # =========================================================================
+    # Adaptive Retrieval (Phase 2)
+    # =========================================================================
+    ENABLE_ADAPTIVE_RETRIEVAL: bool = True
+    ADAPTIVE_RETRIEVAL_LOG_LEVEL: str = "INFO"  # DEBUG ou INFO
+    ADAPTIVE_TOP_K_MIN: int = 3
+    ADAPTIVE_TOP_K_MAX: int = 20
+    ADAPTIVE_MIN_SIM_MIN: float = 0.2
+    ADAPTIVE_MIN_SIM_MAX: float = 0.8
+
+    # =========================================================================
     # Batch Processing Avançado (Phase 6.1)
     # =========================================================================
     ENABLE_ADVANCED_BATCH_PROCESSING: bool = True
