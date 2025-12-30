@@ -17,6 +17,8 @@ interface SidebarProps {
     setTemperature: (temp: number | undefined) => void;
     promptMode: string;
     setPromptMode: (mode: string) => void;
+    responseStyle: string;
+    setResponseStyle: (style: string) => void;
 }
 
 export function Sidebar({
@@ -28,7 +30,9 @@ export function Sidebar({
     temperature,
     setTemperature,
     promptMode,
-    setPromptMode
+    setPromptMode,
+    responseStyle,
+    setResponseStyle
 }: SidebarProps) {
     const [showSettings, setShowSettings] = useState(false);
 
@@ -104,6 +108,42 @@ export function Sidebar({
                                         {promptMode === 'category'
                                             ? 'Busca automática por prioridade'
                                             : 'LLM escolhe o melhor prompt (+200ms)'}
+                                    </p>
+                                </div>
+
+                                {/* Response Style Selector */}
+                                <div className="bg-surface rounded-lg p-3 border border-border">
+                                    <label className="block text-xs font-medium text-text-secondary mb-2">
+                                        Estilo da Resposta
+                                    </label>
+                                    <div className="flex gap-2 p-1 bg-chat rounded-lg border border-border">
+                                        <button
+                                            onClick={() => setResponseStyle('detailed')}
+                                            className={cn(
+                                                "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                                                responseStyle === 'detailed'
+                                                    ? "bg-accent-primary text-white shadow-sm"
+                                                    : "text-text-secondary hover:text-text-primary"
+                                            )}
+                                        >
+                                            Detalhado
+                                        </button>
+                                        <button
+                                            onClick={() => setResponseStyle('concise')}
+                                            className={cn(
+                                                "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                                                responseStyle === 'concise'
+                                                    ? "bg-accent-primary text-white shadow-sm"
+                                                    : "text-text-secondary hover:text-text-primary"
+                                            )}
+                                        >
+                                            Conciso
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-text-secondary mt-2">
+                                        {responseStyle === 'detailed'
+                                            ? 'Respostas ricas e explicativas'
+                                            : 'Respostas diretas (máx 3 frases)'}
                                     </p>
                                 </div>
                             </div>

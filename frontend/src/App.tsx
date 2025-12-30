@@ -26,6 +26,9 @@ function App() {
   const [promptMode, setPromptMode] = useState<string>(
     () => localStorage.getItem('promptMode') || 'category'
   );
+  const [responseStyle, setResponseStyle] = useState<string>(
+    () => localStorage.getItem('responseStyle') || 'detailed'
+  );
   const { theme, toggleTheme } = useTheme();
   const { toast, showToast, hideToast } = useToast();
 
@@ -33,6 +36,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('promptMode', promptMode);
   }, [promptMode]);
+
+  useEffect(() => {
+    localStorage.setItem('responseStyle', responseStyle);
+  }, [responseStyle]);
 
   // Load initial sessions
   useEffect(() => {
@@ -118,7 +125,7 @@ function App() {
           }
           return newMessages;
         });
-      }, debugMode, temperature, explanationMode);
+      }, debugMode, temperature, explanationMode, responseStyle);
 
       // Update with final message including sources
       setMessages((prev: Message[]) => {
@@ -225,6 +232,8 @@ function App() {
         setTemperature={setTemperature}
         promptMode={promptMode}
         setPromptMode={setPromptMode}
+        responseStyle={responseStyle}
+        setResponseStyle={setResponseStyle}
       />
 
       {/* Main Content */}

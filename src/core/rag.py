@@ -323,7 +323,8 @@ def _build_prompt(
     context: str,
     question: str,
     question_type: str = None,
-    history: str = None
+    history: str = None,
+    response_style: str = "detailed"
 ) -> str:
     """
     Constrói o prompt final baseado no tipo de pergunta e configurações.
@@ -347,6 +348,11 @@ def _build_prompt(
         else:
             instrucoes_tipo = get_instructions_for_type(question_type)
     
+    # Adicionar instrução de concisão se solicitado
+    concise_instruction = ""
+    if response_style == "concise":
+        concise_instruction = "\n\n### INSTRUÇÃO DE ESTILO:\nSeja extremamente conciso e direto. Responda em no máximo 2-3 frases, focando apenas no fato principal solicitado."
+    
     # Escolher template baseado nas configurações
     if USE_ENHANCED_PROMPTS:
         if history:
@@ -356,14 +362,14 @@ def _build_prompt(
                 contexto=context,
                 pergunta=question,
                 instrucoes_tipo=instrucoes_tipo
-            )
+            ) + concise_instruction
         else:
             template = get_active_prompt('rag_prompt_enhanced')
             return template.format(
                 contexto=context,
                 pergunta=question,
                 instrucoes_tipo=instrucoes_tipo
-            )
+            ) + concise_instruction
     else:
         # Templates originais (sem instruções por tipo)
         if history:
@@ -372,13 +378,13 @@ def _build_prompt(
                 historico=history,
                 contexto=context,
                 pergunta=question
-            )
+            ) + concise_instruction
         else:
             template = get_active_prompt('rag_prompt_template')
             return template.format(
                 contexto=context,
                 pergunta=question
-            )
+            ) + concise_instruction
 
 
 def _build_no_results_response(
@@ -441,6 +447,7 @@ def query_rag(
     use_hybrid_search: bool = None,
     hybrid_alpha: float = None,
     collection_id: str = None,
+    response_style: str = "detailed",
     debug_mode: bool = False
 ) -> dict:
     """
@@ -658,7 +665,8 @@ def query_rag(
         context=context,
         question=question,
         question_type=question_type,
-        history=None
+        history=None,
+        response_style=response_style
     )
     
     # 6. Gerar resposta
@@ -718,7 +726,8 @@ def query_rag(
 def query_rag_stream(
     question: str,
     top_k: int = TOP_K_RESULTS,
-    temperature: float = 0.7
+    temperature: float = 0.7,
+    response_style: str = "detailed"
 ):
     """
     Executa o pipeline RAG com streaming da resposta.
@@ -782,6 +791,10 @@ def query_rag_stream(
         pergunta=question
     )
     
+    # Adicionar instrução de concisão se solicitado
+    if response_style == "concise":
+        prompt += "\n\n### INSTRUÇÃO DE ESTILO:\nSeja extremamente conciso e direto. Responda em no máximo 2-3 frases."
+    
     # 5. Gerar resposta em streaming
     payload = {
         "model": LLM_MODEL,
@@ -841,7 +854,8 @@ def query_rag_with_history(
     enable_compression: bool = None,
     use_hybrid_search: bool = None,
     hybrid_alpha: float = None,
-    collection_id: str = None
+    collection_id: str = None,
+    response_style: str = "detailed"
 ) -> dict:
     """
     Executa o pipeline RAG com suporte a histórico de conversas.
@@ -948,19 +962,13 @@ def query_rag_with_history(
     history = conversation.get_history_for_prompt(max_messages=MAX_CONVERSATION_HISTORY)
     
     # 6. Montar prompt final (com ou sem histórico)
-    if history:
-        rag_logger.debug(f"Using conversation history ({len(history)} chars)")
-        prompt = RAG_PROMPT_TEMPLATE_WITH_HISTORY.format(
-            historico=history,
-            contexto=context,
-            pergunta=question
-        )
-    else:
-        # Primeira pergunta da sessão, usar template simples
-        prompt = RAG_PROMPT_TEMPLATE.format(
-            contexto=context,
-            pergunta=question
-        )
+    prompt = _build_prompt(
+        context=context,
+        question=question,
+        question_type=None,
+        history=history,
+        response_style=response_style
+    )
     
     # 7. Gerar resposta
     rag_logger.debug("Generating LLM response...")

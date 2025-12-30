@@ -158,6 +158,7 @@ def query():
             temperature=req.temperature,
             include_sources=req.include_sources,
             collection_id=req.collection,
+            response_style=req.response_style,
             debug_mode=req.debug or include_explanation
         )
         
@@ -204,7 +205,12 @@ def query_stream():
     
     def generate():
         try:
-            for token in query_rag_stream(req.question, req.top_k, req.temperature):
+            for token in query_rag_stream(
+                req.question, 
+                req.top_k, 
+                req.temperature,
+                response_style=req.response_style
+            ):
                 yield token
             api_logger.info("Stream query completed successfully")
         except Exception as e:
@@ -301,7 +307,8 @@ def chat():
             top_k=req.top_k,
             temperature=req.temperature,
             include_sources=req.include_sources,
-            collection_id=req.collection
+            collection_id=req.collection,
+            response_style=req.response_style
         )
         
         log_api_response("/api/chat", 200, time.time() - start_time)
