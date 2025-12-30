@@ -18,7 +18,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **Validação** | Pydantic | 2.0+ | Validação de dados e configurações |
 | **Migrações** | Alembic |1.13+ | Gerenciamento de schema do banco |
 | **Agendamento** | APScheduler | 3.10+ | Tarefas em background |
-| **Ingestão** | pypdf, python-docx, bs4 | - | Extração de múltiplos formatos |
+| **Ingestão** | Microsoft MarkItDown | 0.0.1+ | Conversão universal para Markdown |
 | **Segurança** | cryptography | 41.0+ | Criptografia em repouso (AES-128) |
 
 ---
@@ -26,14 +26,14 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 ## ✨ Funcionalidades Principais
 
 ### 📄 Ingestão de Documentos
-- **Múltiplos formatos**: PDF, DOCX, TXT, Markdown, HTML
-- **Processamento em background**: Upload assíncrono com status tracking
-- **Ingestão em massa**: Processamento de múltiplos documentos simultaneamente
-- **Processamento Paralelo de Embeddings**: Batches processados simultaneamente para máxima performance (2.5x mais rápido)
-- **Detecção de alterações**: Re-ingestão automática de arquivos modificados
-- **Gerenciamento de coleções**: Organização por projeto/categoria
-- **Controle de versão**: Hash SHA-256 para detectar alterações
-- **Estatísticas detalhadas**: Contagem de chunks, páginas, tamanho de arquivos
+- **Extração Unificada (MarkItDown)**: Todos os documentos são convertidos para Markdown estruturado antes do processamento, preservando tabelas e títulos.
+- **Múltiplos formatos**: PDF, DOCX, XLSX, PPTX, TXT, MD, HTML, CSV.
+- **Processamento em background**: Upload assíncrono com status tracking.
+- **Ingestão em massa**: Processamento de múltiplos documentos simultaneamente.
+- **Processamento Paralelo de Embeddings**: Batches processados simultaneamente para máxima performance (2.5x mais rápido).
+- **Detecção de alterações**: Re-ingestão automática de arquivos modificados via Hash SHA-256.
+- **Estatísticas detalhadas**: Contagem de chunks, tamanho de arquivos e métricas de conversão.
+- **Nota sobre Multimodalidade**: Atualmente, formatos de **imagem** e **áudio** estão desabilitados, pois requerem chaves de API externas para processamento via MarkItDown.
 
 ### 🔍 Busca e Recuperação Avançada
 - **Busca Híbrida**: Combina busca vetorial (semântica) + Full-Text Search (palavras-chave)
