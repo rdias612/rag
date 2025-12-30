@@ -43,10 +43,10 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 ### 🔍 Busca e Recuperação Avançada
 - **Busca Híbrida**: Combina busca vetorial (semântica) + Full-Text Search (palavras-chave)
 - **Re-ranking com Cross-Encoder**: Refina resultados usando modelo especializado
-- **Query Expansion **: Gera variações da pergunta para busca mais abrangente (3 variações por padrão, fundidas com RRF)
+- **Query Expansion**: Gera variações da pergunta para busca mais abrangente (3 variações por padrão, fundidas com RRF)
 - **HyDE (Hypothetical Document Embeddings)**: Gera documento hipotético para melhorar busca
 - **MMR (Maximal Marginal Relevance)**: Diversifica resultados para evitar redundância
-- **Adaptive Retrieval**: Ajusta parâmetros baseado na complexidade da pergunta
+- **Adaptive Retrieval**: Ajusta parâmetros dinamicamente baseado na complexidade da query
 - **Filtro de similaridade**: Descarta resultados irrelevantes automaticamente
 - **Arquitetura Modular**: Pipeline orquestrada com serviços especializados (Search, Context, Prompt, Response)
 
@@ -71,7 +71,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 
 ### 🔒 Segurança e Criptografia
 - **Criptografia em Repouso**: Dados sensíveis criptografados no banco (AES-128 + HMAC-SHA256)
-- **Criptografia em Trânsito**: HTTPS/TLS 1.3 com headers de segurança
+- **Criptografia em Trânsito**: HTTPS/TLS1.3 com headers de segurança
 - **Headers de Segurança**: HSTS, CSP, X-Frame-Options, etc.
 - **Campos Criptografados**: conteúdo de documentos, metadados, comentários de feedback
 - **Criptografia Condicional**: Habilitável/desabilitável por campo
@@ -86,7 +86,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **Logging estruturado**: Logs detalhados para debugging
 - **Estátisticas de cache**: Hit rate, tamanho, performance
 
-### 🔍 Explanação Detalhada de Fontes
+### 🔍 Explicação Detalhada de Fontes
 - **Timeline completa do processo RAG**: Visualização de todas as etapas do pipeline
 - **Explicação de técnicas usadas**: HyDE, busca híbrida, re-ranking, MMR
 - **Detalhes de seleção de chunks**: Como e por quais chunks foram selecionados
@@ -108,6 +108,12 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **Gerenciamento de documentos**: Listar, deletar documentos ingeridos
 - **Sistema de feedback**: Coleta feedback do usuário sobre respostas
 - **Configuração via Env**: Suporte a ambientes DEV, SIT e UAT via arquivos `.env`
+- **Adaptive Retrieval Metrics**: Dashboard de métricas de adaptive retrieval
+  - Estatísticas agregadas (total queries, complexidade média, etc.)
+  - Distribuição de complexidade (Simple/Medium/Complex)
+  - Tabela de queries recentes com ajustes aplicados
+  - Gráfico de barras de distribuição
+  - Filtro por período (24h, 7 dias, 30 dias)
 
 ---
 
@@ -144,7 +150,7 @@ rag/
 │   │   │   ├── strategies/        # Estratégias (Retrieval, HyDE, etc.)
 │   │   │   └── pipeline.py        # Orquestrador principal (RAGPipeline)
 │   │   ├── rag.py                 # Wrapper de compatibilidade
-│   │   ├── ...                    # Módulos core (llm, embeddings, etc.)
+│   │   └── ...                    # Módulos core (llm, embeddings, etc.)
 │   ├── data/                      # Camada de dados
 │   │   ├── repositories/          # Repository Pattern (Document, Prompt, etc.)
 │   │   ├── database.py            # Conexão base
@@ -244,6 +250,7 @@ Variáveis principais:
 - `DOCUMENTS_DIR`: Diretório de documentos
 - `DATABASE_*`: Configurações PostgreSQL
 - `ENABLE_*`: Ativar/desativar funcionalidades (HyDE, MMR, etc.)
+- `ENABLE_ADAPTIVE_RETRIEVAL`: Habilitar Adaptive Retrieval (default: true)
 - `RATE_LIMIT_*`: Configurações de limite de requisições por endpoint
 
 ### Configuração de Segurança
@@ -282,7 +289,7 @@ python scripts/generate_encryption_key.py
 
 #### 🔒 Criptografia em Trânsito (HTTPS)
 
-Comunicação segura via TLS 1.3 com headers de segurança (HSTS, CSP, etc.).
+Comunicação segura via TLS1.3 com headers de segurança (HSTS, CSP, etc.).
 
 **Configuração:**
 ```bash
@@ -412,7 +419,7 @@ Comportamento:
 
 Argumento de tag
  - Ambos os scripts aceitam um argumento para definir a tag usada nas imagens. Se nenhum argumento for passado, a tag padrão é `latest`.
- - PowerShell: parâmetro `-ImageTag` (ex.: `.uild_all.ps1 -ImageTag v1.2.3`).
+ - PowerShell: parâmetro `-ImageTag` (ex.: `.build_all.ps1 -ImageTag v1.2.3`).
  - Bash: passe a tag como primeiro argumento, ou use `--no-cache` seguido da tag (ex.: `./build_all.sh v1.2.3` ou `./build_all.sh --no-cache v1.2.3`).
  - A tag final aplicada às imagens terá o formato `<path-based-name>:<tag>` (ex.: `frontend:v1.2.3`).
 
@@ -461,9 +468,12 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
   "temperature": 0.7,
   "include_sources": true,
   "collection": "default",
+  "enable_adaptive": true,
   "debug": false
 }
 ```
+
+**Nota**: O parâmetro `enable_adaptive` permite habilitar/desabilitar o Adaptive Retrieval por query. Quando habilitado, o sistema ajusta automaticamente `top_k` e `min_similarity` baseado na complexidade da pergunta.
 
 **Exemplo /api/chat**:
 ```json
@@ -472,7 +482,8 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
   "session_id": "uuid-da-sessão",
   "top_k": 5,
   "temperature": 0.7,
-  "include_explanation": true
+  "include_explanation": true,
+  "enable_adaptive": true
 }
 ```
 
@@ -527,6 +538,9 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
 |----------|--------|-----------|
 | `/api/metrics` | GET | Métricas Prometheus |
 | `/api/metrics/status` | GET | Status do módulo |
+| `/api/metrics/adaptive-retrieval/stats` | GET | Estatísticas agregadas do Adaptive Retrieval |
+| `/api/metrics/adaptive-retrieval/recent` | GET | Queries recentes com ajustes aplicados |
+| `/api/metrics/adaptive-retrieval/performance` | GET | Métricas de performance do Adaptive |
 | `/api/cache/stats` | GET | Estatísticas do cache |
 | `/api/cache/clear` | POST | Limpar cache |
 | `/api/classify` | POST | Classificar pergunta |
@@ -548,11 +562,13 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
 ### Funcionalidades
 
 - **Chat Interface**: Chat moderno com streaming de respostas
+- **Adaptive Retrieval Toggle**: Botão no header para habilitar/desabilitar automaticamente
 - **Admin Dashboard**:
   - **Documentos**: Upload, listagem, gerenciamento
   - **Prompts**: Criar, editar, deletar prompts
   - **Sessões**: Ver e gerenciar sessões ativas
   - **Overview**: Estatísticas do sistema
+  - **Adaptive Retrieval Metrics**: Dashboard de métricas de adaptive retrieval
 - **Debug Panel**: Visualização detalhada do pipeline RAG
 - **Modo Dark/Light**: Alternância de temas
 - **Responsivo**: Funciona em desktop e mobile
@@ -571,6 +587,7 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
 - `DebugPanel`: Painel de debug
 - `TemperatureSelector`: Seletor de temperatura
 - `ThemeContext`: Contexto de tema
+- `AdaptiveRetrievalMetrics`: Dashboard de métricas de adaptive
 
 ---
 
@@ -609,10 +626,46 @@ Diversifica resultados:
 - Melhor cobertura de tópicos
 
 ### 6. Adaptive Retrieval
-Ajusta parâmetros automaticamente:
-- Baseia-se no classificador de perguntas
-- Ajusta top_k, temperatura, etc.
-- Melhora eficiência
+Ajusta parâmetros dinamicamente baseado na complexidade da query:
+- **Análise de Complexidade**: Detecta nível (0-10) considerando:
+  - Número de palavras
+  - Presença de palavras interrogativas (como, por que, etc.)
+  - Múltiplas frases
+  - Terminologia técnica
+- **Ajuste Automático**:
+  - **Queries Simples (0-3)**: Aumenta `top_k` e diminui `min_similarity` para buscar mais contexto
+  - **Queries Médias (4-6)**: Usa valores padrão (equilíbrio)
+  - **Queries Complexas (7-10)**: Diminui `top_k` e aumenta `min_similarity` para focar nos mais relevantes
+- **Configurável**: Limites ajustáveis via `MAX_TOP_K_ADAPTIVE`, `MIN_TOP_K_ADAPTIVE`, etc.
+- **Toggle de Usuário**: Botão no header para habilitar/desabilitar
+- **Métricas Completas**:
+  - Estatísticas agregadas (total, complexidade média, etc.)
+  - Distribuição de complexidade (Simple/Medium/Complex)
+  - Tabela de queries recentes com ajustes aplicados
+  - Monitoramento via Admin Dashboard
+- **Documentação Detalhada**: `docs/melhorias_feitas/IMPLEMENTACAO_ADAPTIVE_RETRIEVAL.md`
+
+**Exemplo de Uso**:
+```json
+POST /api/query
+{
+  "question": "Como funciona o sistema?",
+  "enable_adaptive": true
+}
+```
+
+**Resposta com Análise**:
+```json
+{
+  "adaptive_params_used": {
+    "applied": true,
+    "complexity_score": 3,
+    "top_k": 12,
+    "min_similarity": 0.55,
+    "adjustment_reason": "Simple query - expanding search scope"
+  }
+}
+```
 
 ### 7. Context Compression
 Reduz tamanho do contexto:
@@ -628,19 +681,19 @@ Avalia e refina automaticamente respostas incompletas:
 - Configurável via `ENABLE_SELF_RAG`, `SELF_RAG_MIN_SCORE`, `SELF_RAG_MAX_ITERATIONS`
 - Integração transparente em `/api/query` e `/api/chat`
 
-### 8. Cache de Embeddings
+### 9. Cache de Embeddings
 Cache LRU para embeddings:
 - Max size: 1000
 - Hit rate esperado: 30-50%
 - Reduz latência drasticamente
 
-### 9. Classificador de Perguntas
+### 10. Classificador de Perguntas
 Identifica tipo de pergunta:
 - Types: definition, comparison, procedure, troubleshooting, etc.
 - Permite prompts específicos por tipo
 - Melhora precisão
 
-### 10. Processamento Avançado de Batches
+### 11. Processamento Avançado de Batches
 Processamento paralelo de múltiplos batches simultâneos:
 - **Workers paralelos**: 4 workers por padrão (configurável)
 - **Speedup**: 2.5x mais rápido que processamento sequencial
@@ -648,6 +701,13 @@ Processamento paralelo de múltiplos batches simultâneos:
 - **Utilização de GPU**: Maximiza capacidade de processamento
 - **Configurável**: Desativável via `ENABLE_ADVANCED_BATCH_PROCESSING`
 - **Estatísticas**: API para monitorar throughput e error rate
+
+### 12. Testes Automatizados
+Suíte completa de testes para Adaptive Retrieval:
+- **48 testes unitários**: Cobertura completa de funcionalidades
+- **Categorias**: Cálculo de complexidade, ajuste de parâmetros, validação de limites, integração, casos de borda
+- **Execução**: `pytest tests/test_adaptive_retrieval.py -v`
+- **Documentação**: Testes com docstrings explicativas
 
 ---
 
@@ -673,6 +733,11 @@ curl http://localhost:5000/api/metrics
 
 # Verificar status
 curl http://localhost:5000/api/metrics/status
+
+# Métricas de Adaptive Retrieval
+curl http://localhost:5000/api/metrics/adaptive-retrieval/stats?days=7
+curl http://localhost:5000/api/metrics/adaptive-retrieval/recent?limit=50
+curl http://localhost:5000/api/metrics/adaptive-retrieval/performance?days=7
 ```
 
 ### Dashboard Sugestão (Grafana)
@@ -713,6 +778,12 @@ curl http://localhost:5000/api/metrics/status
 - Histórico de conversas
 - Sessões com expiração
 
+**adaptive_retrieval_metrics**:
+- Métricas de adaptive retrieval
+- Complexidade de queries
+- Ajustes de parâmetros aplicados
+- Performance e timing
+
 ### Migrações
 
 ```bash
@@ -744,6 +815,7 @@ pytest --cov=src --cov-report=html
 
 # Testes específicos
 pytest tests/test_embeddings.py
+pytest tests/test_adaptive_retrieval.py -v
 ```
 
 ### Linting e Formatação
@@ -794,6 +866,7 @@ Logs estruturados em formato JSON:
 - ✅ Compressão de contexto
 - ✅ Background processing
 - ✅ Query expansion seletiva
+- ✅ Adaptive Retrieval dinâmico
 
 ---
 
@@ -804,7 +877,6 @@ Ver documento completo em `docs/MELHORIAS_COMPLETAS.md`
 ### Próximas Prioridades
 
 - [ ] **Sistema de autenticação**: API Key ou JWT
-- [ ] **Testes automatizados**: Suíte completa
 - [ ] **Distributed tracing**: OpenTelemetry/Jaeger
 - [ ] **Sistema de filas**: Celery ou RQ
 - [ ] **Exportação de conversas**: JSON, Markdown, TXT
@@ -835,7 +907,7 @@ Projeto para estudo de técnicas avançadas de RAG.
 - **Issues**: GitHub Issues
 - **Documentação**: Ver pasta `docs/`
 - **Exemplos**: `docs/MELHORIAS.md`
-- **Implementação de Explicação de Fontes**: `docs/IMPLEMENTACAO_1.2_EXPLICACAO_FONTES.md`
+- **Implementação de Adaptive Retrieval**: `docs/melhorias_feitas/IMPLEMENTACAO_ADAPTIVE_RETRIEVAL.md`
 
 ---
 
@@ -859,4 +931,4 @@ Projeto para estudo de técnicas avançadas de RAG.
 ---
 
 **Última atualização**: Dezembro 2025
-**Versão**: 2.0
+**Versão**: 2.1
