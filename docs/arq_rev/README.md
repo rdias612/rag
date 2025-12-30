@@ -21,7 +21,6 @@ Este diretório contém planos detalhados para tornar o sistema RAG mais product
 |---|-------|---------|---------|
 | [05](./05_repository_pattern.md) | [X] Repository Pattern em database.py | Alto | Alto |
 | [05a](./05a_migracao_repositories.md) | [X] Migração para Repositories (Camada Core) | Médio | Alto |
-| [06](./06_ci_cd_github_actions.md) | Configurar CI/CD (GitHub Actions) | Médio | Alto |
 | [07](./07_rate_limiting.md) | [X] Rate Limiting | Baixo | Médio |
 | [08](./08_structured_logging.md) | Structured Logging (JSON) | Médio | Médio |
 
