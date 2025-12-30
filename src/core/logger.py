@@ -129,6 +129,9 @@ api_logger = setup_logger("rag.api")
 # Logger para pipeline RAG
 rag_logger = setup_logger("rag.pipeline")
 
+# Logger para segurança (incluindo rate limiting)
+security_logger = setup_logger("rag.security")
+
 
 # =============================================================================
 # Funções de Log Especializadas

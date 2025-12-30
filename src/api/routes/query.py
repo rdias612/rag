@@ -15,11 +15,13 @@ from src.api.schemas import QueryRequest, ChatRequest, SearchRequest, StreamQuer
 from src.core.rag import query_rag, query_rag_stream, search_only, query_rag_with_history
 from src.core.rag_explainer import explainer
 from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
+from src.api.middleware.rate_limiter import limiter, LIMITS
 
 query_bp = Blueprint("query", __name__)
 
 
 @query_bp.route("/query", methods=["POST"])
+@limiter.limit(LIMITS["query"])
 def query():
     """
     Endpoint principal do RAG.
@@ -76,6 +78,7 @@ def query():
 
 
 @query_bp.route("/query/stream", methods=["POST"])
+@limiter.limit(LIMITS["query"])
 def query_stream():
     """Endpoint RAG com streaming."""
     data = request.get_json() or {}
@@ -109,6 +112,7 @@ def query_stream():
 
 
 @query_bp.route("/search", methods=["POST"])
+@limiter.limit(LIMITS["search"])
 def search():
     """Apenas busca documentos similares, sem gerar resposta."""
     start_time = time.time()
@@ -135,6 +139,7 @@ def search():
 
 
 @query_bp.route("/chat", methods=["POST"])
+@limiter.limit(LIMITS["query"])
 def chat():
     """Endpoint RAG com suporte a histórico de conversas."""
     start_time = time.time()

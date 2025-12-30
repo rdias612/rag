@@ -10,6 +10,7 @@ from src.data.database import init_database, check_connection
 from src.core.logger import api_logger
 from src.core.security import init_security, get_ssl_context
 from src.config import ENABLE_HTTPS, ALLOWED_ORIGINS_LIST, CORS_MAX_AGE
+from src.api.middleware.rate_limiter import init_rate_limiter
 
 
 def create_app() -> Flask:
@@ -36,6 +37,9 @@ def create_app() -> Flask:
     
     # Inicializar middleware de segurança (headers de segurança e HTTPS)
     init_security(app)
+    
+    # Inicializar Rate Limiter
+    init_rate_limiter(app)
     
     # Rota raiz
     @app.route("/")

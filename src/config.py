@@ -165,6 +165,21 @@ class Settings(BaseSettings):
         """Retorna lista de origens permitidas."""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
 
+    # =========================================================================
+    # Rate Limiting (Phase 7)
+    # =========================================================================
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_STORAGE: str = "memory://"  # ou "redis://localhost:6379"
+
+    # Limites padrão
+    RATE_LIMIT_DEFAULT: str = "200 per day, 50 per hour"
+
+    # Limites específicos por endpoint
+    RATE_LIMIT_QUERY: str = "30 per minute"        # Queries RAG (pesadas)
+    RATE_LIMIT_SEARCH: str = "60 per minute"       # Busca sem LLM
+    RATE_LIMIT_INGEST: str = "20 per minute"       # Ingestão de docs
+    RATE_LIMIT_HEALTH: str = "120 per minute"      # Health checks
+
     model_config = SettingsConfigDict(
         # Prioridade: .env.{APP_ENV} > .env
         env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),
@@ -265,6 +280,17 @@ SSL_CIPHERS = settings.SSL_CIPHERS
 ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 ALLOWED_ORIGINS_LIST = settings.ALLOWED_ORIGINS_LIST
 CORS_MAX_AGE = settings.CORS_MAX_AGE
+
+# =============================================================================
+# Rate Limiting (Phase 7)
+# =============================================================================
+RATE_LIMIT_ENABLED = settings.RATE_LIMIT_ENABLED
+RATE_LIMIT_STORAGE = settings.RATE_LIMIT_STORAGE
+RATE_LIMIT_DEFAULT = settings.RATE_LIMIT_DEFAULT
+RATE_LIMIT_QUERY = settings.RATE_LIMIT_QUERY
+RATE_LIMIT_SEARCH = settings.RATE_LIMIT_SEARCH
+RATE_LIMIT_INGEST = settings.RATE_LIMIT_INGEST
+RATE_LIMIT_HEALTH = settings.RATE_LIMIT_HEALTH
 
 # =============================================================================
 # Prompts (Mantidos como constantes por não precisarem de override via env)

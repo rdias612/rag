@@ -26,6 +26,7 @@ from flask import Blueprint, request, jsonify
 from src.config import DOCUMENTS_DIR
 from src.core.embeddings import get_embeddings_batch
 from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
+from src.api.middleware.rate_limiter import limiter, LIMITS
 from src.data.repositories import DocumentRepository, IngestionRepository
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS,
@@ -293,6 +294,7 @@ def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
 # Endpoints de Upload Individual
 # =============================================================================
 @documents_bp.route("/ingest", methods=["POST"])
+@limiter.limit(LIMITS["ingest"])
 def ingest_document():
     """Upload e ingestão de um documento."""
     start_time = time.time()
@@ -555,6 +557,7 @@ def scan_pending_documents():
 # Endpoints de Ingestão em Massa
 # =============================================================================
 @documents_bp.route("/documents/ingest-all", methods=["POST"])
+@limiter.limit(LIMITS["ingest"])
 def start_bulk_ingestion():
     """Inicia ingestão em massa de todos os documentos do diretório."""
     global _bulk_ingestion_status

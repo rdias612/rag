@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify
 from src.data.database import check_connection
 from src.data.repositories import DocumentRepository
 from src.core.logger import api_logger, log_api_request, log_api_response
+from src.api.middleware.rate_limiter import limiter, LIMITS
 
 health_bp = Blueprint("health", __name__)
 
@@ -20,6 +21,7 @@ _doc_repo = DocumentRepository()
 
 
 @health_bp.route("/health", methods=["GET"])
+@limiter.limit(LIMITS["health"])
 def health_check():
     """Endpoint de health check."""
     start_time = time.time()
@@ -37,6 +39,7 @@ def health_check():
 
 
 @health_bp.route("/stats", methods=["GET"])
+@limiter.limit(LIMITS["health"])
 def get_stats():
     """Retorna estatísticas do sistema."""
     start_time = time.time()
