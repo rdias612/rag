@@ -31,35 +31,31 @@ Até o momento, o sistema já conta com:
 **Solução:** Ajustar `top_k` e `min_similarity` dinamicamente baseado na complexidade da query.
 *Obs: Configuração `ENABLE_ADAPTIVE_RETRIEVAL` já existe.*
 
-### 3. Containerização Completa (Docker)
-**Problema:** Atualmente apenas o banco de dados está dockerizado.
-**Solução:** Dockerizar a API (Flask) e o Frontend (React), permitindo que todo o ecossistema suba com um único `docker-compose up`.
-
 ---
 
 ## 🟡 Média Prioridade (Refinamento de Dados & UX)
 
-### 4. Suporte Multi-modal (Imagens + Texto)
+### 3. Suporte Multi-modal (Imagens + Texto)
 **Problema:** Atualmente imagens em PDFs/Docs são ignoradas.
 **Solução:** Extrair imagens durante a ingestão, gerar descrições via LLaVA/GPT-4V e indexá-las como contexto.
 
-### 5. Streaming no Chat com Histórico
+### 4. Streaming no Chat com Histórico
 **Problema:** O endpoint de streaming atual (`/api/query/stream`) não suporta sessões de chat com histórico.
 **Solução:** Unificar a lógica de streaming para que suporte `session_id` e mantenha a continuidade da conversa.
 
-### 6. Sentence Window Retrieval
+### 5. Sentence Window Retrieval
 **Problema:** Chunks isolados podem perder a fluidez da explicação.
 **Solução:** Recuperar chunks pequenos, mas expandir dinamicamente para sentenças vizinhas antes do prompt.
 
-### 7. Fine-tuning do Modelo de Embeddings
+### 6. Fine-tuning do Modelo de Embeddings
 **Problema:** Modelos genéricos podem ter baixa performance em nichos técnicos específicos.
 **Solução:** Treinar/Ajustar o modelo de embeddings com pares (pergunta, documento) da própria base.
 
-### 8. Versionamento de Prompts
+### 7. Versionamento de Prompts
 **Problema:** Atualmente os prompts são identificados apenas por nomes (`_ENHANCED`), dificultando testes A/B.
 **Solução:** Implementar um sistema de versionamento numérico (ex: `v2`, `v3`) no banco de dados e no código para permitir reversão rápida e experimentação estruturada.
 
-### 9. Few-Shot Examples nas Instruções
+### 8. Few-Shot Examples nas Instruções
 **Problema:** Instruções puramente diretivas podem gerar interpretações variadas pelo modelo.
 **Solução:** Adicionar exemplos reais de (Entrada/Saída) dentro de cada categoria de `question_classifier.py` para guiar o modelo pelo exemplo, aumentando a aderência ao formato desejado.
 
@@ -67,16 +63,16 @@ Até o momento, o sistema já conta com:
 
 ## 🟢 Otimizações de Processo & Gestão
 
-### 10. Sistema de Feedback (Endpoint API)
+### 9. Sistema de Feedback (Endpoint API)
 **Problema:** Falta a rota `/api/feedback` para expor a lógica de avaliação do banco de dados ao frontend.
 
-### 11. Expansão da Suíte de Testes
+### 10. Expansão da Suíte de Testes
 **Problema:** Cobertura de testes limitada.
 **Solução:** Implementar suite completa com `pytest` (Unitários, Integração e E2E).
 
-### 12. Documentação OpenAPI/Swagger
+### 11. Documentação OpenAPI/Swagger
 **Problema:** Difícil para novos desenvolvedores entenderem e testarem os 28 endpoints da API.
 **Solução:** Integrar Swagger UI para documentação interativa e testável.
 
-### 13. OCR e Tabelas Aprimorados (Ingestão)
+### 12. OCR e Tabelas Aprimorados (Ingestão)
 **Sugestão:** Integrar `pytesseract` e `tabula-py` para PDFs complexos.
