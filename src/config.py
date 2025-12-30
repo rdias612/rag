@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     
     # Modelo LLM (Phi-3.5 Mini)
     LLM_MODEL: str = Field(default="phi-3.5-mini-instruct", validation_alias="LLM_MODEL")
+    
+    # Modelo Reranker
+    RERANKER_MODEL: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", validation_alias="RERANKER_MODEL")
 
     # =========================================================================
     # Chunking
@@ -95,7 +98,7 @@ class Settings(BaseSettings):
     USE_QUESTION_CLASSIFIER: bool = True
     USE_ENHANCED_PROMPTS: bool = True
     ENABLE_RERANKING: bool = True
-    RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    RERANKING_MODEL: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", validation_alias="RERANKER_MODEL")
     RERANKING_TOP_K_INITIAL: int = 15
     ENABLE_QUERY_EXPANSION: bool = True
     QUERY_EXPANSION_COUNT: int = 3
@@ -113,6 +116,7 @@ class Settings(BaseSettings):
     ENABLE_ADAPTIVE_RETRIEVAL: bool = True
     ENABLE_SELF_RAG: bool = False
     SELF_RAG_MIN_SCORE: int = 60
+    SELF_RAG_MAX_ITERATIONS: int = 1
     ENABLE_SENTENCE_WINDOW: bool = False
     SENTENCE_WINDOW_SIZE: int = 2
 
@@ -239,6 +243,7 @@ ENABLE_AUTO_EVALUATION = settings.ENABLE_AUTO_EVALUATION
 ENABLE_ADAPTIVE_RETRIEVAL = settings.ENABLE_ADAPTIVE_RETRIEVAL
 ENABLE_SELF_RAG = settings.ENABLE_SELF_RAG
 SELF_RAG_MIN_SCORE = settings.SELF_RAG_MIN_SCORE
+SELF_RAG_MAX_ITERATIONS = settings.SELF_RAG_MAX_ITERATIONS
 ENABLE_SENTENCE_WINDOW = settings.ENABLE_SENTENCE_WINDOW
 SENTENCE_WINDOW_SIZE = settings.SENTENCE_WINDOW_SIZE
 ENABLE_ADVANCED_BATCH_PROCESSING = settings.ENABLE_ADVANCED_BATCH_PROCESSING
