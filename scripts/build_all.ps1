@@ -28,8 +28,10 @@ foreach ($f in $files) {
       $rel = $context.Substring($root.Length).TrimStart('\','/')
     }
     if ([string]::IsNullOrEmpty($rel)) {
-      # usar nome da pasta do repositório como tag para o contexto raiz
-      $tag = (Split-Path $root -Leaf).ToLower()
+      # usar nome padronizado para o contexto raiz
+      $tag = 'rag-backend'
+    } elseif ($rel -ieq 'frontend') {
+      $tag = 'rag-frontend'
     } else {
       $tag = ($rel -replace '[\\/\s]+','-').ToLower()
     }

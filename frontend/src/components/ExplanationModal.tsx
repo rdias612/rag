@@ -1,10 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, Copy, Check, Clock, FileText, ChevronDown } from "lucide-react";
 import { useState, useEffect } from 'react';
-import type { RAGExplanation, RAGTimelineStep } from "../types";
+import type { RAGExplanation } from "../types";
 
 interface ExplanationModalProps {
-  explanation: RAGExplanation | null;
+  explanation?: RAGExplanation | null;
   isOpen: boolean;
   onClose: () => void;
 }

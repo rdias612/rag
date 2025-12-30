@@ -7,6 +7,7 @@ if [[ ${1-} == "--no-cache" ]]; then NO_CACHE=1; fi
 
 shopt -s globstar
 IMAGE_TAG=latest
+repo=$(basename "$PWD")
 
 if [[ ${1-} == "--no-cache" ]]; then
   NO_CACHE=1
@@ -27,7 +28,9 @@ for file in "${files[@]}"; do
   context=$(dirname "$file")
     # tag from relative path; use repo name when context is root
     if [ "$context" = "." ] || [ -z "$context" ]; then
-      tag="$repo"
+      tag="rag-backend"
+    elif [ "$context" = "frontend" ]; then
+      tag="rag-frontend"
     else
       tag=$(echo "$context" | sed 's:^\./::; s:/:-:g; s:[/ ]:-:g')
     fi
