@@ -4,20 +4,20 @@ Módulo de ingestão de documentos: leitura de múltiplos formatos e chunking.
 Formatos suportados:
 - PDF (.pdf)
 - Word (.docx)
+- Excel (.xlsx)
+- PowerPoint (.pptx)
 - Texto (.txt)
 - Markdown (.md)
 - HTML (.html, .htm)
 - CSV (.csv)
 """
-import os
-import re
-import csv
 import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Generator, Callable, Optional
 
-import pypdf
+from markitdown import MarkItDown
+
 from src.core.embeddings import get_embeddings_batch
 from src.core.advanced_batch_processor import get_advanced_processor
 
@@ -25,7 +25,7 @@ from src.config import (
     DOCUMENTS_DIR, 
     CHUNK_SIZE, 
     CHUNK_OVERLAP,
-    USE_SEMANTIC_CHUNKING,
+    USE_SEMANTIC_CHUNKING, 
     MIN_CHUNK_SIZE,
     CHUNK_OVERLAP_SENTENCES,
     ENABLE_ADVANCED_BATCH_PROCESSING
@@ -36,318 +36,68 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Formatos suportados
+# Formatos suportados e Proibidos (MarkItDown requer API key para estes)
 # =============================================================================
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".html", ".htm", ".csv"}
+SUPPORTED_EXTENSIONS = {
+    ".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md", ".html", ".htm", ".csv"
+}
+
+FORBIDDEN_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp",  # Imagens
+    ".mp3", ".wav", ".m4a", ".flac"    # Áudio
+}
+
+# Instância global do MarkItDown
+md_converter = MarkItDown()
 
 
-def clean_pdf_text(text: str) -> str:
+def extract_text_with_markitdown(file_path: Path) -> list[dict]:
     """
-    Limpa texto extraído de PDF, corrigindo problemas comuns.
-    
-    - Remove hifenização de quebra de linha (pala-\nvra -> palavra)
-    - Normaliza quebras de linha no meio de frases
-    - Remove múltiplos espaços
-    - Preserva parágrafos (linhas duplas)
+    Extrai texto de qualquer formato suportado usando MarkItDown da Microsoft.
+    Converte o arquivo para Markdown antes de retornar o texto.
     
     Args:
-        text: Texto bruto extraído do PDF
+        file_path: Caminho para o arquivo
         
     Returns:
-        Texto limpo e normalizado
+        Lista de dicts com text e page (Markdown total em page=1)
     """
-    if not text:
-        return ""
+    ext = file_path.suffix.lower()
     
-    # 1. Substituir quebras de linha duplas por marcador temporário
-    text = re.sub(r'\n\s*\n', '\n\n', text)  # Normalizar parágrafos
-    text = text.replace('\n\n', '<<<PARAGRAPH>>>')
-    
-    # 2. Remover hifenização de quebra de linha (pala-\nvra -> palavra)
-    text = re.sub(r'-\s*\n\s*', '', text)
-    
-    # 3. Substituir quebras de linha simples por espaço
-    text = re.sub(r'\n', ' ', text)
-    
-    # 4. Restaurar parágrafos
-    text = text.replace('<<<PARAGRAPH>>>', '\n\n')
-    
-    # 5. Remover múltiplos espaços
-    text = re.sub(r' +', ' ', text)
-    
-    # 6. Limpar espaços ao redor de parágrafos
-    text = re.sub(r'\n +', '\n', text)
-    text = re.sub(r' +\n', '\n', text)
-    
-    return text.strip()
+    # Proteção contra formatos que requerem API Key (imagem/áudio)
+    if ext in FORBIDDEN_EXTENSIONS:
+        logger.error(f"Formato {ext} não suportado sem chave de API: {file_path.name}")
+        raise ValueError(
+            f"O formato {ext} requer uma chave de API para processamento (Multimodal) "
+            "e não está habilitado no momento."
+        )
 
-
-def extract_text_from_pdf(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo PDF, página por página.
-    
-    Args:
-        file_path: Caminho para o arquivo PDF
-        
-    Returns:
-        Lista de dicts com text e page_number
-    """
-    pages = []
-    
-    with open(file_path, "rb") as f:
-        reader = pypdf.PdfReader(f)
-        
-        for page_num, page in enumerate(reader.pages, start=1):
-            text = page.extract_text()
-            if text and text.strip():
-                # Limpar texto extraído do PDF
-                cleaned_text = clean_pdf_text(text)
-                pages.append({
-                    "text": cleaned_text,
-                    "page": page_num
-                })
-    
-    return pages
-
-
-def extract_text_from_docx(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo Word (.docx).
-    
-    Args:
-        file_path: Caminho para o arquivo .docx
-        
-    Returns:
-        Lista de dicts com text (documento inteiro, page=1)
-    """
     try:
-        from docx import Document
-    except ImportError:
-        logger.error("python-docx não instalado. Execute: pip install python-docx")
-        raise ImportError("python-docx é necessário para processar arquivos .docx")
-    
-    doc = Document(file_path)
-    
-    # Extrair texto de todos os parágrafos
-    paragraphs = []
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if text:
-            paragraphs.append(text)
-    
-    # Extrair texto de tabelas também
-    for table in doc.tables:
-        for row in table.rows:
-            row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
-            if row_text:
-                paragraphs.append(row_text)
-    
-    full_text = "\n\n".join(paragraphs)
-    
-    if not full_text.strip():
-        return []
-    
-    return [{"text": full_text, "page": 1}]
-
-
-def extract_text_from_txt(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo de texto plano (.txt).
-    
-    Args:
-        file_path: Caminho para o arquivo .txt
+        logger.info(f"Convertendo {file_path.name} para Markdown")
+        result = md_converter.convert(str(file_path))
+        text = result.text_content
         
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    # Tentar diferentes encodings
-    encodings = ["utf-8", "latin-1", "cp1252"]
-    
-    for encoding in encodings:
-        try:
-            with open(file_path, "r", encoding=encoding) as f:
-                text = f.read()
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        logger.error(f"Não foi possível decodificar {file_path}")
-        return []
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
-
-
-def extract_text_from_markdown(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo Markdown (.md).
-    Converte para HTML e depois extrai texto limpo.
-    
-    Args:
-        file_path: Caminho para o arquivo .md
-        
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    try:
-        import markdown
-        from bs4 import BeautifulSoup
-    except ImportError:
-        logger.error("markdown ou beautifulsoup4 não instalado")
-        raise ImportError("markdown e beautifulsoup4 são necessários para processar arquivos .md")
-    
-    # Ler arquivo markdown
-    with open(file_path, "r", encoding="utf-8") as f:
-        md_content = f.read()
-    
-    # Converter para HTML
-    html = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
-    
-    # Extrair texto limpo do HTML
-    soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text(separator="\n\n")
-    
-    # Limpar múltiplas quebras de linha
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
-
-
-def extract_text_from_html(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo HTML (.html, .htm).
-    
-    Args:
-        file_path: Caminho para o arquivo HTML
-        
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:
-        logger.error("beautifulsoup4 não instalado. Execute: pip install beautifulsoup4")
-        raise ImportError("beautifulsoup4 é necessário para processar arquivos HTML")
-    
-    with open(file_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
-    
-    soup = BeautifulSoup(html_content, "html.parser")
-    
-    # Remover scripts e styles
-    for element in soup(["script", "style", "nav", "footer", "header"]):
-        element.decompose()
-    
-    # Extrair texto
-    text = soup.get_text(separator="\n\n")
-    
-    # Limpar múltiplas quebras de linha e espaços
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    text = re.sub(r' +', ' ', text)
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
-
-
-def extract_text_from_csv(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo CSV (.csv).
-    Converte a tabela para formato Markdown para preservar a estrutura.
-    
-    Args:
-        file_path: Caminho para o arquivo .csv
-        
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    # Tentar diferentes encodings
-    encodings = ["utf-8", "latin-1", "cp1252"]
-    
-    for encoding in encodings:
-        try:
-            with open(file_path, "r", encoding=encoding, newline="") as f:
-                # Detectar delimitador automaticamente
-                sample = f.read(4096)
-                f.seek(0)
-                
-                try:
-                    dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
-                except csv.Error:
-                    dialect = csv.excel  # Fallback para delimitador padrão (,)
-                
-                reader = csv.reader(f, dialect)
-                rows = list(reader)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        logger.error(f"Não foi possível decodificar {file_path}")
-        return []
-    
-    if not rows:
-        return []
-    
-    # Converter para formato Markdown
-    headers = rows[0]
-    data_rows = rows[1:]
-    
-    # Construir tabela Markdown
-    lines = []
-    
-    # Header
-    lines.append("| " + " | ".join(headers) + " |")
-    lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
-    
-    # Data rows
-    for row in data_rows:
-        # Garantir que a linha tenha o mesmo número de colunas que o header
-        padded_row = row + [""] * (len(headers) - len(row))
-        lines.append("| " + " | ".join(padded_row[:len(headers)]) + " |")
-    
-    text = "\n".join(lines)
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
+        if not text or not text.strip():
+            logger.warning(f"MarkItDown retornou texto vazio para {file_path.name}")
+            return []
+            
+        return [{"text": text.strip(), "page": 1}]
+    except Exception as e:
+        logger.error(f"Erro ao converter {file_path.name} com MarkItDown: {e}")
+        raise e
 
 
 def get_extractor_for_file(file_path: Path) -> Callable[[Path], list[dict]]:
     """
-    Retorna a função extratora apropriada para o tipo de arquivo.
+    Retorna a função extratora MarkItDown.
     
     Args:
         file_path: Caminho do arquivo
         
     Returns:
         Função extratora de texto
-        
-    Raises:
-        ValueError: Se o formato não for suportado
     """
-    ext = file_path.suffix.lower()
-    
-    extractors = {
-        ".pdf": extract_text_from_pdf,
-        ".docx": extract_text_from_docx,
-        ".txt": extract_text_from_txt,
-        ".md": extract_text_from_markdown,
-        ".html": extract_text_from_html,
-        ".htm": extract_text_from_html,
-        ".csv": extract_text_from_csv,
-    }
-    
-    if ext not in extractors:
-        raise ValueError(f"Formato não suportado: {ext}. Formatos válidos: {', '.join(extractors.keys())}")
-    
-    return extractors[ext]
+    return extract_text_with_markitdown
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
@@ -625,8 +375,6 @@ def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
         Dict com estatísticas
     """
     document_files = get_all_documents(directory)
-    
-    total_pages = 0
     total_size = 0
     files_by_type = {}
     
@@ -634,20 +382,10 @@ def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
         ext = doc_path.suffix.lower()
         files_by_type[ext] = files_by_type.get(ext, 0) + 1
         total_size += doc_path.stat().st_size
-        
-        # Contar páginas apenas para PDFs
-        if ext == ".pdf":
-            try:
-                with open(doc_path, "rb") as f:
-                    reader = pypdf.PdfReader(f)
-                    total_pages += len(reader.pages)
-            except:
-                pass
     
     return {
         "total_files": len(document_files),
         "files_by_type": files_by_type,
-        "total_pdf_pages": total_pages,
         "total_size_mb": round(total_size / (1024 * 1024), 2),
         "supported_formats": list(SUPPORTED_EXTENSIONS),
         "files": [p.name for p in document_files]

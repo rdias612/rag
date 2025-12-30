@@ -386,6 +386,14 @@ export function DocumentsPanel() {
                 </div>
             </div>
 
+            {/* Warning for unsupported formats */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/5 border border-amber-500/10 rounded-xl text-[11px] text-amber-500/80">
+                <AlertCircle size={14} />
+                <span>
+                    <strong>Nota:</strong> Atualmente, o processamento de arquivos de <strong>imagem</strong> (.jpg, .png, etc.) e <strong>áudio</strong> (.mp3, .wav, etc.) está desabilitado, pois requerem integração com APIs multimodais.
+                </span>
+            </div>
+
             {/* Ingestion Progress */}
             {ingestionStatus?.running && (
                 <div className="bg-accent-primary/10 border border-accent-primary/30 rounded-xl p-4">

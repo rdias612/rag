@@ -59,7 +59,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
     };
 
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-    const VALID_EXTENSIONS = ['.pdf', '.txt', '.md', '.docx'];
+    const VALID_EXTENSIONS = ['.pdf', '.txt', '.md', '.docx', '.xlsx', '.pptx', '.csv'];
 
     const validateFile = (file: File): { valid: boolean; error?: string } => {
         // Validar tamanho
@@ -181,7 +181,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
                                     ref={fileInputRef}
                                     className="hidden"
                                     onChange={handleFileSelect}
-                                    accept=".pdf,.txt,.md,.docx"
+                                    accept=".pdf,.txt,.md,.docx,.xlsx,.pptx,.csv"
                                 />
 
                                 {status === 'success' ? (
@@ -196,11 +196,15 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
                                 <div>
                                     <p className="font-medium text-text-primary mb-1">
-                                        {file ? file.name : "Click to upload or drag and drop"}
+                                        {file ? file.name : "Clique para upload ou arraste e solte"}
                                     </p>
                                     <p className="text-sm text-text-secondary">
-                                        {status === 'success' ? message : status === 'error' ? message : "PDF, TXT, MD, DOCX (Max 10MB)"}
+                                        {status === 'success' ? message : status === 'error' ? message : "PDF, DOCX, XLSX, PPTX, TXT, MD, CSV (Max 10MB)"}
                                     </p>
+                                    <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] text-zinc-500 bg-zinc-950/50 py-1 px-3 rounded-full border border-border/50 w-fit mx-auto">
+                                        <AlertCircle size={10} />
+                                        <span>Imagens e áudios não suportados no momento</span>
+                                    </div>
                                 </div>
                             </div>
 

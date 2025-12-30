@@ -84,9 +84,6 @@ def show_stats():
             for ext, count in sorted(stats['files_by_type'].items()):
                 print(f"     - {ext}: {count}")
         
-        if stats.get('total_pdf_pages', 0) > 0:
-            print(f"   Total de páginas (PDFs): {stats['total_pdf_pages']}")
-        
         print(f"   Tamanho total: {stats['total_size_mb']} MB")
         print(f"   Formatos suportados: {', '.join(stats.get('supported_formats', []))}")
         
