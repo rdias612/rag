@@ -97,69 +97,7 @@ Documento
 
 ---
 
-### 6. Hypothetical Document Embeddings (HyDE)
-
-**Problema:** A query do usuário e os chunks do documento podem estar em "espaços semânticos" diferentes.
-
-**Solução:** Gerar um documento hipotético como resposta e usar seu embedding para busca.
-
-```python
-# Fluxo HyDE:
-1. Query: "O que é GWPRP?"
-2. LLM gera resposta hipotética: "GWPRP é um protocolo de roteamento..."
-3. Embedding da resposta hipotética
-4. Buscar chunks similares ao embedding hipotético
-5. Re-gerar resposta com chunks reais
-```
-
-**Benefícios:**
-- Melhora significativa para perguntas abstratas
-- Query e documentos ficam no mesmo "espaço"
-
----
-
-### 7. Filtragem de Chunks por Diversidade (MMR)
-
-**Problema:** Chunks retornados podem ser redundantes (mesma informação repetida).
-
-**Solução:** Implementar Maximal Marginal Relevance (MMR) após a busca.
-
-```python
-def mmr_rerank(query_embedding, chunks, lambda_param=0.7):
-    """
-    Reordena chunks balanceando:
-    - Relevância para a query (similarity)
-    - Diversidade entre chunks (evitar redundância)
-    """
-    selected = []
-    candidates = chunks.copy()
-    
-    while len(selected) < k and candidates:
-        best_score = -1
-        best_idx = -1
-        
-        for i, chunk in enumerate(candidates):
-            relevance = similarity(query_embedding, chunk.embedding)
-            
-            if selected:
-                diversity = min(1 - similarity(chunk.embedding, s.embedding) for s in selected)
-            else:
-                diversity = 1
-            
-            mmr_score = lambda_param * relevance + (1 - lambda_param) * diversity
-            
-            if mmr_score > best_score:
-                best_score = mmr_score
-                best_idx = i
-        
-        selected.append(candidates.pop(best_idx))
-    
-    return selected
-```
-
----
-
-### 8. Sentence Window Retrieval
+### 7. Sentence Window Retrieval
 
 **Problema:** A busca retorna chunks isolados que podem cortar contexto importante.
 
@@ -329,10 +267,10 @@ def handle_no_results(question: str) -> str:
 5. ✅ Re-ranking com Cross-Encoder
 6. ✅ Query Expansion
 7. ✅ MMR para Diversidade
+8. ✅ HyDE (Hypothetical Document Embeddings)
 
 ### Fase 3 - Avançado (1-2 meses)
-8. ✅ Parent-Child Chunking
-9. ✅ HyDE
+9. ✅ Parent-Child Chunking
 10. ✅ Contextual Chunking com Metadados
 11. ✅ Avaliação RAGAS
 
