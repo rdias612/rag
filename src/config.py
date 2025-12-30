@@ -154,6 +154,17 @@ class Settings(BaseSettings):
     SSL_PROTOCOL: str = "TLSv1.3"
     SSL_CIPHERS: str = "HIGH:!aNULL:!MD5"
 
+    # =========================================================================
+    # CORS Configuration
+    # =========================================================================
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_MAX_AGE: int = 3600  # 1 hora de cache para preflight
+    
+    @property
+    def ALLOWED_ORIGINS_LIST(self) -> list[str]:
+        """Retorna lista de origens permitidas."""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+
     model_config = SettingsConfigDict(
         # Prioridade: .env.{APP_ENV} > .env
         env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),
@@ -247,6 +258,13 @@ SSL_CERT_PATH = settings.SSL_CERT_PATH
 SSL_KEY_PATH = settings.SSL_KEY_PATH
 SSL_PROTOCOL = settings.SSL_PROTOCOL
 SSL_CIPHERS = settings.SSL_CIPHERS
+
+# =============================================================================
+# CORS Configuration
+# =============================================================================
+ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
+ALLOWED_ORIGINS_LIST = settings.ALLOWED_ORIGINS_LIST
+CORS_MAX_AGE = settings.CORS_MAX_AGE
 
 # =============================================================================
 # Prompts (Mantidos como constantes por não precisarem de override via env)

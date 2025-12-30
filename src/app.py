@@ -9,7 +9,7 @@ from src.api.routes import api
 from src.data.database import init_database, check_connection
 from src.core.logger import api_logger
 from src.core.security import init_security, get_ssl_context
-from src.config import ENABLE_HTTPS
+from src.config import ENABLE_HTTPS, ALLOWED_ORIGINS_LIST, CORS_MAX_AGE
 
 
 def create_app() -> Flask:
@@ -19,9 +19,17 @@ def create_app() -> Flask:
     # Configurar JSON para não escapar caracteres Unicode (acentos, ç, etc)
     app.json.ensure_ascii = False
     
-    # Habilitar CORS para frontend (aceita preflight OPTIONS para todos endpoints)
-    # Habilitar CORS totalmente permissivo para debug
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    # CORS restritivo para produção
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": ALLOWED_ORIGINS_LIST,
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-API-Key"],
+            "expose_headers": ["Content-Disposition"],
+            "supports_credentials": True,
+            "max_age": CORS_MAX_AGE
+        }
+    })
     
     # Registrar blueprint da API
     app.register_blueprint(api, url_prefix="/api")
