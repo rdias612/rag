@@ -284,14 +284,19 @@ def search_similar(
     
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Construir query dinamicamente baseada no filtro de coleção
-            where_clause = ""
-            params = [query_embedding, query_embedding, top_k]
+            # Construir query dinamicamente baseada no filtro de coleção e chunk_type
+            # Priorizamos buscar 'child' ou chunks sem tipo definido (legado)
+            where_conditions = ["(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
+            params = [query_embedding] # Para o SELECT similarity
             
             if collection_id:
-                where_clause = "WHERE collection_id = %s"
-                # Ordem esperada: embedding (para WHERE), collection_id, embedding (para ORDER BY), top_k
-                params = [query_embedding, collection_id, query_embedding, top_k]
+                where_conditions.append("collection_id = %s")
+                params.append(collection_id)
+            
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+            
+            # Adicionar params para ORDER BY e LIMIT
+            params.extend([query_embedding, top_k])
             
             query = f"""
                 SELECT 
@@ -1014,3 +1019,47 @@ def delete_prompt_safe(prompt_id: int) -> tuple[bool, str]:
     except Exception as e:
         db_logger.error(f"Error deleting prompt {prompt_id}: {e}")
         return False, str(e)
+
+
+def get_parent_content(source_path: str, parent_index: int) -> Optional[str]:
+    """
+    Recupera o texto de um chunk pai baseado no caminho do arquivo e índice.
+    
+    Args:
+        source_path: Caminho completo do arquivo original
+        parent_index: Índice do chunk pai no documento
+        
+    Returns:
+        Conteúdo do texto do pai ou None se não encontrado
+    """
+    start_time = time.time()
+    
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT content
+                FROM documentos
+                WHERE metadata->>'source_path' = %s
+                AND (metadata->>'chunk_index')::int = %s
+                AND metadata->>'chunk_type' = 'parent'
+                LIMIT 1;
+                """,
+                (source_path, parent_index)
+            )
+            row = cur.fetchone()
+            
+    content = row[0] if row else None
+    
+    # Descriptografar se necessário
+    if content and ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION and ENCRYPT_DOCUMENT_CONTENT:
+        try:
+            content = decrypt_data(content)
+        except Exception as e:
+            db_logger.warning(f"Failed to decrypt parent content: {e}")
+            
+    duration = time.time() - start_time
+    if content:
+        db_logger.debug(f"Retrieved parent content for {source_path} index {parent_index} in {duration:.4f}s")
+    
+    return content

@@ -123,13 +123,16 @@ def search_fulltext(
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Construir query com filtro de coleção facultativo
-            where_clause = "WHERE search_vector @@ query"
-            params = [query, top_k]
+            # Construir query com filtro de coleção facultativo e chunk_type
+            where_conditions = ["search_vector @@ query", "(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
+            params = [query]
             
             if collection_id:
-                where_clause += " AND collection_id = %s"
-                params = [query, collection_id, top_k]
+                where_conditions.append("collection_id = %s")
+                params.append(collection_id)
+            
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+            params.append(top_k)
 
             cur.execute(f"""
                 SELECT 
@@ -200,12 +203,15 @@ def search_hybrid(
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # 1. Busca Vetorial
-            where_clause_v = ""
-            params_v = [query_embedding, query_embedding, search_k]
+            where_conditions_v = ["(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
+            params_v = [query_embedding]
             
             if collection_id:
-                where_clause_v = "WHERE collection_id = %s"
-                params_v = [query_embedding, collection_id, query_embedding, search_k]
+                where_conditions_v.append("collection_id = %s")
+                params_v.append(collection_id)
+            
+            where_clause_v = "WHERE " + " AND ".join(where_conditions_v)
+            params_v.extend([query_embedding, search_k])
 
             cur.execute(f"""
                 SELECT 
@@ -222,12 +228,15 @@ def search_hybrid(
             vector_results = cur.fetchall()
             
             # 2. Busca Full-Text
-            where_clause_f = "WHERE search_vector @@ query"
-            params_f = [query, search_k]
+            where_conditions_f = ["search_vector @@ query", "(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
+            params_f = [query]
             
             if collection_id:
-                where_clause_f += " AND collection_id = %s"
-                params_f = [query, collection_id, search_k]
+                where_conditions_f.append("collection_id = %s")
+                params_f.append(collection_id)
+            
+            where_clause_f = "WHERE " + " AND ".join(where_conditions_f)
+            params_f.append(search_k)
 
             cur.execute(f"""
                 SELECT 

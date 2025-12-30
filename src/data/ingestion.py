@@ -28,9 +28,13 @@ from src.config import (
     USE_SEMANTIC_CHUNKING, 
     MIN_CHUNK_SIZE,
     CHUNK_OVERLAP_SENTENCES,
-    ENABLE_ADVANCED_BATCH_PROCESSING
+    ENABLE_ADVANCED_BATCH_PROCESSING,
+    PARENT_CHUNK_SIZE,
+    CHILD_CHUNK_SIZE,
+    CHILD_CHUNK_OVERLAP
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
+from src.data.hierarchical_chunking import create_parent_child_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -186,77 +190,60 @@ def process_pdf(file_path: Path) -> list[dict]:
 
 def process_document(file_path: Path) -> list[dict]:
     """
-    Processa um documento de qualquer formato suportado: extrai texto e divide em chunks.
-    
-    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
+    Processa um documento usando estratégia de Parent-Child Chunking.
     
     Args:
         file_path: Caminho para o arquivo
         
     Returns:
-        Lista de chunks com content e metadata enriquecido (Contextual Chunking)
+        Lista de chunks (filhos e pais) com metadados estruturados
     """
     # Obter extrator apropriado
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)
     
-    # 1. Gerar todos os chunks brutos primeiro
-    raw_chunks = []
-    global_chunk_index = 0
+    # Unificar texto para chunking hierárquico (preservando estrutura)
+    full_text = "\n\n".join([p["text"] for p in pages])
     
-    for page_data in pages:
-        chunks = chunk_text(page_data["text"])
+    base_metadata = {
+        "source": file_path.name,
+        "source_path": str(file_path),
+        "file_type": file_path.suffix.lower(),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Gerar chunks hierárquicos
+    parent_chunks, child_chunks = create_parent_child_chunks(
+        full_text,
+        base_metadata,
+        parent_size=PARENT_CHUNK_SIZE,
+        child_size=CHILD_CHUNK_SIZE,
+        child_overlap=CHILD_CHUNK_OVERLAP
+    )
+    
+    # 1. Processar Chunks Pais
+    for i, p in enumerate(parent_chunks):
+        p["metadata"]["chunk_index"] = i
+        p["metadata"]["page"] = 1
         
-        for chunk in chunks:
-            raw_chunks.append({
-                "content": chunk,
-                "metadata": {
-                    "source": file_path.name,
-                    "source_path": str(file_path),
-                    "file_type": file_path.suffix.lower(),
-                    "page": page_data["page"],
-                    "chunk_index": global_chunk_index,
-                    "timestamp": datetime.now().isoformat()
-                }
-            })
-            global_chunk_index += 1
-            
-    # 2. Enriquecer com contexto (Contextual Chunking)
-    enriched_chunks = []
-    total_chunks = len(raw_chunks)
-    
-    for i, chunk_data in enumerate(raw_chunks):
-        metadata = chunk_data["metadata"]
+    # 2. Processar Chunks Filhos
+    for i, c in enumerate(child_chunks):
+        c["metadata"]["chunk_index"] = i
+        c["metadata"]["page"] = 1
         
-        # Adicionar contexto do chunk anterior e posterior
-        # Limitamos o tamanho para não explodir o metadata
-        if i > 0:
-            prev_content = raw_chunks[i-1]["content"]
-            metadata["prev_chunk_text"] = prev_content[-500:] # Últimos 500 chars
-        else:
-            metadata["prev_chunk_text"] = None
+        # Enriquecer filhos com possíveis títulos de seção se encontrados no pai
+        parent_idx = c["metadata"]["parent_index"]
+        if 0 <= parent_idx < len(parent_chunks):
+            parent_text = parent_chunks[parent_idx]["content"]
+            lines = parent_text.split('\n')
+            if lines:
+                first_line = lines[0].strip()
+                if len(first_line) < 100 and len(first_line) > 3:
+                    if first_line.isupper() or first_line.endswith(':'):
+                        c["metadata"]["possible_section"] = first_line
             
-        if i < total_chunks - 1:
-            next_content = raw_chunks[i+1]["content"]
-            metadata["next_chunk_text"] = next_content[:500] # Primeiros 500 chars
-        else:
-            metadata["next_chunk_text"] = None
-            
-        # Tentar identificar possível título de seção (heurística simples)
-        # Pega a primeira linha se for curta e parecer um título
-        lines = chunk_data["content"].split('\n')
-        if lines:
-            first_line = lines[0].strip()
-            # Heurística: linha curta, não termina com pontuação comum de frase (exceto :)
-            if len(first_line) < 100 and len(first_line) > 3:
-                if first_line.isupper() or first_line.endswith(':'):
-                    metadata["possible_section"] = first_line
-                elif len(lines) > 1 and lines[1].strip() == "": # Linha isolada
-                    metadata["possible_section"] = first_line
-
-        enriched_chunks.append(chunk_data)
-    
-    return enriched_chunks
+    # Retornar ambos para inserção no banco
+    return parent_chunks + child_chunks
 
 
 def get_all_pdfs(directory: Path = DOCUMENTS_DIR) -> list[Path]:

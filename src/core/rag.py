@@ -33,7 +33,7 @@ from src.config import (
 )
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
-from src.data.database import search_similar
+from src.data.database import search_similar, get_parent_content
 from src.core.logger import (
     rag_logger,
     log_rag_query,
@@ -569,35 +569,53 @@ def query_rag(
     sources = []
     
     for doc in similar_docs:
-        # Normalizar quebras de linha dentro do chunk para exibição
-        content = doc["content"].replace("\n\n", " ").replace("\n", " ")
-        
-        # Enriquecer com metadados contextuais (Contextual Chunking)
+        # Enriquecer com metadados contextuais (Contextual Chunking e Hierarchical RAG)
         metadata = doc.get("metadata", {})
+        content = doc["content"]
+        source_path = metadata.get("source_path")
+        
+        # Phase 5: Hierarchical RAG - Tentar recuperar contexto expandido (Chunk Pai)
+        is_hierarchical = False
+        if metadata.get("chunk_type") == "child" and "parent_index" in metadata:
+            parent_idx = metadata.get("parent_index")
+            if source_path and parent_idx is not None:
+                parent_content = get_parent_content(source_path, int(parent_idx))
+                if parent_content:
+                    # Substituir conteúdo do filho pelo do pai (Context Expansion)
+                    content = parent_content
+                    is_hierarchical = True
+        
+        # Normalizar quebras de linha para o prompt
+        # Se for hierárquico, preservamos mais estrutura do que no chunk pequeno
+        if not is_hierarchical:
+            content_display = content.replace("\n\n", " ").replace("\n", " ")
+        else:
+            content_display = content # Mantém parágrafos se for o pai maior
+        
         chunk_context = []
         
         # Adicionar título da seção se disponível
         if metadata.get("possible_section"):
             chunk_context.append(f"Seção: {metadata['possible_section']}")
             
-        # Adicionar contexto anterior (se disponível)
-        if metadata.get("prev_chunk_text"):
-            prev_text = metadata["prev_chunk_text"][-200:] # Últimos 200 chars
-            chunk_context.append(f"[Contexto Anterior: ...{prev_text}]")
-            
-        # Conteúdo principal
-        chunk_context.append(f"Conteúdo: {content}")
+        # Adicionar contexto anterior/posterior APENAS se não for Hierarchical 
+        # (pois o Pai já contém o contexto)
+        if not is_hierarchical:
+            if metadata.get("prev_chunk_text"):
+                prev_text = metadata["prev_chunk_text"][-200:]
+                chunk_context.append(f"[Contexto Anterior: ...{prev_text}]")
         
-        # Adicionar contexto posterior (se disponível)
-        if metadata.get("next_chunk_text"):
-            next_text = metadata["next_chunk_text"][:200] # Primeiros 200 chars
-            chunk_context.append(f"[Contexto Posterior: {next_text}...]")
+        # Conteúdo principal (Filho ou Pai expandido)
+        label = "CONTEÚDO EXPANDIDO" if is_hierarchical else "CONTEÚDO"
+        chunk_context.append(f"{label}: {content_display}")
+        
+        if not is_hierarchical:
+            if metadata.get("next_chunk_text"):
+                next_text = metadata["next_chunk_text"][:200]
+                chunk_context.append(f"[Contexto Posterior: {next_text}...]")
             
         # Juntar tudo
-        if len(chunk_context) > 1:
-            full_chunk_text = "\n".join(chunk_context)
-        else:
-            full_chunk_text = content
+        full_chunk_text = "\n".join(chunk_context)
             
         context_parts.append(full_chunk_text)
         
