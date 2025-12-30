@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv
+env
+*.egg-info
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Testes
+tests/
+*.test.py
+.pytest_cache
+.coverage
+htmlcov
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Frontend (build separado)
+frontend/
+
+# Logs e dados locais
+logs/
+*.log
+db/
