@@ -11,10 +11,10 @@ param(
   [switch]$NoCache
 )
 
-$root = Resolve-Path ".." -Relative | ForEach-Object { (Get-Location).Path }
+$root = (Get-Location).Path
 
 Write-Host "Procurando Dockerfiles..."
-$files = Get-ChildItem -Path (Get-Location) -Recurse -Filter Dockerfile -File
+$files = Get-ChildItem -Path $root -Recurse -Filter Dockerfile -File
 if (-not $files) {
     Write-Host "Nenhum Dockerfile encontrado." -ForegroundColor Yellow
     exit 0
@@ -22,18 +22,28 @@ if (-not $files) {
 
 foreach ($f in $files) {
     $context = Split-Path $f.FullName -Parent
-    # gerar tag baseada no caminho relativo (replace \\ e / por -)
-    $rel = Resolve-Path -Relative $context
-    if ([string]::IsNullOrEmpty($rel)) { $rel = (Split-Path $context -Leaf) }
-    $tag = ($rel -replace '[\\/\s]+','-').ToLower()
-    if ([string]::IsNullOrEmpty($tag)) { $tag = "image" }
+    # gerar tag baseada no caminho relativo (replace \ e / por -)
+    $rel = $null
+    if ($context.Length -gt $root.Length) {
+      $rel = $context.Substring($root.Length).TrimStart('\','/')
+    }
+    if ([string]::IsNullOrEmpty($rel)) {
+      # usar nome da pasta do repositório como tag para o contexto raiz
+      $tag = (Split-Path $root -Leaf).ToLower()
+    } else {
+      $tag = ($rel -replace '[\\/\s]+','-').ToLower()
+    }
+    # limpar caracteres inválidos no início/fim
+    $tag = $tag.TrimStart('.','-')
+    $tag = $tag.Trim()
+    if ([string]::IsNullOrEmpty($tag)) { $tag = 'image' }
 
     $noCacheArg = ""
     if ($NoCache) { $noCacheArg = "--no-cache" }
-    $fullTag = "$tag:$ImageTag"
+    $fullTag = "$($tag):$($ImageTag)"
 
     Write-Host "\nBuilding: $f (context: $context) -> tag: $fullTag"
-    $cmd = "docker build $noCacheArg -t `"$fullTag`" -f `"$($f.FullName)`" `"$context`""
+    $cmd = "docker build $noCacheArg -t `"$($fullTag)`" -f `"$($f.FullName)`" `"$context`""
     Write-Host "> $cmd"
     $exit = Invoke-Expression $cmd
     if ($LASTEXITCODE -ne 0) {

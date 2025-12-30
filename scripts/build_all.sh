@@ -12,7 +12,8 @@ if [[ ${1-} == "--no-cache" ]]; then
   NO_CACHE=1
   IMAGE_TAG=${2-}
   if [ -z "$IMAGE_TAG" ]; then IMAGE_TAG=latest; fi
-else
+  files=(**/Dockerfile)
+  repo=$(basename "$PWD")
   IMAGE_TAG=${1-}
   if [ -z "$IMAGE_TAG" ]; then IMAGE_TAG=latest; fi
 fi
@@ -24,9 +25,15 @@ fi
 
 for file in "${files[@]}"; do
   context=$(dirname "$file")
-  # tag from relative path
-  tag=$(echo "$context" | sed 's:^\./::; s:/:-:g; s:[/ ]:-:g')
-  if [ -z "$tag" ]; then tag=image; fi
+    # tag from relative path; use repo name when context is root
+    if [ "$context" = "." ] || [ -z "$context" ]; then
+      tag="$repo"
+    else
+      tag=$(echo "$context" | sed 's:^\./::; s:/:-:g; s:[/ ]:-:g')
+    fi
+    # sanitize: remove leading dots or dashes
+    tag=$(echo "$tag" | sed 's/^[.-]\+//; s/[[:space:]]//g')
+    if [ -z "$tag" ]; then tag=image; fi
   fulltag="$tag:$IMAGE_TAG"
   echo "\nBuilding: $file (context: $context) -> tag: $fulltag"
   if [ $NO_CACHE -eq 1 ]; then

@@ -386,6 +386,14 @@ O repositório contém múltiplos `Dockerfile` (ex.: raiz/backend e `frontend/`)
 ```powershell
 .\scripts\build_all.ps1           # build com cache
 .\scripts\build_all.ps1 -NoCache  # build sem cache
+
+# Exemplos PowerShell com tag
+```powershell
+# build e usa tag 'v1.2.3'
+.\scripts\build_all.ps1 -ImageTag v1.2.3
+# sem cache e usa tag 'v1.2.3'
+.\scripts\build_all.ps1 -ImageTag v1.2.3 -NoCache
+```
 ```
 
 - Bash (Linux / macOS / WSL / Git Bash):
