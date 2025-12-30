@@ -1,198 +1,102 @@
 """
-Módulo de Re-ranking com Cross-Encoder.
+Reranker leve usando a LLM servida pelo LM Studio.
 
-Utiliza modelos cross-encoder para reordenar chunks por relevância
-real em relação à query, melhorando significativamente a precisão.
+Estratégia: enviar pares (query, documento) para a API /chat/completions
+e extrair um score numérico entre 0 e 1 retornado pela LLM. Mantém a
+imagem leve (sem torch/sentence-transformers) e reutiliza a infra do LM Studio.
 """
-import time
 import logging
+import re
 from typing import Optional
+
+import requests
+
+from src.config import LM_STUDIO_BASE_URL, RERANKER_MODEL
 
 logger = logging.getLogger(__name__)
 
-# Flag para indicar se sentence-transformers está disponível
-CROSS_ENCODER_AVAILABLE = False
-_cross_encoder_model = None
-
-try:
-    from sentence_transformers import CrossEncoder
-    CROSS_ENCODER_AVAILABLE = True
-    logger.info("sentence-transformers disponível para re-ranking")
-except ImportError:
-    logger.warning(
-        "sentence-transformers não instalado. "
-        "Re-ranking com cross-encoder desabilitado. "
-        "Instale com: pip install sentence-transformers"
-    )
+_reranker_instance: Optional["LLMReranker"] = None
 
 
-class CrossEncoderReranker:
-    """
-    Re-ranker usando modelos Cross-Encoder.
-    
-    Cross-encoders processam query e documento juntos,
-    fornecendo scores de relevância mais precisos que
-    bi-encoders (embeddings separados).
-    """
-    
-    def __init__(
-        self, 
-        model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-        max_length: int = 512
-    ):
-        """
-        Inicializa o re-ranker.
-        
-        Args:
-            model_name: Nome do modelo cross-encoder do HuggingFace
-                       Opções recomendadas:
-                       - "cross-encoder/ms-marco-MiniLM-L-6-v2" (rápido, ~100MB)
-                       - "BAAI/bge-reranker-base" (melhor qualidade, ~400MB)
-            max_length: Comprimento máximo de tokens para query+documento
-        """
-        if not CROSS_ENCODER_AVAILABLE:
-            raise RuntimeError(
-                "sentence-transformers não está instalado. "
-                "Execute: pip install sentence-transformers"
-            )
-        
+class LLMReranker:
+    """Reranker baseado em LLM via LM Studio (chat/completions)."""
+
+    def __init__(self, model_name: str, max_doc_chars: int = 2000):
         self.model_name = model_name
-        self.max_length = max_length
-        self._model = None
-        
-        logger.info(f"CrossEncoderReranker inicializado com modelo: {model_name}")
-    
-    @property
-    def model(self):
-        """Carrega modelo sob demanda (lazy loading)."""
-        if self._model is None:
-            logger.info(f"Carregando modelo cross-encoder: {self.model_name}")
-            start = time.time()
-            self._model = CrossEncoder(self.model_name, max_length=self.max_length)
-            logger.info(f"Modelo carregado em {time.time() - start:.2f}s")
-        return self._model
-    
-    def score_pair(self, query: str, text: str) -> float:
-        """
-        Calcula score de relevância para um par query-documento.
-        
-        Args:
-            query: Query do usuário
-            text: Texto do documento/chunk
-            
-        Returns:
-            Score de relevância (quanto maior, mais relevante)
-        """
-        return float(self.model.predict([[query, text]])[0])
-    
-    def rerank(
-        self, 
-        query: str, 
-        chunks: list[dict], 
-        top_k: int = 5,
-        content_key: str = "content"
-    ) -> list[dict]:
-        """
-        Reordena chunks por relevância usando cross-encoder.
-        
-        Args:
-            query: Query do usuário
-            chunks: Lista de chunks com 'content' e outros campos
-            top_k: Número de chunks a retornar após reranking
-            content_key: Chave do campo de conteúdo nos chunks
-            
-        Returns:
-            Top K chunks reordenados por relevância
-        """
+        self.max_doc_chars = max_doc_chars
+
+    def _build_prompt(self, query: str, doc: str) -> list[dict]:
+        truncated_doc = doc[: self.max_doc_chars]
+        system = (
+            "You are a retrieval reranker. Given a user query and a document, "
+            "return only a numeric relevance score between 0 and 1. Use high scores "
+            "for semantically relevant documents. Output format: SCORE: <float>"
+        )
+        user = f"Query: {query}\nDocument:\n{truncated_doc}\nAnswer only the score."
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+
+    def _extract_score(self, text: str) -> float:
+        match = re.search(r"([0-1](?:\.\d+)?|0?\.\d+)", text)
+        if not match:
+            return 0.0
+        try:
+            score = float(match.group(1))
+        except ValueError:
+            return 0.0
+        # Clipa para [0,1]
+        return max(0.0, min(1.0, score))
+
+    def score_pair(self, query: str, doc: str) -> float:
+        payload = {
+            "model": self.model_name,
+            "messages": self._build_prompt(query, doc),
+            "temperature": 0,
+            "max_tokens": 8,
+        }
+        try:
+            resp = requests.post(
+                f"{LM_STUDIO_BASE_URL}/chat/completions", json=payload, timeout=30
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+            return self._extract_score(content)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Rerank LLM falhou: %s", exc)
+            return 0.0
+
+    def rerank(self, query: str, chunks: list[dict], top_k: int = 5, content_key: str = "content") -> list[dict]:
         if not chunks:
             return []
-        
-        start_time = time.time()
-        
-        # Preparar pares query-documento
-        pairs = [[query, chunk[content_key]] for chunk in chunks]
-        
-        # Calcular scores
-        scores = self.model.predict(pairs)
-        
-        # Adicionar scores aos chunks
-        scored_chunks = []
-        for chunk, score in zip(chunks, scores):
-            chunk_copy = chunk.copy()
-            chunk_copy["rerank_score"] = float(score)
-            scored_chunks.append(chunk_copy)
-        
-        # Ordenar por score (maior = mais relevante)
-        scored_chunks.sort(key=lambda x: x["rerank_score"], reverse=True)
-        
-        # Retornar top_k
-        result = scored_chunks[:top_k]
-        
-        duration = time.time() - start_time
-        logger.info(
-            f"Reranking: {len(chunks)} chunks -> {len(result)} em {duration:.3f}s"
-        )
-        
-        return result
+
+        scored = []
+        for chunk in chunks:
+            text = chunk.get(content_key) or ""
+            score = self.score_pair(query, text)
+            copy = chunk.copy()
+            copy["rerank_score"] = score
+            scored.append(copy)
+
+        scored.sort(key=lambda x: x.get("rerank_score", 0.0), reverse=True)
+        return scored[:top_k]
 
 
-# Instância global (singleton) - carregada sob demanda
-_reranker_instance: Optional[CrossEncoderReranker] = None
-
-
-def get_reranker(model_name: str = None) -> CrossEncoderReranker:
-    """
-    Obtém instância do reranker (singleton com lazy loading).
-    
-    Args:
-        model_name: Nome do modelo (usa config se None)
-        
-    Returns:
-        Instância do CrossEncoderReranker
-    """
+def get_reranker(model_name: Optional[str] = None) -> LLMReranker:
     global _reranker_instance
-    
     if _reranker_instance is None:
-        from src.config import RERANKER_MODEL
-        model = model_name or RERANKER_MODEL
-        _reranker_instance = CrossEncoderReranker(model_name=model)
-    
+        _reranker_instance = LLMReranker(model_name=model_name or RERANKER_MODEL)
     return _reranker_instance
 
 
-def rerank_chunks(
-    query: str,
-    chunks: list[dict],
-    top_k: int = 5
-) -> list[dict]:
-    """
-    Função de conveniência para reranking de chunks.
-    
-    Args:
-        query: Query do usuário
-        chunks: Lista de chunks
-        top_k: Número de chunks a retornar
-        
-    Returns:
-        Chunks reordenados por relevância
-    """
-    if not CROSS_ENCODER_AVAILABLE:
-        logger.warning("Cross-encoder não disponível, retornando chunks sem reranking")
-        return chunks[:top_k]
-    
+def rerank_chunks(query: str, chunks: list[dict], top_k: int = 5) -> list[dict]:
     reranker = get_reranker()
     return reranker.rerank(query, chunks, top_k)
 
 
 def check_reranker_available() -> dict:
-    """
-    Verifica status do reranker.
-    
-    Returns:
-        Dict com status do módulo
-    """
     return {
-        "cross_encoder_available": CROSS_ENCODER_AVAILABLE,
-        "model_loaded": _reranker_instance is not None and _reranker_instance._model is not None,
-        "model_name": _reranker_instance.model_name if _reranker_instance else None
+        "lm_studio_reranker": True,
+        "model_name": (get_reranker().model_name if _reranker_instance else None),
     }

@@ -54,8 +54,8 @@ class RetrievalStrategy:
 
         # 3. Re-ranking
         if self._enable_reranking and results:
-            from src.core.reranker import rerank_documents
-            results = rerank_documents(question, results, top_k=final_top_k)
+            from src.core.reranker import rerank_chunks
+            results = rerank_chunks(question, results, top_k=final_top_k)
             search_metrics["reranking_applied"] = True
             
         return results[:final_top_k], search_metrics

@@ -10,7 +10,7 @@ flask-cors
 cryptography
 
 # Database
-psycopg2-binary
+psycopg2
 SQLAlchemy
 alembic
 
@@ -20,9 +20,6 @@ requests
 # NLP
 spacy
 langdetect
-
-# Re-ranking
-sentence-transformers
 
 # Observability
 prometheus-client
