@@ -20,6 +20,9 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **Agendamento** | APScheduler | 3.10+ | Tarefas em background |
 | **Ingestão** | Microsoft MarkItDown | 0.0.1+ | Conversão universal para Markdown |
 | **Segurança** | cryptography | 41.0+ | Criptografia em repouso (AES-128) |
+| **Segurança** | Restrictive CORS | - | Proteção contra origens não autorizadas |
+| **Dependências** | pip-tools | 7.4+ | Pinning e gestão de dependências |
+| **Arquitetura** | Repository Pattern | - | Desacoplamento da camada de dados |
 
 ---
 
@@ -70,6 +73,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **Campos Criptografados**: conteúdo de documentos, metadados, comentários de feedback
 - **Criptografia Condicional**: Habilitável/desabilitável por campo
 - **Geração de Chaves Seguras**: Script dedicado para gerenciar chaves
+- **Restrictive CORS**: Configuração rigorosa de origens permitidas via `ALLOWED_ORIGINS` e `CORS_MAX_AGE`.
 - **Compliance**: Auxilia no cumprimento de LGPD (Art. 46) e ISO 27001
 
 ### 🔬 Observabilidade e Monitoramento
@@ -127,37 +131,24 @@ rag/
 │   ├── package.json
 │   └── vite.config.ts
 ├── src/                           # Backend Python
-│   ├── api/                       # Rotas Flask
-│   │   ├── routes.py              # Endpoints da API
+│   ├── api/                       # Camada API
+│   │   ├── routes/                # Blueprints modulares (prompts, docs, chat, etc.)
 │   │   └── schemas.py             # Schemas Pydantic
 │   ├── core/                      # Lógica RAG e NLP
 │   │   ├── rag.py                 # Pipeline RAG principal
-│   │   ├── rag_explainer.py       # Gerador de explicações RAG
-│   │   ├── embeddings.py          # Geração de embeddings
-│   │   ├── llm.py                 # Interface com LLM
-│   │   ├── prompt_manager.py      # Gerenciador de prompts
-│   │   ├── reranker.py            # Re-ranking de resultados
-│   │   ├── query_expansion.py     # Expansão de queries
-│   │   ├── hyde.py                # Geração HyDE
-│   │   ├── mmr.py                 # Algoritmo MMR
-│   │   ├── adaptive_retrieval.py  # Recuperação adaptativa
-│   │   ├── context_compression.py # Compressão de contexto
-│   │   ├── embedding_cache.py     # Cache de embeddings
-│   │   ├── question_classifier.py # Classificador de perguntas
-│   │   ├── evaluation.py          # Avaliação de respostas
-│   │   ├── metrics.py             # Métricas Prometheus
-│   │   ├── logger.py              # Logging estruturado
-│   │   ├── encryption.py           # Criptografia de dados (AES-128)
-│   │   └── security.py            # Middleware de segurança (HTTPS/TLS)
+│   │   ├── ...                    # Módulos core (llm, embeddings, etc.)
 │   ├── data/                      # Camada de dados
-│   │   ├── database.py            # Conexão PostgreSQL
-│   │   ├── ingestion.py           # Ingestão de documentos
-│   │   ├── chunking.py            # Chunking semântico
-│   │   ├── hybrid_search.py       # Busca híbrida
-│   │   ├── hierarchical_chunking.py # Chunking hierárquico
-│   │   └── sentence_window.py     # Sentence window retrieval
-│   ├── app.py                     # Aplicação Flask
-│   └── config.py                  # Configurações (Pydantic Settings)
+│   │   ├── repositories/          # Repository Pattern (Document, Prompt, etc.)
+│   │   ├── database.py            # Conexão base (Legado/Deprecado)
+│   │   ├── ingestion.py           # Processamento de arquivos
+│   │   └── ...                    # Módulos de busca e chunking
+│   ├── app.py                     # Inicialização Flask (Registro de Blueprints)
+│   └── config.py                  # Configurações centralizadas
+├── requirements/                  # Definições de dependências (pip-tools)
+│   ├── base.in                    # Dependências base
+│   └── dev.in                     # Dependências de desenvolvimento
+├── requirements.txt               # Pinned dependencies (Base)
+├── requirements-dev.txt           # Pinned dependencies (Dev)
 ├── alembic/                       # Migrações do banco
 │   └── versions/                  # Scripts de migração
 ├── docs/                          # Documentação adicional
@@ -188,7 +179,13 @@ rag/
 python -m venv .venv
 .\.venv\Scripts\activate  # Windows
 source .venv/bin/activate  # Linux/Mac
+
+# Instalar dependências pinadas (produção/estável)
 pip install -r requirements.txt
+
+# Para desenvolvimento (incluindo pip-tools e ferramentas de dev)
+pip install -r requirements-dev.txt
+
 python -m spacy download pt_core_news_sm
 
 # Frontend
@@ -196,6 +193,9 @@ cd frontend
 npm install
 cd ..
 ```
+
+> [!TIP]
+> O projeto utiliza `pip-tools` para gerenciar dependências. Se desejar adicionar novos pacotes, edite os arquivos `.in` em `requirements/` e rode `pip-compile`.
 
 ### 2. Banco de Dados
 

@@ -7,11 +7,14 @@ Suporta dois modos:
 """
 import logging
 from typing import Optional
-from src.data.database import get_prompts_by_category, get_prompt
+from src.data.repositories import PromptRepository
 from src.core.llm import generate_response
 from src import config
 
 logger = logging.getLogger(__name__)
+
+# Instância do repository
+_prompt_repo = PromptRepository()
 
 
 class PromptManager:
@@ -47,7 +50,7 @@ class PromptManager:
         logger.debug(f"Getting prompt for category='{category}', mode='{mode}'")
         
         # 1️⃣ Buscar prompts da categoria
-        prompts = get_prompts_by_category(category)
+        prompts = _prompt_repo.find_by_category(category)
         
         if not prompts:
             logger.warning(f"No prompts found for category '{category}', using fallback")
@@ -126,7 +129,7 @@ Responda APENAS com o número da opção (1, 2, 3, etc). Não adicione mais nada
         # Tentar buscar pelo nome fixo
         if category in self.fallback_map:
             fallback_name = self.fallback_map[category]
-            prompt = get_prompt(fallback_name)
+            prompt = _prompt_repo.find_by_name(fallback_name)
             if prompt:
                 return prompt
         
@@ -156,7 +159,7 @@ Responda APENAS com o número da opção (1, 2, 3, etc). Não adicione mais nada
             Instruções formatadas ou string vazia
         """
         prompt_name = f"instruction_{question_type}"
-        prompt = get_prompt(prompt_name)
+        prompt = _prompt_repo.find_by_name(prompt_name)
         
         if prompt:
             return prompt
@@ -168,3 +171,4 @@ Responda APENAS com o número da opção (1, 2, 3, etc). Não adicione mais nada
 
 # Instância global
 prompt_manager = PromptManager()
+

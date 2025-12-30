@@ -33,7 +33,7 @@ from src.config import (
 )
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
-from src.data.database import search_similar, get_parent_content
+from src.data.repositories import DocumentRepository, PromptRepository
 from src.core.logger import (
     rag_logger,
     log_rag_query,
@@ -48,7 +48,6 @@ from src.core.question_classifier import (
     get_question_type_description
 )
 from src.core.prompts import get_active_prompt
-from src.data.database import get_prompt
 from src.core.metrics import (
     LatencyTracker,
     inc_query,
@@ -56,6 +55,10 @@ from src.core.metrics import (
     observe_compression_ratio,
     inc_error
 )
+
+# Instâncias dos repositories
+_doc_repo = DocumentRepository()
+_prompt_repo = PromptRepository()
 
 # Phase 2 imports (lazy loaded quando necessário)
 def _get_reranker():
@@ -118,7 +121,7 @@ def _search_documents(
                 rag_logger.warning("Full-Text Search not ready, falling back to vector search")
                 search_metrics["search_type"] = "vector"
                 search_metrics["fallback_reason"] = "FTS not initialized"
-                return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
+                return _doc_repo.find_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
             
             alpha = hybrid_alpha if hybrid_alpha is not None else HYBRID_SEARCH_ALPHA
             search_metrics["hybrid_alpha"] = alpha
@@ -147,7 +150,7 @@ def _search_documents(
             search_metrics["fallback_reason"] = str(e)
     
     # Busca vetorial padrão
-    return search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
+    return _doc_repo.find_similar(question_embedding, top_k=top_k, min_similarity=min_similarity, collection_id=collection_id), search_metrics
 
 
 def _apply_phase2_pipeline(
@@ -342,7 +345,7 @@ def _build_prompt(
     instrucoes_tipo = ""
     if question_type and USE_ENHANCED_PROMPTS:
         # Tentar buscar do banco: instruction_{type}
-        db_instructions = get_prompt(f"instruction_{question_type}")
+        db_instructions = _prompt_repo.find_by_name(f"instruction_{question_type}")
         if db_instructions:
             instrucoes_tipo = db_instructions
         else:
@@ -586,7 +589,7 @@ def query_rag(
         if metadata.get("chunk_type") == "child" and "parent_index" in metadata:
             parent_idx = metadata.get("parent_index")
             if source_path and parent_idx is not None:
-                parent_content = get_parent_content(source_path, int(parent_idx))
+                parent_content = _doc_repo.get_parent_content(source_path, int(parent_idx))
                 if parent_content:
                     # Substituir conteúdo do filho pelo do pai (Context Expansion)
                     content = parent_content
@@ -745,7 +748,7 @@ def query_rag_stream(
     question_embedding = get_embedding(question)
     
     # 2. Buscar chunks similares
-    similar_docs = search_similar(question_embedding, top_k=top_k)
+    similar_docs = _doc_repo.find_similar(question_embedding, top_k=top_k)
     
     if not similar_docs:
         rag_logger.warning("No similar documents found for stream query")
@@ -829,7 +832,7 @@ def search_only(
     rag_logger.info(f"Search only query: '{question[:50]}...' (top_k={top_k})")
     
     question_embedding = get_embedding(question)
-    similar_docs = search_similar(question_embedding, top_k=top_k, min_similarity=min_similarity)
+    similar_docs = _doc_repo.find_similar(question_embedding, top_k=top_k, min_similarity=min_similarity)
     
     rag_logger.info(f"Search returned {len(similar_docs)} documents")
     

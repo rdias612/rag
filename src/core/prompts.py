@@ -3,8 +3,12 @@ Utilitário para recuperação de prompts.
 Tenta buscar no banco de dados, com fallback para as constantes no código.
 """
 from typing import Optional
-from src.data.database import get_prompt
+from src.data.repositories import PromptRepository
 from src import config
+
+# Instância do repository
+_prompt_repo = PromptRepository()
+
 
 def get_active_prompt(name: str) -> str:
     """
@@ -18,7 +22,7 @@ def get_active_prompt(name: str) -> str:
         Template do prompt
     """
     # 1. Tentar Banco de Dados
-    db_prompt = get_prompt(name)
+    db_prompt = _prompt_repo.find_by_name(name)
     if db_prompt:
         return db_prompt
     
@@ -41,3 +45,4 @@ def get_active_prompt(name: str) -> str:
         return QUESTION_TYPE_INSTRUCTIONS.get(type_key, QUESTION_TYPE_INSTRUCTIONS.get('general', ''))
 
     return fallback_map.get(name, "")
+

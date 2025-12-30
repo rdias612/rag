@@ -13,18 +13,13 @@ Endpoints:
 import time
 from flask import Blueprint, request, jsonify
 
-from src.data.database import (
-    list_prompts,
-    get_prompt_by_id,
-    create_prompt,
-    update_prompt_full,
-    delete_prompt_safe,
-    can_delete_prompt,
-    CRITICAL_CATEGORIES
-)
+from src.data.repositories import PromptRepository, CRITICAL_CATEGORIES
 from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
 
 prompts_bp = Blueprint("prompts", __name__)
+
+# Instância do repository
+_prompt_repo = PromptRepository()
 
 
 @prompts_bp.route("", methods=["GET"])
@@ -34,7 +29,7 @@ def get_all_prompts():
     log_api_request("/api/prompts", "GET")
     
     try:
-        prompts = list_prompts()
+        prompts = _prompt_repo.list_all()
         log_api_response("/api/prompts", 200, time.time() - start_time)
         
         return jsonify({
@@ -54,7 +49,7 @@ def get_prompt_detail(prompt_id: int):
     log_api_request(f"/api/prompts/{prompt_id}", "GET")
     
     try:
-        prompt = get_prompt_by_id(prompt_id)
+        prompt = _prompt_repo.find_by_id(prompt_id)
         
         if not prompt:
             log_api_response(f"/api/prompts/{prompt_id}", 404, time.time() - start_time)
@@ -87,7 +82,7 @@ def create_new_prompt():
         }), 400
     
     try:
-        success, prompt_id, error_msg = create_prompt(
+        success, prompt_id, error_msg = _prompt_repo.create(
             name=data["name"],
             template=data["template"],
             category=data["category"],
@@ -123,7 +118,7 @@ def update_prompt_endpoint(prompt_id: int):
     log_api_input(f"/api/prompts/{prompt_id}", "PUT", data)
     
     try:
-        success, error_msg = update_prompt_full(
+        success, error_msg = _prompt_repo.update(
             prompt_id=prompt_id,
             template=data.get("template"),
             description=data.get("description"),
@@ -156,7 +151,7 @@ def check_can_delete_prompt(prompt_id: int):
     log_api_request(f"/api/prompts/{prompt_id}/can-delete", "GET")
     
     try:
-        can_delete, reason = can_delete_prompt(prompt_id)
+        can_delete, reason = _prompt_repo.can_delete(prompt_id)
         
         log_api_response(f"/api/prompts/{prompt_id}/can-delete", 200, time.time() - start_time)
         
@@ -177,7 +172,7 @@ def delete_prompt_endpoint(prompt_id: int):
     log_api_request(f"/api/prompts/{prompt_id}", "DELETE")
     
     try:
-        success, error_msg = delete_prompt_safe(prompt_id)
+        success, error_msg = _prompt_repo.delete(prompt_id)
         
         if not success:
             log_api_response(f"/api/prompts/{prompt_id}", 400, time.time() - start_time)
@@ -209,3 +204,4 @@ def get_prompt_categories():
     log_api_response("/api/prompts/categories", 200, time.time() - start_time)
     
     return jsonify({"categories": categories})
+

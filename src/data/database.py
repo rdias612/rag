@@ -1,8 +1,19 @@
 """
 Módulo de conexão e operações com PostgreSQL + pgvector.
+
+DEPRECATED: A maioria das funções neste módulo foi substituída por Repositories.
+Use src.data.repositories em seu lugar:
+- DocumentRepository: operações com documentos/chunks
+- PromptRepository: operações com prompts  
+- IngestionRepository: controle de ingestão
+- FeedbackRepository: feedback de usuários
+
+Este módulo será removido em uma versão futura.
 """
 import json
 import time
+import warnings
+from functools import wraps
 from typing import Optional
 from contextlib import contextmanager
 
@@ -42,6 +53,22 @@ try:
 except ImportError:
     ENCRYPTION_AVAILABLE = False
     db_logger.warning("Encryption module not available, encryption disabled")
+
+
+def deprecated(replacement: str):
+    """Decorator para marcar funções como deprecated."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__name__}() está deprecated. Use {replacement} em seu lugar.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
 
 # Cache em memória para prompts para evitar queries repetitivas
 PROMPT_CACHE = {}
@@ -121,6 +148,7 @@ def init_database():
     db_logger.info("Banco de dados pronto (schema gerenciado pelo Alembic)")
 
 
+@deprecated("DocumentRepository.create")
 def insert_document(content: str, metadata: dict, embedding: list[float], collection_id: str = "default") -> int:
     """
     Insere um documento com seu embedding no banco de dados.
@@ -171,6 +199,7 @@ def insert_document(content: str, metadata: dict, embedding: list[float], collec
     return doc_id
 
 
+@deprecated("DocumentRepository.create_batch")
 def insert_documents_batch(documents: list[dict]) -> int:
     """
     Insere múltiplos documentos em batch para melhor performance.
@@ -253,6 +282,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
     return inserted_count
 
 
+@deprecated("DocumentRepository.find_similar")
 def search_similar(
     query_embedding: list[float], 
     top_k: int = TOP_K_RESULTS,
@@ -356,6 +386,7 @@ def search_similar(
     return results_list
 
 
+@deprecated("DocumentRepository.count")
 def get_document_count() -> int:
     """Retorna o número total de documentos no banco."""
     with get_connection() as conn:
@@ -366,6 +397,7 @@ def get_document_count() -> int:
             return count
 
 
+@deprecated("DocumentRepository.list_collections")
 def list_collections() -> list[str]:
     """Retorna a lista de collection_id distintos existentes."""
     db_logger.debug("list_collections: Starting...")
@@ -392,6 +424,7 @@ def list_collections() -> list[str]:
         raise
 
 
+@deprecated("DocumentRepository.clear_all")
 def clear_documents():
     """Remove todos os documentos do banco. Use com cuidado!"""
     db_logger.warning("Clearing all documents from database!")
@@ -419,6 +452,7 @@ def check_connection() -> bool:
         return False
 
 
+@deprecated("FeedbackRepository.create")
 def insert_feedback(session_id: str, message_index: int, rating: int, comment: Optional[str] = None, metadata: Optional[dict] = None) -> bool:
     """
     Insere um feedback do usuário no banco de dados.
@@ -469,6 +503,7 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
 # Controle de Ingestão de Documentos
 # =============================================================================
 
+@deprecated("IngestionRepository.find_by_path")
 def get_ingested_document(file_path: str) -> Optional[dict]:
     """
     Verifica se um documento já foi ingerido.
@@ -494,6 +529,7 @@ def get_ingested_document(file_path: str) -> Optional[dict]:
             return dict(row) if row else None
 
 
+@deprecated("IngestionRepository.create")
 def register_ingested_document(
     file_path: str,
     file_hash: str,
@@ -544,6 +580,7 @@ def register_ingested_document(
     return doc_id
 
 
+@deprecated("DocumentRepository.delete_by_source")
 def remove_document_chunks_by_source(source_path: str) -> int:
     """
     Remove todos os chunks de um documento específico.
@@ -574,6 +611,7 @@ def remove_document_chunks_by_source(source_path: str) -> int:
     return deleted
 
 
+@deprecated("IngestionRepository.list_all")
 def list_ingested_documents(collection_id: Optional[str] = None) -> list[dict]:
     """
     Lista todos os documentos ingeridos.
@@ -610,6 +648,7 @@ def list_ingested_documents(collection_id: Optional[str] = None) -> list[dict]:
             return [dict(row) for row in rows]
 
 
+@deprecated("IngestionRepository.delete_by_path")
 def remove_ingested_document_record(file_path: str) -> bool:
     """
     Remove o registro de um documento ingerido.
@@ -632,6 +671,7 @@ def remove_ingested_document_record(file_path: str) -> bool:
             return cur.rowcount > 0
 
 
+@deprecated("DocumentRepository.clear_all e IngestionRepository.clear_all")
 def clear_all_documents() -> dict:
     """
     Limpa todas as tabelas de documentos (documentos e documentos_ingeridos).
@@ -666,6 +706,7 @@ def clear_all_documents() -> dict:
 # Gestão de Prompts
 # =============================================================================
 
+@deprecated("PromptRepository.find_by_name")
 def get_prompt(name: str, use_cache: bool = True) -> Optional[str]:
     """
     Busca um prompt pelo nome no banco de dados.
@@ -712,6 +753,7 @@ def get_prompt(name: str, use_cache: bool = True) -> Optional[str]:
         return None
 
 
+@deprecated("PromptRepository.update")
 def update_prompt(name: str, template: str) -> bool:
     """
     Atualiza o template de um prompt.
@@ -750,6 +792,7 @@ def update_prompt(name: str, template: str) -> bool:
         return False
 
 
+@deprecated("PromptRepository.list_all")
 def list_prompts() -> list[dict]:
     """Lista todos os prompts disponíveis."""
     try:
@@ -767,6 +810,7 @@ def list_prompts() -> list[dict]:
         return []
 
 
+@deprecated("PromptRepository.find_by_id")
 def get_prompt_by_id(prompt_id: int) -> Optional[dict]:
     """Busca um prompt específico pelo ID."""
     try:
@@ -786,6 +830,7 @@ def get_prompt_by_id(prompt_id: int) -> Optional[dict]:
         return None
 
 
+@deprecated("PromptRepository.find_by_category")
 def get_prompts_by_category(category: str, include_inactive: bool = False) -> list[dict]:
     """Busca todos os prompts de uma categoria."""
     try:
@@ -810,6 +855,7 @@ def get_prompts_by_category(category: str, include_inactive: bool = False) -> li
         return []
 
 
+@deprecated("PromptRepository.count_active_in_category")
 def count_active_prompts_in_category(category: str) -> int:
     """Conta quantos prompts ativos existem em uma categoria."""
     try:
@@ -826,6 +872,7 @@ def count_active_prompts_in_category(category: str) -> int:
         return 0
 
 
+@deprecated("PromptRepository.create")
 def create_prompt(
     name: str,
     template: str,
@@ -871,6 +918,7 @@ def create_prompt(
         return False, 0, str(e)
 
 
+@deprecated("PromptRepository.update")
 def update_prompt_full(
     prompt_id: int,
     template: str = None,
@@ -957,6 +1005,7 @@ CRITICAL_CATEGORIES = {
 }
 
 
+@deprecated("PromptRepository.can_delete")
 def can_delete_prompt(prompt_id: int) -> tuple[bool, str]:
     """
     Verifica se um prompt pode ser deletado.
@@ -983,6 +1032,7 @@ def can_delete_prompt(prompt_id: int) -> tuple[bool, str]:
     return True, ""
 
 
+@deprecated("PromptRepository.delete")
 def delete_prompt_safe(prompt_id: int) -> tuple[bool, str]:
     """
     Deleta um prompt com validação de segurança.
@@ -1021,6 +1071,7 @@ def delete_prompt_safe(prompt_id: int) -> tuple[bool, str]:
         return False, str(e)
 
 
+@deprecated("DocumentRepository.get_parent_content")
 def get_parent_content(source_path: str, parent_index: int) -> Optional[str]:
     """
     Recupera o texto de um chunk pai baseado no caminho do arquivo e índice.

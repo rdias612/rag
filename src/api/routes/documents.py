@@ -26,22 +26,17 @@ from flask import Blueprint, request, jsonify
 from src.config import DOCUMENTS_DIR
 from src.core.embeddings import get_embeddings_batch
 from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
-from src.data.database import (
-    get_document_count,
-    insert_documents_batch,
-    get_ingested_document,
-    register_ingested_document,
-    remove_document_chunks_by_source,
-    list_ingested_documents,
-    remove_ingested_document_record,
-    clear_all_documents
-)
+from src.data.repositories import DocumentRepository, IngestionRepository
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS,
     process_document,
     get_document_stats,
     get_all_documents
 )
+
+# Instâncias dos repositories
+_doc_repo = DocumentRepository()
+_ingestion_repo = IngestionRepository()
 
 documents_bp = Blueprint("documents", __name__)
 
@@ -109,7 +104,7 @@ def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str)
                 "embedding": embedding
             })
         
-        inserted = insert_documents_batch(documents_to_insert)
+        inserted = _doc_repo.create_batch(documents_to_insert)
         
         with _ingestion_lock:
             _ingestion_jobs[job_id]["status"] = "completed"
@@ -144,7 +139,7 @@ def _scan_documents():
             file_hash = _calculate_file_hash(doc_path)
             file_size = doc_path.stat().st_size
             
-            existing = get_ingested_document(file_path_str)
+            existing = _ingestion_repo.find_by_path(file_path_str)
             
             if not existing:
                 pending.append({
@@ -215,10 +210,10 @@ def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
                 file_hash = _calculate_file_hash(doc_path)
                 file_size = doc_path.stat().st_size
                 
-                existing = get_ingested_document(file_path_str)
+                existing = _ingestion_repo.find_by_path(file_path_str)
                 
                 if existing:
-                    remove_document_chunks_by_source(file_path_str)
+                    _doc_repo.delete_by_source(file_path_str)
                 
                 try:
                     relative_path = doc_path.relative_to(DOCUMENTS_DIR)
@@ -233,7 +228,7 @@ def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
                 if not chunks:
                     api_logger.warning(f"  [!] Nenhum texto extraído de {file_name}")
                     docs_failed += 1
-                    register_ingested_document(file_path_str, file_hash, file_size, collection_id, 0, "error")
+                    _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, 0, "error")
                     with _bulk_ingestion_lock:
                         _bulk_ingestion_status["results"].append({
                             "file": file_name,
@@ -257,9 +252,9 @@ def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
                         "collection_id": collection_id
                     })
                 
-                inserted = insert_documents_batch(documents_to_insert)
+                inserted = _doc_repo.create_batch(documents_to_insert)
                 
-                register_ingested_document(file_path_str, file_hash, file_size, collection_id, inserted, "success")
+                _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, inserted, "success")
                 
                 docs_processed += 1
                 api_logger.info(f"  [V] Concluído: {file_name} ({inserted} chunks)")
@@ -452,7 +447,7 @@ def documents_stats():
                 "files": []
             }
         
-        indexed_chunks = get_document_count()
+        indexed_chunks = _doc_repo.count()
         
         result = {
             **dir_stats,
@@ -477,7 +472,7 @@ def get_ingested_documents():
     
     try:
         collection_filter = request.args.get("collection")
-        documents = list_ingested_documents(collection_filter)
+        documents = _ingestion_repo.list_all(collection_filter)
         
         for doc in documents:
             doc["file_name"] = Path(doc["file_path"]).name
@@ -512,13 +507,13 @@ def delete_ingested_document():
     file_path = data["file_path"]
     
     try:
-        existing = get_ingested_document(file_path)
+        existing = _ingestion_repo.find_by_path(file_path)
         if not existing:
             log_api_response("/api/documents/delete", 404, time.time() - start_time)
             return jsonify({"error": "Documento não encontrado"}), 404
         
-        chunks_removed = remove_document_chunks_by_source(file_path)
-        remove_ingested_document_record(file_path)
+        chunks_removed = _doc_repo.delete_by_source(file_path)
+        _ingestion_repo.delete_by_path(file_path)
         
         api_logger.info(f"Document deleted: {file_path}, {chunks_removed} chunks removed")
         log_api_response("/api/documents/delete", 200, time.time() - start_time)
@@ -628,7 +623,9 @@ def reprocess_knowledge_base():
             return jsonify({"error": "Ingestão já está em andamento"}), 409
     
     try:
-        cleared = clear_all_documents()
+        doc_cleared = _doc_repo.clear_all()
+        ing_cleared = _ingestion_repo.clear_all()
+        cleared = {"chunks_deleted": doc_cleared, "control_records_deleted": ing_cleared}
         
         with _bulk_ingestion_lock:
             _bulk_ingestion_status["running"] = True

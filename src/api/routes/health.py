@@ -9,10 +9,14 @@ Endpoints:
 import time
 from flask import Blueprint, jsonify
 
-from src.data.database import get_document_count, check_connection, list_collections
+from src.data.database import check_connection
+from src.data.repositories import DocumentRepository
 from src.core.logger import api_logger, log_api_request, log_api_response
 
 health_bp = Blueprint("health", __name__)
+
+# Instância do repository
+_doc_repo = DocumentRepository()
 
 
 @health_bp.route("/health", methods=["GET"])
@@ -39,7 +43,7 @@ def get_stats():
     log_api_request("/api/stats", "GET")
     
     try:
-        doc_count = get_document_count()
+        doc_count = _doc_repo.count()
         
         log_api_response("/api/stats", 200, time.time() - start_time)
         
@@ -60,7 +64,7 @@ def get_collections():
     log_api_request("/api/collections", "GET")
     
     try:
-        collections = list_collections()
+        collections = _doc_repo.list_collections()
         log_api_response("/api/collections", 200, time.time() - start_time)
         return jsonify({"collections": collections})
     except Exception as e:
