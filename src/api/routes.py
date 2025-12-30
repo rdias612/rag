@@ -21,6 +21,7 @@ from src.core.rag import (
     get_conversation_history,
     clear_conversation
 )
+from src.core.rag_explainer import explainer
 from src.core.conversation import conversation_manager
 from src.data.database import (
     get_document_count, 
@@ -131,6 +132,7 @@ def query():
             "top_k": 5,  // opcional
             "temperature": 0.7,  // opcional
             "include_sources": true,  // opcional
+            "include_explanation": true,  // opcional - retorna explicação detalhada do processo
             "collection": "nome_do_projeto" // opcional
         }
     """
@@ -147,14 +149,27 @@ def query():
         return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     try:
+        include_explanation = data.get("include_explanation", False)
+        
+        # Ativar debug mode se explicação for solicitada
         result = query_rag(
             question=req.question,
             top_k=req.top_k,
             temperature=req.temperature,
             include_sources=req.include_sources,
             collection_id=req.collection,
-            debug_mode=req.debug
+            debug_mode=req.debug or include_explanation
         )
+        
+        # Gerar explicação se solicitada
+        if include_explanation and "_debug" in result and "search" in result:
+            result["explanation"] = explainer.explain_rag_pipeline(
+                question=req.question,
+                debug_info=result["_debug"],
+                search_metrics=result["search"]
+            )
+            # Remover _debug da resposta (informação interna)
+            del result["_debug"]
         
         log_api_response("/api/query", 200, time.time() - start_time)
         return jsonify(result)

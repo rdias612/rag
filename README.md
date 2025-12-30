@@ -78,6 +78,16 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **Logging estruturado**: Logs detalhados para debugging
 - **Estátisticas de cache**: Hit rate, tamanho, performance
 
+### 🔍 Explanação Detalhada de Fontes
+- **Timeline completa do processo RAG**: Visualização de todas as etapas do pipeline
+- **Explicação de técnicas usadas**: HyDE, busca híbrida, re-ranking, MMR
+- **Detalhes de seleção de chunks**: Como e por quais chunks foram selecionados
+- **Métricas de similaridade**: Scores de similaridade para cada etapa
+- **Interface visual interativa**: Modal com timeline, cards expansíveis e ícones
+- **Ativação via toggle**: Botão (✨) no header para ativar/desativar funcionalidade
+- **Transparência para usuários**: Entendam como o sistema chegou a determinada resposta
+- **Baixo overhead**: ~50-100ms adicionais por query no backend
+
 ### 🛡️ Qualidade e Validação
 - **Classificador de perguntas**: Identifica tipo de pergunta automaticamente
 - **Auto-avaliação**: Avalia qualidade de respostas RAG (opcional)
@@ -111,6 +121,7 @@ rag/
 │   │   │   ├── ChatArea.tsx          # Área de chat
 │   │   │   ├── DocumentsPanel.tsx    # Gerenciamento de docs
 │   │   │   ├── PromptsManagement.tsx # Gestão de prompts
+│   │   │   ├── ExplanationModal.tsx  # Modal de explicação RAG
 │   │   │   └── ...                   # Outros componentes
 │   │   └── types.ts              # TypeScript types
 │   ├── package.json
@@ -121,6 +132,7 @@ rag/
 │   │   └── schemas.py             # Schemas Pydantic
 │   ├── core/                      # Lógica RAG e NLP
 │   │   ├── rag.py                 # Pipeline RAG principal
+│   │   ├── rag_explainer.py       # Gerador de explicações RAG
 │   │   ├── embeddings.py          # Geração de embeddings
 │   │   ├── llm.py                 # Interface com LLM
 │   │   ├── prompt_manager.py      # Gerenciador de prompts
@@ -334,9 +346,12 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
   "question": "Como funciona o GWPRP?",
   "session_id": "uuid-da-sessão",
   "top_k": 5,
-  "temperature": 0.7
+  "temperature": 0.7,
+  "include_explanation": true
 }
 ```
+
+**Nota**: O parâmetro `include_explanation` (default: true) adiciona uma explicação detalhada do processo RAG na resposta, incluindo timeline de etapas, métricas de similaridade e detalhes técnicos.
 
 ### Sessões
 
@@ -420,9 +435,10 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
 ### Componentes Principais
 
 - `ChatArea`: Área principal de conversação
-- `MessageList`: Lista de mensagens com markdown
+- `MessageList`: Lista de mensagens com markdown e botão de explicação
 - `MessageInput`: Input com suporte a multi-linha
 - `UploadModal`: Modal de upload de documentos
+- `ExplanationModal`: Modal de explicação detalhada do pipeline RAG
 - `AdminDashboard`: Dashboard administrativo
 - `PromptsManagement`: Gerenciador de prompts
 - `DocumentsPanel`: Painel de documentos
@@ -684,6 +700,7 @@ Projeto para estudo de técnicas avançadas de RAG.
 - **Issues**: GitHub Issues
 - **Documentação**: Ver pasta `docs/`
 - **Exemplos**: `docs/MELHORIAS.md`
+- **Implementação de Explicação de Fontes**: `docs/IMPLEMENTACAO_1.2_EXPLICACAO_FONTES.md`
 
 ---
 

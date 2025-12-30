@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Settings, Bug, Sun, Moon } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Settings, Bug, Sun, Moon, Sparkles } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { UploadModal } from "./components/UploadModal";
@@ -21,6 +21,7 @@ function App() {
   const [collections, setCollections] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
+  const [explanationMode, setExplanationMode] = useState(true);
   const [temperature, setTemperature] = useState<number | undefined>(undefined);
   const [promptMode, setPromptMode] = useState<string>(
     () => localStorage.getItem('promptMode') || 'category'
@@ -90,7 +91,7 @@ function App() {
   async function handleSendMessage(content: string) {
     // Optimistic UI update
     const userMsg: Message = { role: 'user', content, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev: Message[]) => [...prev, userMsg]);
     setIsLoading(true);
 
     // Create placeholder for assistant message
@@ -101,7 +102,7 @@ function App() {
 
       const res = await streamChat(content, currentSessionId, selectedCollection, (token) => {
         currentText = token;
-        setMessages(prev => {
+        setMessages((prev: Message[]) => {
           const newMessages = [...prev];
           if (newMessages[assistantMsgIndex] && newMessages[assistantMsgIndex].role === 'assistant') {
             newMessages[assistantMsgIndex] = {
@@ -117,10 +118,10 @@ function App() {
           }
           return newMessages;
         });
-      }, debugMode, temperature);
+      }, debugMode, temperature, explanationMode);
 
       // Update with final message including sources
-      setMessages(prev => {
+      setMessages((prev: Message[]) => {
         const newMessages = [...prev];
         if (newMessages[assistantMsgIndex] && newMessages[assistantMsgIndex].role === 'assistant') {
           newMessages[assistantMsgIndex] = {
@@ -128,7 +129,8 @@ function App() {
             content: res.answer,
             timestamp: Date.now(),
             sources: res.sources,
-            debugInfo: res._debug
+            debugInfo: res._debug,
+            explanation: res._explanation
           };
         } else {
           newMessages.push({
@@ -136,7 +138,8 @@ function App() {
             content: res.answer,
             timestamp: Date.now(),
             sources: res.sources,
-            debugInfo: res._debug
+            debugInfo: res._debug,
+            explanation: res._explanation
           });
         }
         return newMessages;
@@ -155,7 +158,7 @@ function App() {
       }
       // ... more error handling if needed ...
 
-      setMessages(prev => [...prev, {
+      setMessages((prev: Message[]) => [...prev, {
         role: 'assistant',
         content: errorMessage
       }]);
@@ -171,7 +174,7 @@ function App() {
 
     try {
       await deleteSession(sessionId);
-      setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+      setSessions((prev: Session[]) => prev.filter(s => s.session_id !== sessionId));
       if (currentSessionId === sessionId) {
         handleNewChat();
       }
@@ -188,7 +191,7 @@ function App() {
     try {
       await submitFeedback(currentSessionId, messageIndex, rating);
 
-      setMessages(prev => {
+      setMessages((prev: Message[]) => {
         const newMessages = [...prev];
         if (newMessages[messageIndex]) {
           newMessages[messageIndex] = {
@@ -262,6 +265,19 @@ function App() {
             >
               <Bug size={14} />
               <span className="hidden sm:inline">{debugMode ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Explanation Toggle */}
+            <button
+              onClick={() => setExplanationMode(!explanationMode)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-all ${explanationMode
+                ? 'bg-accent-primary/20 text-accent-primary border-accent-primary/30'
+                : 'bg-surface text-text-secondary border-border hover:border-text-secondary'
+                }`}
+              title={explanationMode ? "Explicação ativada" : "Explicação desativada"}
+            >
+              <Sparkles size={14} />
+              <span className="hidden sm:inline">{explanationMode ? 'ON' : 'OFF'}</span>
             </button>
 
             <button

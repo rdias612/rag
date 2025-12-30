@@ -1,11 +1,12 @@
 import ReactMarkdown from 'react-markdown';
-import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
+import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown, Copy, Check, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Message } from "../types";
 import { useEffect, useRef, useState } from 'react';
 import { DebugPanel } from './DebugPanel';
 import { SourceModal } from './SourceModal';
+import { ExplanationModal } from './ExplanationModal';
 import type { Source } from '../types';
 
 interface MessageListProps {
@@ -20,6 +21,8 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [userScrolled, setUserScrolled] = useState(false);
     const [selectedSource, setSelectedSource] = useState<Source | null>(null);
+    const [selectedExplanation, setSelectedExplanation] = useState<Message['explanation'] | null>(null);
+    const [showExplanation, setShowExplanation] = useState(false);
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
     const handleCopy = (content: string, index: number) => {
@@ -187,6 +190,18 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                     >
                                         {copiedIndex === idx ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                                     </button>
+                                    {msg.explanation && (
+                                        <button
+                                            onClick={() => {
+                                                setSelectedExplanation(msg.explanation);
+                                                setShowExplanation(true);
+                                            }}
+                                            className="p-1.5 rounded-lg text-zinc-500 hover:text-accent-primary hover:bg-accent-primary/10 transition-colors"
+                                            title="Ver explicação detalhada"
+                                        >
+                                            <Search size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -235,6 +250,15 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                 source={selectedSource}
                 isOpen={!!selectedSource}
                 onClose={() => setSelectedSource(null)}
+            />
+
+            <ExplanationModal
+                explanation={selectedExplanation}
+                isOpen={showExplanation}
+                onClose={() => {
+                    setShowExplanation(false);
+                    setSelectedExplanation(null);
+                }}
             />
         </div>
     );

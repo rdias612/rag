@@ -1,9 +1,34 @@
+export interface RAGTimelineStep {
+    id: string;
+    title: string;
+    description: string;
+    timestamp?: number;
+    icon: string;
+    status: 'pending' | 'processing' | 'completed' | 'skipped';
+    duration_ms?: number;
+    metadata?: {
+        [key: string]: any;
+    };
+}
+
+export interface RAGExplanation {
+    question: string;
+    steps: RAGTimelineStep[];
+    final_result: {
+        chunks_used: number;
+        total_chunks_found: number;
+        total_time_ms: number;
+    };
+    generated_at: string;
+}
+
 export interface Message {
     role: 'user' | 'assistant';
     content: string;
     timestamp?: number;
     sources?: Source[];
     debugInfo?: DebugInfo;
+    explanation?: RAGExplanation;
     feedback?: 'good' | 'bad' | null;
 }
 

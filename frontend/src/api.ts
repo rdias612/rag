@@ -36,7 +36,8 @@ export async function streamChat(
     collectionId: string | null,
     onToken: (token: string) => void,
     debug: boolean = false,
-    temperature?: number
+    temperature?: number,
+    includeExplanation: boolean = true
 ) {
     const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
@@ -46,7 +47,8 @@ export async function streamChat(
             session_id: sessionId,
             collection: collectionId || undefined,
             debug: debug,
-            temperature: temperature
+            temperature: temperature,
+            include_explanation: includeExplanation
         })
     });
 
