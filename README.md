@@ -620,6 +620,14 @@ Reduz tamanho do contexto:
 - Método: LLM-based
 - Preserva informações relevantes
 
+### 8. Self-RAG (Reflexão)
+Avalia e refina automaticamente respostas incompletas:
+- Avaliação de qualidade (score 0-100)
+- Refinamento automático com Query Expansion
+- Métricas detalhadas (iterations, initial_score, final_score, was_refined)
+- Configurável via `ENABLE_SELF_RAG`, `SELF_RAG_MIN_SCORE`, `SELF_RAG_MAX_ITERATIONS`
+- Integração transparente em `/api/query` e `/api/chat`
+
 ### 8. Cache de Embeddings
 Cache LRU para embeddings:
 - Max size: 1000

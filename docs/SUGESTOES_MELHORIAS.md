@@ -22,9 +22,10 @@ Até o momento, o sistema já conta com:
 
 ## 🔴 Alta Prioridade (Evolução Técnica & Core)
 
-### 1. Self-RAG / Reflexão
+### 1. Self-RAG / Reflexão ✅
 **Problema:** O LLM pode gerar respostas incorretas ou incompletas mesmo com o contexto correto.
 **Solução:** Implementar loop de reflexão.
+*Status:* Implementado em 30/12/2025.
 *Obs: Configuração `ENABLE_SELF_RAG` já existe.*
 
 ### 2. Persistência do Cache (Redis)

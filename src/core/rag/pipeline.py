@@ -5,12 +5,13 @@ import time
 import logging
 from typing import Optional, Dict, Any, List
 
-from src.config import TOP_K_RESULTS
+from src.config import TOP_K_RESULTS, ENABLE_SELF_RAG, SELF_RAG_MIN_SCORE, SELF_RAG_MAX_ITERATIONS
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
 from src.core.question_classifier import classify_question
 from src.core.metrics import LatencyTracker, inc_query, observe_chunks_retrieved, inc_error
 from src.core.conversation import conversation_manager
+from src.core.self_rag import self_rag_pipeline
 
 from src.core.rag.services.search_service import SearchService
 from src.core.rag.services.context_service import ContextService
@@ -112,6 +113,40 @@ class RAGPipeline:
                 with LatencyTracker("llm"):
                     answer = generate_response(prompt, temperature=temperature)
                 
+                # 7.5. Self-RAG - Avaliar e refinar se habilitado
+                self_rag_metrics = {}
+                if ENABLE_SELF_RAG:
+                    with LatencyTracker("self_rag"):
+                        # Função de busca adicional usando Query Expansion
+                        def additional_search(query: str, top_k: int):
+                            from src.core.query_expansion import expand_query
+                            expanded_queries = expand_query(query)
+                            results = []
+                            for eq in expanded_queries[:2]:  # Limitar para não demorar muito
+                                eq_embedding = get_embedding(eq)
+                                results.extend(
+                                    self.search.search(
+                                        question=eq,
+                                        query_embedding=eq_embedding,
+                                        top_k=top_k,
+                                        min_similarity=min_similarity,
+                                        use_hybrid=use_hybrid_search,
+                                        hybrid_alpha=hybrid_alpha,
+                                        collection_id=collection_id
+                                    )
+                                )
+                            return results[:top_k]
+                        
+                        # Aplicar Self-RAG
+                        answer, self_rag_metrics = self_rag_pipeline(
+                            question=question,
+                            answer=answer,
+                            context=raw_context,
+                            search_function=additional_search,
+                            min_score=SELF_RAG_MIN_SCORE,
+                            max_iterations=SELF_RAG_MAX_ITERATIONS
+                        )
+                
                 # 8. Formatar resposta
                 return self.responses.format_response(
                     answer=answer,
@@ -119,6 +154,7 @@ class RAGPipeline:
                     question_type=question_type,
                     was_compressed=context_result["was_compressed"],
                     search_metrics=search_metrics,
+                    self_rag_metrics=self_rag_metrics,
                     duration=time.time() - start_time
                 )
                 

@@ -41,7 +41,7 @@ class ResponseService:
             "answer": answer,
             "sources": [],
             "question_type": question_type,
-            "search_metrics": search_metrics,
+            "search": search_metrics,
             "status": "no_results"
         }
     
@@ -51,14 +51,27 @@ class ResponseService:
         documents: list,
         question_type: str,
         was_compressed: bool = False,
+        search_metrics: dict = None,
+        self_rag_metrics: dict = None,
+        duration: float = 0.0,
         **kwargs
     ) -> Dict[str, Any]:
         """Formata o retorno padrão da API."""
-        return {
+        result = {
             "answer": answer,
             "sources": documents,
             "question_type": question_type,
-            "context_compressed": was_compressed,
-            "status": "success",
-            **kwargs
+            "was_compressed": was_compressed,
+            "search": search_metrics or {},
+            "duration": duration,
+            "status": "success"
         }
+        
+        # Adicionar métricas de Self-RAG se disponíveis
+        if self_rag_metrics:
+            result["self_rag"] = self_rag_metrics
+        
+        # Incluir kwargs adicionais
+        result.update(kwargs)
+        
+        return result
