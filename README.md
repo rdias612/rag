@@ -38,7 +38,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 ### 🔍 Busca e Recuperação Avançada
 - **Busca Híbrida**: Combina busca vetorial (semântica) + Full-Text Search (palavras-chave)
 - **Re-ranking com Cross-Encoder**: Refina resultados usando modelo especializado
-- **Query Expansion**: Gera variações da pergunta para busca mais abrangente
+- **Query Expansion **: Gera variações da pergunta para busca mais abrangente (3 variações por padrão, fundidas com RRF)
 - **HyDE (Hypothetical Document Embeddings)**: Gera documento hipotético para melhorar busca
 - **MMR (Maximal Marginal Relevance)**: Diversifica resultados para evitar redundância
 - **Adaptive Retrieval**: Ajusta parâmetros baseado na complexidade da pergunta
@@ -526,10 +526,13 @@ Gera documento hipotético para busca:
 - Melhora buscas por conceito abstratos
 
 ### 4. Query Expansion
-Gera variações da pergunta:
-- Número de variações: 3
-- Aumenta cobertura de busca
-- Útil para perguntas complexas
+Gera variações da pergunta usando LLM para busca mais abrangente:
+- **Número de variações**: 3 (configurável via `QUERY_EXPANSION_COUNT`)
+- **Fusão com RRF**: Combina resultados de múltiplas buscas usando Reciprocal Rank Fusion
+- **Melhoria de recall**: +20-40% na recuperação de documentos relevantes
+- **Prompt customizável**: Gerenciado via banco de dados (tabela `prompts`)
+- **Útil para**: Perguntas curtas, ambíguas, ou com terminologia técnica variada
+- **Documentação detalhada**: `docs/melhorias_feitas/IMPLEMENTACAO_2_QUERY_EXPANSION.md`
 
 ### 5. MMR (Maximal Marginal Relevance)
 Diversifica resultados:

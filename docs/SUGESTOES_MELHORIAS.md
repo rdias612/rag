@@ -41,33 +41,6 @@ Query → Busca Híbrida (Top 20) → Cross-Encoder Re-rank → Top 5 Finais
 
 ---
 
-### 2. Query Expansion / Reformulação
-
-**Problema:** Perguntas curtas ou ambíguas podem não recuperar todos os chunks relevantes.
-
-**Solução:** Expandir a query original usando o LLM antes da busca.
-
-```python
-# Exemplo de prompt:
-"""
-Dada a pergunta do usuário, gere 3-5 variações que busquem o mesmo conceito:
-
-Pergunta original: "O que é GWPRP?"
-
-Variações:
-1. "Explique o protocolo GWPRP"
-2. "Como funciona o GWPRP em redes de drones"
-3. "Características do Geographic Weighted Position Routing Protocol"
-"""
-```
-
-**Implementação sugerida:**
-- Gerar embedding para cada variação
-- Usar média ponderada ou buscar com cada variação
-- Unir resultados usando RRF
-
----
-
 ### 3. Melhoria do Prompt Template
 
 **Problema:** O prompt atual é genérico e pode ser otimizado para diferentes tipos de perguntas.
@@ -98,34 +71,6 @@ RAG_PROMPT_TEMPLATE_ENHANCED = """Você é um assistente especializado. Analise 
 - Prompt para perguntas comparativas
 - Prompt para perguntas de definição
 - Prompt para perguntas de listagem/enumeração
-
----
-
-### 4. Contextual Chunking com Metadados Enriquecidos (IMPLEMENTADA)
-
-**Problema:** Os chunks perdem contexto do documento original (seção, título, vizinhos).
-
-**Solução:** Enriquecer chunks com metadados contextuais:
-
-```python
-# Adicionar ao chunk:
-{
-    "content": "Texto do chunk...",
-    "metadata": {
-        "source": "documento.pdf",
-        "page": 5,
-        "section_title": "Protocolo GWPRP",  # NOVO
-        "parent_section": "Protocolos de Roteamento",  # NOVO
-        "prev_chunk_summary": "...",  # NOVO
-        "next_chunk_summary": "..."   # NOVO
-    }
-}
-```
-
-**Benefícios:**
-- LLM entende melhor o contexto do chunk
-- Busca FTS pode usar títulos de seção
-- Melhor resposta do LLM com contexto hierárquico
 
 ---
 
