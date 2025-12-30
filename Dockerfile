@@ -32,8 +32,6 @@ COPY requirements/base.txt requirements.txt
 # Instalar dependências sem cache e sem arquivos de desenvolvimento
 # CRUCIAL: Remover dist-info e egg-info imediatamente após instalação
 RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt && \
-    find /opt/venv -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true && \
-    find /opt/venv -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true && \
     find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /opt/venv -type f -name "*.pyc" -delete 2>/dev/null || true && \
     find /opt/venv -type f -name "*.pyo" -delete 2>/dev/null || true
@@ -62,18 +60,17 @@ RUN groupadd -r appuser && \
     useradd -r -g appuser --create-home appuser && \
     chown -R appuser:appuser /app
 
+# Preparar diretório de modelos (montado via volume)
+RUN mkdir -p /models/spacy && chown -R appuser:appuser /models
+
 # Copiar ambiente virtual do builder
 COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Limpeza EXTREMA do venv após cópia
+# Limpeza do venv após cópia
 RUN find /opt/venv -type d -name __pycache__ -prune -exec rm -rf {} \; 2>/dev/null || true && \
     find /opt/venv -type f -name '*.pyc' -delete 2>/dev/null || true && \
-    find /opt/venv -type f -name '*.pyo' -delete 2>/dev/null || true && \
-    find /opt/venv -type d -name "*.dist-info" -prune -exec rm -rf {} \; 2>/dev/null || true && \
-    find /opt/venv -type d -name "*.egg-info" -prune -exec rm -rf {} \; 2>/dev/null || true && \
-    find /opt/venv -type d -name "tests" -prune -exec rm -rf {} \; 2>/dev/null || true && \
-    find /opt/venv -type d -name "test" -prune -exec rm -rf {} \; 2>/dev/null || true
+    find /opt/venv -type f -name '*.pyo' -delete 2>/dev/null || true
 
 # Copiar código da aplicação com chown
 COPY --chown=appuser:appuser src/ ./src/
@@ -84,16 +81,9 @@ COPY --chown=appuser:appuser alembic.ini .
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=random \
-    PIP_NO_CACHE_DIR=1
-
-# Script de inicialização para baixar modelos spaCy (primeira execução)
-RUN echo '#!/bin/sh\n\
-python -m spacy download pt_core_news_sm && \\\n\
-python -m spacy download en_core_web_sm && \\\n\
-python -m spacy validate && \\\n\
-echo "spaCy models downloaded successfully"\n' > /app/download_spacy.sh && \
-    chmod +x /app/download_spacy.sh && \
-    chown appuser:appuser /app/download_spacy.sh
+    PIP_NO_CACHE_DIR=1 \
+    SPACY_HOME=/models/spacy \
+    XDG_DATA_HOME=/models
 
 # Switch para usuário não-root
 USER appuser
@@ -105,7 +95,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 5000
 
 # Usar gunicorn para produção com workers dinâmicos
-CMD ["sh", "-c", "[ ! -f /models/.spacy_initialized ] && /app/download_spacy.sh && touch /models/.spacy_initialized || true && gunicorn \
+CMD ["sh", "-c", "gunicorn \
     --bind 0.0.0.0:5000 \
     --workers ${GUNICORN_WORKERS:-4} \
     --threads ${GUNICORN_THREADS:-2} \

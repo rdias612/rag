@@ -169,25 +169,11 @@ srsly==2.5.2
     #   thinc
     #   weasel
 sympy==1.14.0
-    # via
-    #   onnxruntime
-    #   torch
+    # via onnxruntime
 thinc==8.3.10
     # via spacy
-threadpoolctl==3.6.0
-    # via scikit-learn
-tokenizers==0.22.1
-    # via transformers
-torch==2.9.1
-    # via sentence-transformers
 tqdm==4.67.1
-    # via
-    #   huggingface-hub
-    #   sentence-transformers
-    #   spacy
-    #   transformers
-transformers==4.57.3
-    # via sentence-transformers
+    # via spacy
 typer-slim==0.21.0
     # via
     #   spacy
@@ -196,12 +182,9 @@ typing-extensions==4.15.0
     # via
     #   alembic
     #   beautifulsoup4
-    #   huggingface-hub
     #   pydantic
     #   pydantic-core
-    #   sentence-transformers
     #   sqlalchemy
-    #   torch
     #   typer-slim
     #   typing-inspection
 typing-inspection==0.4.2

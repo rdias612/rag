@@ -55,10 +55,13 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-changeme}
       - LM_STUDIO_BASE_URL=${LM_STUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
       - APP_ENV=production
+      - SPACY_HOME=/models/spacy
+      - XDG_DATA_HOME=/models
     ports:
       - "5000:5000"
     volumes:
       - ./logs:/app/logs
+      - ./models/spacy:/models/spacy:ro
     networks:
       - rag-network
 

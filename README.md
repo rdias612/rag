@@ -205,6 +205,17 @@ cd ..
 > [!TIP]
 > O projeto utiliza `pip-tools` para gerenciar dependências. Se desejar adicionar novos pacotes, edite os arquivos `.in` em `requirements/` e rode `pip-compile`.
 
+#### Baixar modelos spaCy no host (para volume)
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install spacy==3.8.11
+python -m spacy download pt_core_news_sm --target ./models/spacy
+python -m spacy download en_core_web_sm --target ./models/spacy
+```
+
+Monte `./models/spacy` no container (já configurado em docker-compose) para evitar downloads na imagem.
+
 ### 2. Banco de Dados
 
 ```bash
@@ -365,6 +376,46 @@ python -m scripts.ingest
 # Verificar status
 python -m scripts.ingest --stats
 ```
+
+### Build de todas as imagens Docker
+
+O repositório contém múltiplos `Dockerfile` (ex.: raiz/backend e `frontend/`). Para facilitar, há dois scripts que encontram todos os `Dockerfile` recursivamente e fazem o build automaticamente.
+
+- PowerShell (Windows):
+
+```powershell
+.\scripts\build_all.ps1           # build com cache
+.\scripts\build_all.ps1 -NoCache  # build sem cache
+```
+
+- Bash (Linux / macOS / WSL / Git Bash):
+
+```bash
+chmod +x scripts/build_all.sh
+./scripts/build_all.sh            # build com cache, tag default 'latest'
+./scripts/build_all.sh --no-cache # build sem cache, tag default 'latest'
+./scripts/build_all.sh mytag      # build com cache e usa tag 'mytag'
+./scripts/build_all.sh --no-cache mytag # sem cache e usa tag 'mytag'
+```
+
+Comportamento:
+- Cada `Dockerfile` será tagueado automaticamente com o caminho relativo (ex.: `frontend` vira `frontend:latest`).
+- Os scripts rodam builds sequenciais; para builds paralelos podemos adaptar os scripts se desejar.
+
+Argumento de tag
+ - Ambos os scripts aceitam um argumento para definir a tag usada nas imagens. Se nenhum argumento for passado, a tag padrão é `latest`.
+ - PowerShell: parâmetro `-ImageTag` (ex.: `.uild_all.ps1 -ImageTag v1.2.3`).
+ - Bash: passe a tag como primeiro argumento, ou use `--no-cache` seguido da tag (ex.: `./build_all.sh v1.2.3` ou `./build_all.sh --no-cache v1.2.3`).
+ - A tag final aplicada às imagens terá o formato `<path-based-name>:<tag>` (ex.: `frontend:v1.2.3`).
+
+Alternativa com `docker-compose`:
+
+Se os serviços estiverem declarados em `docker-compose.yml` com `build:`, você pode usar:
+
+```bash
+docker-compose build --no-cache
+```
+
 
 **Via API**:
 ```bash
