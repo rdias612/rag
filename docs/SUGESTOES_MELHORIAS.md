@@ -266,8 +266,8 @@ def handle_no_results(question: str) -> str:
 ### Fase 2 - Melhorias Core (2-4 semanas)
 5. ✅ Re-ranking com Cross-Encoder
 6. ✅ Query Expansion
-7. ✅ MMR para Diversidade
-8. ✅ HyDE (Hypothetical Document Embeddings)
+7. ✅ HyDE (Hypothetical Document Embeddings)
+8. ✅ MMR para Diversidade (Maximal Marginal Relevance)
 
 ### Fase 3 - Avançado (1-2 meses)
 9. ✅ Parent-Child Chunking
