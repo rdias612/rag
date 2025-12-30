@@ -5,14 +5,16 @@ import {
     HardDrive,
     MessageSquare,
     ArrowLeft,
-    FileText
+    FileText,
+    Target
 } from 'lucide-react';
 import { SystemOverview } from './admin/SystemOverview';
 import { DocumentsPanel } from './admin/DocumentsPanel';
 import { SessionsPanel } from './admin/SessionsPanel';
 import { PromptsManagement } from './admin/PromptsManagement';
+import { AdaptiveRetrievalMetrics } from './admin/AdaptiveRetrievalMetrics';
 
-type TabId = 'overview' | 'documents' | 'sessions' | 'prompts';
+type TabId = 'overview' | 'documents' | 'sessions' | 'prompts' | 'adaptive';
 
 interface Tab {
     id: TabId;
@@ -25,6 +27,7 @@ const TABS: Tab[] = [
     { id: 'documents', label: 'Documentos', icon: HardDrive },
     { id: 'sessions', label: 'Sessões', icon: MessageSquare },
     { id: 'prompts', label: 'Prompts', icon: FileText },
+    { id: 'adaptive', label: 'Adaptive Retrieval', icon: Target },
 ];
 
 interface AdminDashboardProps {
@@ -44,6 +47,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 return <SessionsPanel />;
             case 'prompts':
                 return <PromptsManagement />;
+            case 'adaptive':
+                return <AdaptiveRetrievalMetrics />;
             default:
                 return <SystemOverview />;
         }
