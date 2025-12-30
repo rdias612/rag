@@ -60,22 +60,30 @@ Até o momento, o sistema já conta com:
 **Problema:** Modelos genéricos podem ter baixa performance em nichos técnicos específicos.
 **Solução:** Treinar/Ajustar o modelo de embeddings com pares (pergunta, documento) da própria base.
 
+### 9. Versionamento de Prompts
+**Problema:** Atualmente os prompts são identificados apenas por nomes (`_ENHANCED`), dificultando testes A/B.
+**Solução:** Implementar um sistema de versionamento numérico (ex: `v2`, `v3`) no banco de dados e no código para permitir reversão rápida e experimentação estruturada.
+
+### 10. Few-Shot Examples nas Instruções
+**Problema:** Instruções puramente diretivas podem gerar interpretações variadas pelo modelo.
+**Solução:** Adicionar exemplos reais de (Entrada/Saída) dentro de cada categoria de `question_classifier.py` para guiar o modelo pelo exemplo, aumentando a aderência ao formato desejado.
+
 ---
 
 ## 🟢 Otimizações de Processo & Gestão
 
-### 9. Sistema de Feedback (Endpoint API)
+### 11. Sistema de Feedback (Endpoint API)
 **Problema:** Falta a rota `/api/feedback` para expor a lógica de avaliação do banco de dados ao frontend.
 
-### 10. Expansão da Suíte de Testes
+### 12. Expansão da Suíte de Testes
 **Problema:** Cobertura de testes limitada.
 **Solução:** Implementar suite completa com `pytest` (Unitários, Integração e E2E).
 
-### 11. Documentação OpenAPI/Swagger
+### 13. Documentação OpenAPI/Swagger
 **Problema:** Difícil para novos desenvolvedores entenderem e testarem os 28 endpoints da API.
 **Solução:** Integrar Swagger UI para documentação interativa e testável.
 
-### 12. OCR e Tabelas Aprimorados (Ingestão)
+### 14. OCR e Tabelas Aprimorados (Ingestão)
 **Sugestão:** Integrar `pytesseract` e `tabula-py` para PDFs complexos.
 
 ---
@@ -95,7 +103,9 @@ Até o momento, o sistema já conta com:
 8. [ ] Fine-tuning de Embeddings
 
 ### Fase de Qualidade & APIs
-9. [ ] Endpoint de Feedback API
-10. [ ] Documentação OpenAPI/Swagger
-11. [ ] Suíte Completa de Testes
-12. [ ] Ingestão especializada (OCR/Tabelas)
+11. [ ] Endpoint de Feedback API
+12. [ ] Documentação OpenAPI/Swagger
+13. [ ] Suíte Completa de Testes
+14. [ ] Ingestão especializada (OCR/Tabelas)
+15. [ ] Versionamento de Prompts (v2, v3)
+16. [ ] Few-Shot Examples no core
