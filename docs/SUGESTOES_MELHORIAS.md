@@ -97,26 +97,6 @@ Documento
 
 ---
 
-### 7. Sentence Window Retrieval
-
-**Problema:** A busca retorna chunks isolados que podem cortar contexto importante.
-
-**Solução:** Ao recuperar um chunk, expandir com sentenças vizinhas.
-
-```python
-# Configuração sugerida:
-- Indexar: sentenças individuais com embedding
-- Recuperar: sentença + N sentenças antes/depois (janela)
-- Enviar ao LLM: janela expandida
-```
-
-**Benefícios:**
-- Menor índice vetorial (sentenças são menores)
-- Contexto expandido para o LLM
-- Maior precisão na busca
-
----
-
 ## 🟢 Otimizações Adicionais
 
 ### 9. Cache de Embeddings de Queries
@@ -273,6 +253,7 @@ def handle_no_results(question: str) -> str:
 9. ✅ Parent-Child Chunking
 10. ✅ Contextual Chunking com Metadados
 11. ✅ Avaliação RAGAS
+12. ✅ Sentence Window Retrieval
 
 ---
 
@@ -286,6 +267,7 @@ def handle_no_results(question: str) -> str:
 | Parent-Child Chunking | ⭐⭐⭐⭐ |
 | HyDE | ⭐⭐⭐ |
 | MMR | ⭐⭐⭐ |
+| Sentence Window Retrieval | ⭐⭐⭐ |
 | Contextual Metadata | ⭐⭐⭐ |
 | Cache | ⭐⭐ (performance) |
 
