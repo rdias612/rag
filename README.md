@@ -16,13 +16,15 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 | **Monitoramento** | Prometheus | 0.19+ | Coleta de métricas de performance |
 | **Re-ranking** | sentence-transformers | 2.2+ | Cross-encoder para melhoria de relevância |
 | **Validação** | Pydantic | 2.0+ | Validação de dados e configurações |
-| **Migrações** | Alembic |1.13+ | Gerenciamento de schema do banco |
+| **Migrações** | Alembic | 1.13+ | Gerenciamento de schema do banco |
 | **Agendamento** | APScheduler | 3.10+ | Tarefas em background |
 | **Ingestão** | Microsoft MarkItDown | 0.0.1+ | Conversão universal para Markdown |
 | **Segurança** | cryptography | 41.0+ | Criptografia em repouso (AES-128) |
 | **Segurança** | Restrictive CORS | - | Proteção contra origens não autorizadas |
+| **Segurança** | Flask-Limiter | 3.5+ | Rate limiting e proteção contra abuso |
 | **Dependências** | pip-tools | 7.4+ | Pinning e gestão de dependências |
 | **Arquitetura** | Repository Pattern | - | Desacoplamento da camada de dados |
+| **Arquitetura** | Modular RAG | - | Pipeline, Services e Retrieval Strategies |
 
 ---
 
@@ -46,6 +48,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **MMR (Maximal Marginal Relevance)**: Diversifica resultados para evitar redundância
 - **Adaptive Retrieval**: Ajusta parâmetros baseado na complexidade da pergunta
 - **Filtro de similaridade**: Descarta resultados irrelevantes automaticamente
+- **Arquitetura Modular**: Pipeline orquestrada com serviços especializados (Search, Context, Prompt, Response)
 
 ### 🗜️ Otimização de Contexto
 - **Compressão de Contexto**: Reduz contexto grande automaticamente antes de enviar ao LLM
@@ -74,6 +77,7 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 - **Criptografia Condicional**: Habilitável/desabilitável por campo
 - **Geração de Chaves Seguras**: Script dedicado para gerenciar chaves
 - **Restrictive CORS**: Configuração rigorosa de origens permitidas via `ALLOWED_ORIGINS` e `CORS_MAX_AGE`.
+- **API Rate Limiting**: Proteção global e por endpoint contra abusos e DoS (Flask-Limiter).
 - **Compliance**: Auxilia no cumprimento de LGPD (Art. 46) e ISO 27001
 
 ### 🔬 Observabilidade e Monitoramento
@@ -135,14 +139,18 @@ rag/
 │   │   ├── routes/                # Blueprints modulares (prompts, docs, chat, etc.)
 │   │   └── schemas.py             # Schemas Pydantic
 │   ├── core/                      # Lógica RAG e NLP
-│   │   ├── rag.py                 # Pipeline RAG principal
+│   │   ├── rag/                   # Nova arquitetura RAG Modular
+│   │   │   ├── services/          # Serviços (Search, Context, Prompt, Response)
+│   │   │   ├── strategies/        # Estratégias (Retrieval, HyDE, etc.)
+│   │   │   └── pipeline.py        # Orquestrador principal (RAGPipeline)
+│   │   ├── rag.py                 # Wrapper de compatibilidade
 │   │   ├── ...                    # Módulos core (llm, embeddings, etc.)
 │   ├── data/                      # Camada de dados
 │   │   ├── repositories/          # Repository Pattern (Document, Prompt, etc.)
-│   │   ├── database.py            # Conexão base (Legado/Deprecado)
+│   │   ├── database.py            # Conexão base
 │   │   ├── ingestion.py           # Processamento de arquivos
 │   │   └── ...                    # Módulos de busca e chunking
-│   ├── app.py                     # Inicialização Flask (Registro de Blueprints)
+│   ├── app.py                     # Inicialização Flask (Limiter, Blueprints)
 │   └── config.py                  # Configurações centralizadas
 ├── requirements/                  # Definições de dependências (pip-tools)
 │   ├── base.in                    # Dependências base
@@ -225,6 +233,7 @@ Variáveis principais:
 - `DOCUMENTS_DIR`: Diretório de documentos
 - `DATABASE_*`: Configurações PostgreSQL
 - `ENABLE_*`: Ativar/desativar funcionalidades (HyDE, MMR, etc.)
+- `RATE_LIMIT_*`: Configurações de limite de requisições por endpoint
 
 ### Configuração de Segurança
 
@@ -728,7 +737,6 @@ Ver documento completo em `docs/MELHORIAS_COMPLETAS.md`
 ### Próximas Prioridades
 
 - [ ] **Sistema de autenticação**: API Key ou JWT
-- [ ] **Rate limiting**: Prevenção de abuso
 - [ ] **Testes automatizados**: Suíte completa
 - [ ] **Distributed tracing**: OpenTelemetry/Jaeger
 - [ ] **Sistema de filas**: Celery ou RQ
