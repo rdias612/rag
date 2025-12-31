@@ -39,7 +39,8 @@ export async function streamChat(
     temperature?: number,
     includeExplanation: boolean = true,
     responseStyle: string = "detailed",
-    enableAdaptive: boolean = true
+    enableAdaptive: boolean = true,
+    searchMode?: 'auto' | 'hierarchical' | 'sentence'
 ) {
     const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
@@ -52,7 +53,8 @@ export async function streamChat(
             temperature: temperature,
             include_explanation: includeExplanation,
             response_style: responseStyle,
-            enable_adaptive: enableAdaptive
+            enable_adaptive: enableAdaptive,
+            search_mode: searchMode
         })
     });
 

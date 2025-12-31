@@ -32,6 +32,8 @@ export interface Message {
     feedback?: 'good' | 'bad' | null;
 }
 
+export type RetrievalMode = "auto" | "hierarchical" | "sentence";
+
 export interface DebugInfo {
     embedding_time_ms?: number;
     search_time_ms?: number;
@@ -45,6 +47,7 @@ export interface DebugInfo {
     hyde_applied?: boolean;
     hyde_document?: string;
     question_type?: string;
+    search_mode?: RetrievalMode;
     config?: {
         enable_hyde?: boolean;
         enable_reranking?: boolean;

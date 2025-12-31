@@ -162,14 +162,43 @@ def _scan_documents():
     return pending
 
 
-def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
-    """Executa ingestão em massa em background."""
+def _run_bulk_ingestion(
+    force: bool = False,
+    specific_files: list[str] = None,
+    files_with_chunking: list[dict] = None
+):
+    """
+    Executa ingestão em massa em background.
+    
+    Args:
+        force: Se True, ignora verificação de hash e processa tudo
+        specific_files: Lista de caminhos específicos para processar (formato string)
+        files_with_chunking: Lista de dicts com 'file_path' e 'chunking_type'
+                           (usado quando frontend envia seleção de chunking)
+    """
     global _bulk_ingestion_status
     
     try:
         all_document_files = get_all_documents(DOCUMENTS_DIR)
         
-        if specific_files:
+        if files_with_chunking:
+            # Frontend enviou seleção de chunking
+            files_to_process = []
+            chunking_map = {}  # {file_path: chunking_type}
+            
+            for fw in files_with_chunking:
+                file_path = fw.get("file_path")
+                chunking_type = fw.get("chunking_type", "hierarchical")
+                
+                # Encontrar o documento na lista de todos
+                for dp in all_document_files:
+                    if str(dp) == file_path:
+                        files_to_process.append(dp)
+                        chunking_map[str(dp)] = chunking_type
+                        break
+            
+            force = True
+        elif specific_files:
             files_to_process = [dp for dp in all_document_files if str(dp) in specific_files]
             force = True 
         elif force:
@@ -224,7 +253,14 @@ def _run_bulk_ingestion(force: bool = False, specific_files: list[str] = None):
                 
                 api_logger.info(f"[{i}/{total_files}] Iniciando: {file_name}")
                 
-                chunks = process_document(doc_path)
+                # Determinar chunking type
+                chunking_type = "hierarchical"
+                if files_with_chunking and file_path_str in chunking_map:
+                    chunking_type = chunking_map[file_path_str]
+                    api_logger.info(f"  → Using chunking type: {chunking_type}")
+                
+                from src.data.ingestion import process_document_with_chunking_type
+                chunks = process_document_with_chunking_type(doc_path, chunking_type)
                 
                 if not chunks:
                     api_logger.warning(f"  [!] Nenhum texto extraído de {file_name}")
@@ -553,13 +589,63 @@ def scan_pending_documents():
         return jsonify({"error": str(e)}), 500
 
 
+@documents_bp.route("/documents/scan-with-selection", methods=["GET"])
+def scan_with_selection():
+    """
+    Retorna lista de documentos pendentes para seleção de chunking type.
+    
+    Similar ao /scan, mas inclui campo 'chunkingType' com valor padrão 'hierarchical'.
+    Usado pelo frontend para mostrar modal onde usuário escolhe tipo de chunking.
+    """
+    start_time = time.time()
+    log_api_request("/api/documents/scan-with-selection", "GET")
+    
+    try:
+        pending = _scan_documents()
+        
+        # Adicionar campo chunkingType (default: hierarchical)
+        pending_with_chunking = [
+            {
+                "file": p["file"],
+                "path": p["path"],
+                "reason": p["reason"],
+                "size": p["size"],
+                "chunkingType": "hierarchical"  # Default
+            }
+            for p in pending
+        ]
+        
+        duration = time.time() - start_time
+        log_api_response("/api/documents/scan-with-selection", 200, duration)
+        
+        return jsonify({
+            "pending": pending_with_chunking,
+            "count": len(pending_with_chunking)
+        }), 200
+    except Exception as e:
+        api_logger.error(f"Error scanning documents with selection: {e}")
+        log_api_response("/api/documents/scan-with-selection", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
 # =============================================================================
 # Endpoints de Ingestão em Massa
 # =============================================================================
 @documents_bp.route("/documents/ingest-all", methods=["POST"])
 @limiter.limit(LIMITS["ingest"])
 def start_bulk_ingestion():
-    """Inicia ingestão em massa de todos os documentos do diretório."""
+    """
+    Inicia ingestão em massa de todos os documentos do diretório.
+    
+    Body:
+    {
+        "force": false,
+        "files": [  // Opcional: lista de arquivos específicos com chunking_type
+            {"file_path": "/path/to/file.pdf", "chunking_type": "hierarchical"},
+            {"file_path": "/path/to/file2.pdf", "chunking_type": "sentence"}
+        ]
+    }
+    """
     global _bulk_ingestion_status
     
     start_time = time.time()
@@ -567,10 +653,18 @@ def start_bulk_ingestion():
     log_api_input("/api/documents/ingest-all", "POST", data)
     
     force = data.get("force", False)
-    files_to_ingest = data.get("files", None)
+    files_with_chunking = data.get("files", None)
     
-    if files_to_ingest:
-        total_to_process = len(files_to_ingest)
+    # Verificar se files_with_chunking está no formato correto
+    if files_with_chunking and isinstance(files_with_chunking, list):
+        # Verificar se é formato antigo (lista de strings) ou novo (lista de dicts)
+        if files_with_chunking and isinstance(files_with_chunking[0], str):
+            # Formato antigo: converter para novo
+            files_with_chunking = [
+                {"file_path": f, "chunking_type": "hierarchical"}
+                for f in files_with_chunking
+            ]
+        total_to_process = len(files_with_chunking)
     elif force:
         all_document_files = get_all_documents(DOCUMENTS_DIR)
         total_to_process = len(all_document_files)
@@ -590,7 +684,7 @@ def start_bulk_ingestion():
         _bulk_ingestion_status["message"] = "Iniciando..."
         _bulk_ingestion_status["results"] = []
     
-    thread = threading.Thread(target=_run_bulk_ingestion, args=(force, files_to_ingest))
+    thread = threading.Thread(target=_run_bulk_ingestion, args=(force, None, files_with_chunking))
     thread.daemon = True
     thread.start()
     

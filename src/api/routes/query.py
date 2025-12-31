@@ -58,7 +58,8 @@ def query():
             collection_id=req.collection,
             response_style=req.response_style,
             debug_mode=req.debug or include_explanation,
-            enable_adaptive=req.enable_adaptive
+            enable_adaptive=req.enable_adaptive,
+            search_mode=req.search_mode
         )
         
         if include_explanation and "_debug" in result and "search" in result:
@@ -97,7 +98,8 @@ def query_stream():
                 req.question, 
                 req.top_k, 
                 req.temperature,
-                response_style=req.response_style
+                response_style=req.response_style,
+                search_mode=req.search_mode
             ):
                 yield token
             api_logger.info("Stream query completed successfully")
@@ -163,7 +165,8 @@ def chat():
             include_sources=req.include_sources,
             collection_id=req.collection,
             response_style=req.response_style,
-            enable_adaptive=req.enable_adaptive
+            enable_adaptive=req.enable_adaptive,
+            search_mode=req.search_mode
         )
         
         log_api_response("/api/chat", 200, time.time() - start_time)

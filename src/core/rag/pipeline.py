@@ -3,7 +3,7 @@ Pipeline RAG principal - orquestrador modular.
 """
 import time
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 
 from src.config import (
     TOP_K_RESULTS,
@@ -11,7 +11,8 @@ from src.config import (
     ENABLE_SELF_RAG,
     SELF_RAG_MIN_SCORE,
     SELF_RAG_MAX_ITERATIONS,
-    ENABLE_ADAPTIVE_RETRIEVAL
+    ENABLE_ADAPTIVE_RETRIEVAL,
+    SENTENCE_WINDOW_SIZE
 )
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
@@ -29,6 +30,54 @@ from src.core.rag.services.response_service import ResponseService
 from src.core.rag.strategies.retrieval_strategy import RetrievalStrategy
 
 logger = logging.getLogger("rag.pipeline")
+
+
+def determine_search_strategy(question: str) -> Literal["hierarchical", "sentence"]:
+    """
+    Decide automaticamente qual estratégia de chunking usar baseada na pergunta.
+    
+    Heurística:
+    - Perguntas curtas/diretas → Sentence Window (mais preciso)
+    - Perguntas explicativas → Hierarchical (mais contexto)
+    - Padrão: Hierarchical (mais seguro)
+    
+    Args:
+        question: Texto da pergunta do usuário
+        
+    Returns:
+        'hierarchical' ou 'sentence'
+    """
+    question_lower = question.lower()
+    words = question.split()
+    
+    # Critério 1: Perguntas muito curtas (até 5 palavras)
+    if len(words) <= 5:
+        return "sentence"
+    
+    # Critério 2: Indicadores de perguntas específicas/diretas
+    specific_indicators = [
+        "qual é", "o que é", "quanto custa", "onde fica", 
+        "quem é", "qual", "quanto", "onde", "quem",
+        "qual o valor", "qual o nome", "quanto tempo"
+    ]
+    if any(ind in question_lower for ind in specific_indicators):
+        return "sentence"
+    
+    # Critério 3: Indicadores de perguntas explicativas
+    explanatory_indicators = [
+        "como funciona", " pq ", "por que", "porque", "como fazer",
+        "explique", "detalhe", "descreva", "o processo de",
+        "como pode", "de que forma", "de que maneira", "de qual maneira", "de que jeito", "de qual jeito"
+    ]
+    if any(ind in question_lower for ind in explanatory_indicators):
+        return "hierarchical"
+    
+    # Critério 4: Perguntas começando com "como"
+    if question_lower.startswith("como "):
+        return "hierarchical"
+    
+    # Padrão: Hierarchical (mais seguro)
+    return "hierarchical"
 
 
 class RAGPipeline:
@@ -62,11 +111,29 @@ class RAGPipeline:
         response_style: str = "detailed",
         debug_mode: bool = False,
         history: str = None,
-        enable_adaptive: bool = None
+        enable_adaptive: bool = None,
+        search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = None
     ) -> Dict[str, Any]:
         """Executa query RAG completa."""
         start_time = time.time()
         inc_query()
+        
+        # Determinar estratégia de chunking (Sentence Window vs Hierarchical)
+        if search_mode == "auto" or search_mode is None:
+            # Decisão automática baseada na pergunta
+            strategy = determine_search_strategy(question)
+            use_sentence_window = (strategy == "sentence")
+            logger.info(f"Search mode: auto, Strategy: {strategy}, Use Sentence Window: {use_sentence_window}")
+        elif search_mode == "hierarchical":
+            use_sentence_window = False
+            logger.info(f"Search mode: hierarchical, Use Sentence Window: False")
+        elif search_mode == "sentence":
+            use_sentence_window = True
+            logger.info(f"Search mode: sentence, Use Sentence Window: True")
+        else:
+            # Fallback seguro
+            use_sentence_window = False
+            logger.warning(f"Invalid search_mode: {search_mode}, using hierarchical")
         
         # Inicializar métricas de adaptive retrieval
         adaptive_metrics = {"applied": False, "reason": "disabled_by_config"}
@@ -111,15 +178,26 @@ class RAGPipeline:
                 # 3. Buscar documentos (Phase 1)
                 search_metrics = {}
                 with LatencyTracker("search"):
-                    initial_docs = self.search.search(
-                        question=question,
-                        query_embedding=embedding,
-                        top_k=top_k * 3,  # Busca mais para o re-ranking
-                        min_similarity=min_similarity,
-                        use_hybrid=use_hybrid_search,
-                        hybrid_alpha=hybrid_alpha,
-                        collection_id=collection_id
-                    )
+                    if use_sentence_window:
+                        # Usa Sentence Window Retrieval
+                        initial_docs = self.search.search_with_sentence_window(
+                            question=question,
+                            query_embedding=embedding,
+                            top_k=top_k,
+                            window_size=SENTENCE_WINDOW_SIZE,
+                            collection_id=collection_id
+                        )
+                    else:
+                        # Usa Hierarchical Chunking (padrão)
+                        initial_docs = self.search.search(
+                            question=question,
+                            query_embedding=embedding,
+                            top_k=top_k * 3,  # Busca mais para o re-ranking
+                            min_similarity=min_similarity,
+                            use_hybrid=use_hybrid_search,
+                            hybrid_alpha=hybrid_alpha,
+                            collection_id=collection_id
+                        )
                 
                 # 4. Refinar busca (Phase 2: MMR, Re-ranking)
                 with LatencyTracker("phase2"):
@@ -286,11 +364,11 @@ _default_pipeline = RAGPipeline()
 def query_rag(question: str, **kwargs) -> Dict[str, Any]:
     return _default_pipeline.query(question, **kwargs)
 
-def query_rag_stream(question: str, **kwargs):
-    return _default_pipeline.query_stream(question, **kwargs)
+def query_rag_stream(question: str, search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = None, **kwargs):
+    return _default_pipeline.query_stream(question, search_mode=search_mode, **kwargs)
 
-def query_rag_with_history(question: str, session_id: str, **kwargs):
-    return _default_pipeline.query_with_history(question, session_id, **kwargs)
+def query_rag_with_history(question: str, session_id: str, search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = None, **kwargs):
+    return _default_pipeline.query_with_history(question, session_id, search_mode=search_mode, **kwargs)
 
 def search_only(question: str, **kwargs):
     return _default_pipeline.search_only(question, **kwargs)

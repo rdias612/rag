@@ -32,6 +32,10 @@ function App() {
   const [responseStyle, setResponseStyle] = useState<string>(
     () => localStorage.getItem('responseStyle') || 'detailed'
   );
+  const [searchMode, setSearchMode] = useState<'auto' | 'hierarchical' | 'sentence' | undefined>(() => {
+    const saved = localStorage.getItem('searchMode');
+    return saved ? saved as 'auto' | 'hierarchical' | 'sentence' : undefined;
+  });
   const { theme, toggleTheme } = useTheme();
   const { toast, showToast, hideToast } = useToast();
 
@@ -47,6 +51,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('adaptiveRetrieval', String(adaptiveRetrieval));
   }, [adaptiveRetrieval]);
+
+  useEffect(() => {
+    if (searchMode) {
+      localStorage.setItem('searchMode', searchMode);
+    } else {
+      localStorage.removeItem('searchMode');
+    }
+  }, [searchMode]);
 
   // Load initial sessions
   useEffect(() => {
@@ -132,7 +144,7 @@ function App() {
           }
           return newMessages;
         });
-      }, debugMode, temperature, explanationMode, responseStyle, adaptiveRetrieval);
+      }, debugMode, temperature, explanationMode, responseStyle, adaptiveRetrieval, searchMode);
 
       // Update with final message including sources
       setMessages((prev: Message[]) => {
@@ -241,6 +253,8 @@ function App() {
         setPromptMode={setPromptMode}
         responseStyle={responseStyle}
         setResponseStyle={setResponseStyle}
+        searchMode={searchMode}
+        setSearchMode={setSearchMode}
       />
 
       {/* Main Content */}

@@ -14,6 +14,7 @@ import {
     RotateCcw
 } from 'lucide-react';
 import { ConfirmModal } from '../ConfirmModal';
+import { ChunkingSelectionModal } from '../ChunkingSelectionModal';
 import { API_URL } from '../../api';
 
 interface DocumentStats {
@@ -65,6 +66,7 @@ export function DocumentsPanel() {
     const [showReprocessModal, setShowReprocessModal] = useState(false);
     const [showScanModal, setShowScanModal] = useState(false);
     const [showNoFilesModal, setShowNoFilesModal] = useState(false);
+    const [showChunkingSelectionModal, setShowChunkingSelectionModal] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<any[]>([]);
     const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
@@ -193,16 +195,23 @@ export function DocumentsPanel() {
         };
     }, [ingestionStatus?.running]);
 
-    const startIngestion = async (force: boolean = false, files_to_ingest: string[] | null = null) => {
+    const startIngestion = async (force: boolean = false, files_to_ingest: string[] | null = null, files_with_chunking: any[] | null = null) => {
         setLoading(true);
         try {
+            const body: any = {
+                force
+            };
+
+            if (files_with_chunking) {
+                body.files = files_with_chunking;
+            } else if (files_to_ingest) {
+                body.files = files_to_ingest;
+            }
+
             const res = await fetch(`${API_URL}/documents/ingest-all`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    force,
-                    files: files_to_ingest
-                })
+                body: JSON.stringify(body)
             });
 
             if (res.ok) {
@@ -246,6 +255,36 @@ export function DocumentsPanel() {
         } finally {
             setScanning(false);
         }
+    };
+
+    const handleScanWithSelectionClick = async () => {
+        setScanning(true);
+        try {
+            const res = await fetch(`${API_URL}/documents/scan-with-selection`);
+            if (!res.ok) throw new Error("Failed to scan documents");
+            const data = await res.json();
+
+            if (data.pending && data.pending.length > 0) {
+                setPendingFiles(data.pending);
+                setShowChunkingSelectionModal(true);
+            } else {
+                setShowNoFilesModal(true);
+            }
+        } catch (error) {
+            console.error("Error scanning:", error);
+        } finally {
+            setScanning(false);
+        }
+    };
+
+    const handleChunkingSelectionConfirm = (filesWithChunking: any[]) => {
+        setShowChunkingSelectionModal(false);
+        // Converter para formato esperado pelo backend
+        const filesForBackend = filesWithChunking.map(f => ({
+            file_path: f.path,
+            chunking_type: f.chunkingType
+        }));
+        startIngestion(true, null, filesForBackend);
     };
 
     const reprocessKnowledgeBase = async () => {
@@ -364,7 +403,22 @@ export function DocumentsPanel() {
                         ) : (
                             <Play size={14} />
                         )}
-                        {scanning ? 'Escaneando...' : ingestionStatus?.running ? 'Processando...' : 'Atualizar Base de Conhecimento'}
+                        {scanning ? 'Escaneando...' : ingestionStatus?.running ? 'Processando...' : 'Atualizar'}
+                    </button>
+                    <button
+                        onClick={handleScanWithSelectionClick}
+                        disabled={loading || scanning || ingestionStatus?.running}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Escaneia documentos e permite selecionar tipo de chunking (Explicação ou Precisão)"
+                    >
+                        {scanning ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : ingestionStatus?.running ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <FileText size={14} />
+                        )}
+                        {scanning ? 'Escaneando...' : 'Ingestão com Seleção'}
                     </button>
                     <button
                         onClick={() => setShowReprocessModal(true)}
@@ -771,6 +825,14 @@ export function DocumentsPanel() {
                     </div>
                 )
             }
+
+            {/* Chunking Selection Modal */}
+            <ChunkingSelectionModal
+                isOpen={showChunkingSelectionModal}
+                onClose={() => setShowChunkingSelectionModal(false)}
+                files={pendingFiles}
+                onConfirm={handleChunkingSelectionConfirm}
+            />
         </div >
     );
 }

@@ -11,10 +11,11 @@ Formatos suportados:
 - HTML (.html, .htm)
 - CSV (.csv)
 """
+import os
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Generator, Callable, Optional
+from typing import Generator, Callable, Optional, Literal
 
 from markitdown import MarkItDown
 
@@ -198,6 +199,86 @@ def process_document(file_path: Path) -> list[dict]:
     Returns:
         Lista de chunks (filhos e pais) com metadados estruturados
     """
+    return process_document_with_chunking_type(file_path, "hierarchical")
+
+
+def process_document_sentence_window(file_path: Path) -> list[dict]:
+    """
+    Processa um documento usando Sentence Window Retrieval.
+    
+    Divide o documento em sentenças individuais, cada sentença
+    torna-se um chunk com metadados de posição.
+    
+    Args:
+        file_path: Caminho para o arquivo
+        
+    Returns:
+        Lista de chunks de sentenças com metadados estruturados
+    """
+    from src.data.sentence_window import create_sentence_index
+    
+    # Obter extrator apropriado
+    extractor = get_extractor_for_file(file_path)
+    pages = extractor(file_path)
+    
+    # Unificar texto
+    full_text = "\n\n".join([p["text"] for p in pages])
+    
+    base_metadata = {
+        "source": file_path.name,
+        "source_path": str(file_path),
+        "file_type": file_path.suffix.lower(),
+        "timestamp": datetime.now().isoformat(),
+        "page": 1
+    }
+    
+    # Gerar chunks de sentenças
+    sentence_chunks = create_sentence_index(
+        full_text,
+        base_metadata
+    )
+    
+    # Adicionar chunk_type aos metadados
+    for chunk in sentence_chunks:
+        chunk["metadata"]["chunk_type"] = "sentence"
+        chunk["metadata"]["chunk_index"] = chunk["metadata"]["sentence_index"]
+        chunk["metadata"]["page"] = 1
+    
+    logger.info(f"Created {len(sentence_chunks)} sentence chunks for {file_path.name}")
+    
+    return sentence_chunks
+
+
+def process_document_with_chunking_type(
+    file_path: Path,
+    chunking_type: Literal["hierarchical", "sentence"] = "hierarchical"
+) -> list[dict]:
+    """
+    Processa um documento usando o tipo de chunking especificado.
+    
+    Args:
+        file_path: Caminho do arquivo
+        chunking_type: "hierarchical" ou "sentence"
+        
+    Returns:
+        Lista de chunks com metadados
+    """
+    if chunking_type == "hierarchical":
+        # Chamar função existente (sem o prefixo "process_document" para evitar recursão)
+        return _process_document_hierarchical(file_path)
+    elif chunking_type == "sentence":
+        return process_document_sentence_window(file_path)
+    else:
+        logger.warning(f"Unknown chunking type: {chunking_type}, using hierarchical")
+        return _process_document_hierarchical(file_path)
+
+
+def _process_document_hierarchical(file_path: Path) -> list[dict]:
+    """
+    Implementação interna de hierarchical chunking.
+    
+    Separado para evitar recursão com process_document().
+    """
     # Obter extrator apropriado
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)
@@ -225,11 +306,13 @@ def process_document(file_path: Path) -> list[dict]:
     for i, p in enumerate(parent_chunks):
         p["metadata"]["chunk_index"] = i
         p["metadata"]["page"] = 1
+        p["metadata"]["chunk_type"] = "parent"
         
     # 2. Processar Chunks Filhos
     for i, c in enumerate(child_chunks):
         c["metadata"]["chunk_index"] = i
         c["metadata"]["page"] = 1
+        c["metadata"]["chunk_type"] = "child"
         
         # Enriquecer filhos com possíveis títulos de seção se encontrados no pai
         parent_idx = c["metadata"]["parent_index"]
@@ -241,7 +324,7 @@ def process_document(file_path: Path) -> list[dict]:
                 if len(first_line) < 100 and len(first_line) > 3:
                     if first_line.isupper() or first_line.endswith(':'):
                         c["metadata"]["possible_section"] = first_line
-            
+    
     # Retornar ambos para inserção no banco
     return parent_chunks + child_chunks
 
@@ -284,7 +367,10 @@ def get_all_documents(directory: Path = DOCUMENTS_DIR) -> list[Path]:
     return document_files
 
 
-def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, None, None]:
+def process_all_documents(
+    directory: Path = DOCUMENTS_DIR,
+    chunking_type: Optional[Literal["hierarchical", "sentence"]] = None
+) -> Generator[dict, None, None]:
     """
     Processa todos os documentos suportados de um diretório, gerando chunks.
     
@@ -292,6 +378,7 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
     
     Args:
         directory: Diretório com os documentos
+        chunking_type: Tipo de chunking (hierarchical ou sentence), None usa default
         
     Yields:
         Chunks com content, metadata e collection_id
@@ -333,9 +420,12 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
         logger.info(f"[{i}/{len(document_files)}] Processando: {doc_path.name} (Coleção: {collection_id})")
         
         try:
-            chunks = process_document(doc_path)
+            chunks = process_document_with_chunking_type(
+                doc_path,
+                chunking_type if chunking_type else "hierarchical"
+            )
             total_chunks += len(chunks)
-            logger.info(f"   Gerados {len(chunks)} chunks")
+            logger.info(f"   Gerados {len(chunks)} chunks ({chunking_type or 'hierarchical'})")
             logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks (Coleção: {collection_id})")
             
             for chunk in chunks:

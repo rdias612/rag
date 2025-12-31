@@ -1,8 +1,9 @@
 import { Plus, MessageSquare, Trash2, History, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
-import type { Session } from "../types";
+import type { Session, RetrievalMode } from "../types";
 import { TemperatureSelector } from "./TemperatureSelector";
+import { RetrievalModeSelector } from "./RetrievalModeSelector";
 import { useState } from "react";
 
 interface SidebarProps {
@@ -19,6 +20,8 @@ interface SidebarProps {
     setPromptMode: (mode: string) => void;
     responseStyle: string;
     setResponseStyle: (style: string) => void;
+    searchMode: RetrievalMode | undefined;
+    setSearchMode: (mode: RetrievalMode | undefined) => void;
 }
 
 export function Sidebar({
@@ -32,7 +35,9 @@ export function Sidebar({
     promptMode,
     setPromptMode,
     responseStyle,
-    setResponseStyle
+    setResponseStyle,
+    searchMode,
+    setSearchMode
 }: SidebarProps) {
     const [showSettings, setShowSettings] = useState(false);
 
@@ -89,6 +94,11 @@ export function Sidebar({
                                 <TemperatureSelector
                                     temperature={temperature}
                                     setTemperature={setTemperature}
+                                />
+
+                                <RetrievalModeSelector
+                                    mode={searchMode}
+                                    setMode={setSearchMode}
                                 />
 
                                 {/* Prompt Mode Selector */}

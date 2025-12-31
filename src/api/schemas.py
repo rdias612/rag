@@ -2,7 +2,7 @@
 Esquemas Pydantic para validação de requisições da API.
 Melhoria #12 - Validação de Schema com Pydantic
 """
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -16,6 +16,7 @@ class QueryRequest(BaseModel):
     response_style: str = Field(default="detailed", description="Estilo da resposta: 'concise' ou 'detailed'")
     debug: bool = Field(default=False, description="Ativar modo debug/explain")
     enable_adaptive: bool = Field(default=True, description="Ativar Adaptive Retrieval (ajuste dinâmico de top_k e min_similarity)")
+    search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = Field(default=None, description="Modo de busca: 'auto' (sistema decide), 'hierarchical' (explicação detalhada), 'sentence' (resposta direta)")
 
     class Config:
         extra = "ignore"
@@ -41,6 +42,7 @@ class ChatRequest(BaseModel):
     response_style: str = Field(default="detailed", description="Estilo da resposta: 'concise' ou 'detailed'")
     debug: bool = Field(default=False, description="Ativar modo debug/explain")
     enable_adaptive: bool = Field(default=True, description="Ativar Adaptive Retrieval (ajuste dinâmico de top_k e min_similarity)")
+    search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = Field(default=None, description="Modo de busca: 'auto' (sistema decide), 'hierarchical' (explicação detalhada), 'sentence' (resposta direta)")
 
     class Config:
         extra = "ignore"
@@ -52,6 +54,7 @@ class StreamQueryRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=50, description="Número de chunks")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Criatividade do LLM")
     response_style: str = Field(default="detailed", description="Estilo da resposta: 'concise' ou 'detailed'")
+    search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = Field(default=None, description="Modo de busca: 'auto' (sistema decide), 'hierarchical' (explicação detalhada), 'sentence' (resposta direta)")
 
     class Config:
         extra = "ignore"

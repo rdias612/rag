@@ -53,7 +53,11 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 ### 🗜️ Otimização de Contexto
 - **Compressão de Contexto**: Reduz contexto grande automaticamente antes de enviar ao LLM
 - **Hierarchical Chunking**: Divisão em chunks pais e filhos (opcional)
-- **Sentence Window**: Inclui contexto de sentenças vizinhas (opcional)
+- **Sentence Window Retrieval**: Busca precisa com sentenças individuais expandidas dinamicamente
+  - **Busca**: 3 modos de recuperação (Automático, Explicação, Precisão)
+  - **Ingestão**: Seleção de tipo de chunking por documento (Hierarchical vs Sentence Window)
+  - **Expansão Dinâmica**: 3 sentenças vizinhas para contexto suficiente
+  - **Decisão Automática**: Sistema analisa a pergunta e escolhe a melhor estratégia
 - **Contextual Metadata**: Metadados contextuais para melhor recuperação
 
 ### 💬 Sistema de Conversação
@@ -489,6 +493,11 @@ curl -X POST http://localhost:5000/api/documents/ingest-all \
 
 **Nota**: O parâmetro `include_explanation` (default: true) adiciona uma explicação detalhada do processo RAG na resposta, incluindo timeline de etapas, métricas de similaridade e detalhes técnicos.
 
+**Nota**: O parâmetro `search_mode` (default: "automatic") define a estratégia de recuperação:
+- `"automatic"`: Sistema decide automaticamente (hierárquico ou sentence window)
+- `"hierarchical"`: Usa chunks grandes para contexto amplo (Explicação)
+- `"sentence"`: Usa sentenças individuais expandidas para precisão (Precisão)
+
 ### Sessões
 
 | Endpoint | Método | Descrição |
@@ -709,6 +718,45 @@ Suíte completa de testes para Adaptive Retrieval:
 - **Execução**: `pytest tests/test_adaptive_retrieval.py -v`
 - **Documentação**: Testes com docstrings explicativas
 
+### 13. Sentence Window Retrieval
+Busca precisa usando sentenças individuais com expansão dinâmica:
+- **3 Modos de Recuperação**:
+  - **Automático**: Sistema analisa a pergunta e escolhe a melhor estratégia (hierárquico ou sentence window)
+  - **Explicação (Hierarchical)**: Contexto amplo com chunks grandes, ideal para tutoriais e documentação
+  - **Precisão (Sentence Window)**: Chunks pequenos (1 sentença) com janela expandida, ideal para perguntas específicas de fatos
+- **Ingestão Seletiva**: Tipo de chunking selecionável por documento (Hierarchical vs Sentence Window)
+- **Expansão Dinâmica**: 3 sentenças vizinhas (antes e depois) para contexto suficiente
+- **Heurísticas de Decisão**: Sistema analisa pergunta para escolher estratégia automaticamente:
+  - Perguntas curtas (≤5 palavras) → Precisão
+  - Perguntas "qual é", "quanto custa", "onde fica" → Precisão
+  - Perguntas "como funciona", "por que", "explique" → Explicação
+- **Benefícios**:
+  - Melhor recall para perguntas específicas
+  - Respostas mais diretas e precisas
+  - Menos ruído nos embeddings
+  - Contexto mais adequado ao tipo de pergunta
+- **Configurável**: `SENTENCE_WINDOW_SIZE` (default: 3)
+- **Dependências**: spaCy + modelo `pt_core_news_sm`
+- **Documentação Detalhada**: `docs/melhorias_feitas/IMPLEMENTACAO_SENTENCE_WINDOW.md`
+
+**Exemplo de Uso**:
+```json
+POST /api/query
+{
+  "question": "Qual o preço do produto?",
+  "search_mode": "automatic"  // "hierarchical", "sentence", ou "automatic"
+}
+```
+
+**Resposta com Modo Usado**:
+```json
+{
+  "answer": "...",
+  "search_mode_used": "sentence",
+  "retrieval_strategy": "Precisão (Sentence Window) - 7 chunks expandidos"
+}
+```
+
 ---
 
 ## 📊 Métricas
@@ -908,6 +956,7 @@ Projeto para estudo de técnicas avançadas de RAG.
 - **Documentação**: Ver pasta `docs/`
 - **Exemplos**: `docs/MELHORIAS.md`
 - **Implementação de Adaptive Retrieval**: `docs/melhorias_feitas/IMPLEMENTACAO_ADAPTIVE_RETRIEVAL.md`
+- **Implementação de Sentence Window Retrieval**: `docs/melhorias_feitas/IMPLEMENTACAO_SENTENCE_WINDOW.md`
 
 ---
 

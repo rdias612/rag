@@ -7,17 +7,34 @@ janela expandida (sentença + vizinhos) para contexto ao LLM.
 Benefícios:
 - Busca mais precisa (sentenças pequenas)
 - Contexto expandido para respostas melhores
+- Usa spaCy para melhor detecção de sentenças em português
 """
-import re
 import logging
 from typing import List, Optional, Tuple
+import spacy
 
 logger = logging.getLogger(__name__)
+
+# Carregar modelo spaCy para português (mesmo usado no projeto)
+try:
+    nlp = spacy.load("pt_core_news_md")
+    logger.info("spaCy model loaded successfully for Portuguese")
+except OSError:
+    logger.warning("pt_core_news_md model not found, falling back to en_core_web_sm")
+    try:
+        nlp = spacy.load("en_core_web_sm")
+        logger.info("Using English spaCy model as fallback")
+    except OSError:
+        logger.error("No spaCy model found. Sentence splitting may be inaccurate.")
+        nlp = None
 
 
 def split_into_sentences(text: str) -> List[str]:
     """
-    Divide texto em sentenças.
+    Divide texto em sentenças usando spaCy.
+    
+    Usa spaCy para detecção linguística de sentenças em português,
+    muito mais precisa que regex simples.
     
     Args:
         text: Texto a dividir
@@ -25,6 +42,37 @@ def split_into_sentences(text: str) -> List[str]:
     Returns:
         Lista de sentenças
     """
+    if not text or not text.strip():
+        return []
+    
+    if nlp is None:
+        # Fallback para regex se spaCy não estiver disponível
+        logger.warning("spaCy not available, using regex fallback")
+        return split_into_sentences_regex(text)
+    
+    try:
+        doc = nlp(text)
+        sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+        
+        logger.debug(f"Split text into {len(sentences)} sentences using spaCy")
+        return sentences
+    except Exception as e:
+        logger.error(f"Error splitting sentences with spaCy: {e}")
+        return split_into_sentences_regex(text)
+
+
+def split_into_sentences_regex(text: str) -> List[str]:
+    """
+    Fallback: Divide texto em sentenças usando regex.
+    
+    Args:
+        text: Texto a dividir
+        
+    Returns:
+        Lista de sentenças
+    """
+    import re
+    
     # Padrões de fim de sentença
     sentence_endings = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
     
