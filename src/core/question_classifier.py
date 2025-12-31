@@ -169,13 +169,28 @@ QUESTION_TYPE_INSTRUCTIONS = {
 def get_instructions_for_type(question_type: str) -> str:
     """
     Retorna instruções específicas para o tipo de pergunta.
+    Tenta buscar do banco de dados (com exemplos few-shot),
+    com fallback para instruções hardcoded.
     
     Args:
-        question_type: Tipo da pergunta
+        question_type: Tipo da pergunta (definition, comparison, etc.)
         
     Returns:
         Instruções para incluir no prompt
     """
+    # 1. Tentar buscar do banco de dados (com exemplos few-shot)
+    try:
+        from src.data.repositories import _question_type_instruction_repo
+        db_instructions = _question_type_instruction_repo.find_by_question_type(question_type)
+        
+        if db_instructions:
+            logger.debug(f"Using DB instructions (few-shot) for type '{question_type}'")
+            return db_instructions
+    except Exception as e:
+        logger.warning(f"Failed to fetch instructions from DB: {e}")
+    
+    # 2. Fallback para instruções hardcoded
+    logger.debug(f"Using fallback instructions for type '{question_type}'")
     return QUESTION_TYPE_INSTRUCTIONS.get(question_type, QUESTION_TYPE_INSTRUCTIONS["general"])
 
 

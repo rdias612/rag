@@ -832,6 +832,14 @@ curl http://localhost:5000/api/metrics/adaptive-retrieval/performance?days=7
 - Ajustes de parâmetros aplicados
 - Performance e timing
 
+**question_type_instructions**:
+- Instruções especializadas para cada tipo de pergunta
+- Exemplos few-shot para guiar o modelo
+- 7 tipos suportados: definition, comparison, listing, procedure, factual, reason, general
+- Cache em memória (TTL 5 minutos) para otimizar performance
+- Fallback para instruções hardcoded se BD indisponível
+- Gerenciamento via SQL (sem frontend por enquanto)
+
 ### Migrações
 
 ```bash

@@ -46,21 +46,17 @@ Até o momento, o sistema já conta com:
 **Problema:** Atualmente os prompts são identificados apenas por nomes (`_ENHANCED`), dificultando testes A/B.
 **Solução:** Implementar um sistema de versionamento numérico (ex: `v2`, `v3`) no banco de dados e no código para permitir reversão rápida e experimentação estruturada.
 
-### 6. Few-Shot Examples nas Instruções
-**Problema:** Instruções puramente diretivas podem gerar interpretações variadas pelo modelo.
-**Solução:** Adicionar exemplos reais de (Entrada/Saída) dentro de cada categoria de `question_classifier.py` para guiar o modelo pelo exemplo, aumentando a aderência ao formato desejado.
-
 ---
 
 ## 🟢 Otimizações de Processo & Gestão
 
-### 7. Sistema de Feedback (Endpoint API)
+### 6. Sistema de Feedback (Endpoint API)
 **Problema:** Falta a rota `/api/feedback` para expor a lógica de avaliação do banco de dados ao frontend.
 
-### 8. Expansão da Suíte de Testes
+### 7. Expansão da Suíte de Testes
 **Problema:** Cobertura de testes limitada.
 **Solução:** Implementar suite completa com `pytest` (Unitários, Integração e E2E).
 
-### 9. Documentação OpenAPI/Swagger
+### 8. Documentação OpenAPI/Swagger
 **Problema:** Difícil para novos desenvolvedores entenderem e testarem os 28 endpoints da API.
 **Solução:** Integrar Swagger UI para documentação interativa e testável.

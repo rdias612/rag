@@ -8,6 +8,7 @@ from .document_repository import DocumentRepository
 from .prompt_repository import PromptRepository, CRITICAL_CATEGORIES
 from .ingestion_repository import IngestionRepository
 from .feedback_repository import FeedbackRepository
+from .question_type_instruction_repository import QuestionTypeInstructionRepository, _question_type_instruction_repo
 
 __all__ = [
     "BaseRepository",
@@ -15,5 +16,7 @@ __all__ = [
     "PromptRepository",
     "IngestionRepository",
     "FeedbackRepository",
-    "CRITICAL_CATEGORIES"
+    "CRITICAL_CATEGORIES",
+    "QuestionTypeInstructionRepository",
+    "_question_type_instruction_repo"
 ]
