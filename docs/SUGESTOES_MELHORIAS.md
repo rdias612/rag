@@ -64,6 +64,3 @@ Até o momento, o sistema já conta com:
 ### 9. Documentação OpenAPI/Swagger
 **Problema:** Difícil para novos desenvolvedores entenderem e testarem os 28 endpoints da API.
 **Solução:** Integrar Swagger UI para documentação interativa e testável.
-
-### 10. OCR e Tabelas Aprimorados (Ingestão)
-**Sugestão:** Integrar `pytesseract` e `tabula-py` para PDFs complexos.
