@@ -21,6 +21,7 @@ from src.api.routes.documents import documents_bp
 from src.api.routes.prompts import prompts_bp
 from src.api.routes.metrics import metrics_bp
 from src.api.routes.admin import admin_bp
+from src.api.routes.quality_metrics import quality_bp
 
 # Registrar sub-blueprints no blueprint principal
 api.register_blueprint(health_bp)  # /health, /stats, /collections
@@ -29,6 +30,7 @@ api.register_blueprint(sessions_bp, url_prefix="/chat")  # /chat/sessions, /chat
 api.register_blueprint(documents_bp)  # /ingest/*, /documents/*
 api.register_blueprint(prompts_bp, url_prefix="/prompts")  # /prompts/*
 api.register_blueprint(metrics_bp)  # /cache/*, /classify, /evaluate, /hyde/*, /metrics
+api.register_blueprint(quality_bp, url_prefix="/metrics/quality")  # /stats, /recent, /trends, /top-worst, /evaluate
 api.register_blueprint(admin_bp)  # /embeddings/*, /admin/*
 
 # =============================================================================

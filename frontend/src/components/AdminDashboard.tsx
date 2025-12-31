@@ -6,15 +6,17 @@ import {
     MessageSquare,
     ArrowLeft,
     FileText,
-    Target
+    Target,
+    Award
 } from 'lucide-react';
 import { SystemOverview } from './admin/SystemOverview';
 import { DocumentsPanel } from './admin/DocumentsPanel';
 import { SessionsPanel } from './admin/SessionsPanel';
 import { PromptsManagement } from './admin/PromptsManagement';
 import { AdaptiveRetrievalMetrics } from './admin/AdaptiveRetrievalMetrics';
+import QualityMetricsPanel from './admin/QualityMetricsPanel';
 
-type TabId = 'overview' | 'documents' | 'sessions' | 'prompts' | 'adaptive';
+type TabId = 'overview' | 'documents' | 'sessions' | 'prompts' | 'adaptive' | 'quality';
 
 interface Tab {
     id: TabId;
@@ -28,6 +30,7 @@ const TABS: Tab[] = [
     { id: 'sessions', label: 'Sessões', icon: MessageSquare },
     { id: 'prompts', label: 'Prompts', icon: FileText },
     { id: 'adaptive', label: 'Adaptive Retrieval', icon: Target },
+    { id: 'quality', label: 'Qualidade RAG', icon: Award },
 ];
 
 interface AdminDashboardProps {
@@ -49,6 +52,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                 return <PromptsManagement />;
             case 'adaptive':
                 return <AdaptiveRetrievalMetrics />;
+            case 'quality':
+                return <QualityMetricsPanel />;
             default:
                 return <SystemOverview />;
         }

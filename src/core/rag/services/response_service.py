@@ -53,6 +53,8 @@ class ResponseService:
         was_compressed: bool = False,
         search_metrics: dict = None,
         self_rag_metrics: dict = None,
+        adaptive_params_used: dict = None,
+        evaluation_metrics: dict = None,
         duration: float = 0.0,
         **kwargs
     ) -> Dict[str, Any]:
@@ -70,6 +72,14 @@ class ResponseService:
         # Adicionar métricas de Self-RAG se disponíveis
         if self_rag_metrics:
             result["self_rag"] = self_rag_metrics
+        
+        # Adicionar parâmetros de Adaptive Retrieval se disponíveis
+        if adaptive_params_used:
+            result["adaptive"] = adaptive_params_used
+        
+        # Adicionar métricas de avaliação se disponíveis
+        if evaluation_metrics:
+            result["evaluation"] = evaluation_metrics
         
         # Incluir kwargs adicionais
         result.update(kwargs)

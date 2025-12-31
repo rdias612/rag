@@ -12,6 +12,8 @@ from src.config import (
     SELF_RAG_MIN_SCORE,
     SELF_RAG_MAX_ITERATIONS,
     ENABLE_ADAPTIVE_RETRIEVAL,
+    ENABLE_AUTO_EVALUATION,
+    EVALUATION_MIN_SCORE_THRESHOLD,
     SENTENCE_WINDOW_SIZE
 )
 from src.core.embeddings import get_embedding
@@ -22,6 +24,8 @@ from src.core.conversation import conversation_manager
 from src.core.self_rag import self_rag_pipeline
 from src.core.adaptive_retrieval import get_adaptive_params
 from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
+from src.data.repositories.evaluation_repository import evaluation_repo
+from src.core.evaluation import evaluate_rag_response
 
 from src.core.rag.services.search_service import SearchService
 from src.core.rag.services.context_service import ContextService
@@ -231,7 +235,42 @@ class RAGPipeline:
                 with LatencyTracker("llm"):
                     answer = generate_response(prompt, temperature=temperature)
                 
-                # 7.5. Self-RAG - Avaliar e refinar se habilitado
+                # 7.5. Auto-avaliação (opcional)
+                evaluation_metrics = {}
+                if ENABLE_AUTO_EVALUATION:
+                    with LatencyTracker("evaluation"):
+                        try:
+                            # Avaliar resposta
+                            evaluation_result = evaluate_rag_response(
+                                question=question,
+                                answer=answer,
+                                context=raw_context,
+                                chunks=documents
+                            )
+                            
+                            # Filtrar avaliações muito baixas
+                            if evaluation_result["overall_score"] >= EVALUATION_MIN_SCORE_THRESHOLD:
+                                evaluation_metrics = evaluation_result
+                                
+                                # Salvar no banco (assíncrono para não impactar performance)
+                                try:
+                                    evaluation_repo.save_evaluation(
+                                        question=question,
+                                        answer=answer,
+                                        context=raw_context,
+                                        scores=evaluation_result,
+                                        session_id=collection_id,  # Usando collection_id temporariamente
+                                        chunks_retrieved=len(documents),
+                                        search_mode=search_mode,
+                                        adaptive_used=adaptive_metrics.get("applied", False)
+                                    )
+                                    logger.debug(f"Evaluation saved: score={evaluation_result['overall_score']:.2%}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to save evaluation: {e}")
+                        except Exception as e:
+                            logger.warning(f"Failed to evaluate response: {e}")
+                
+                # 7.6. Self-RAG - Avaliar e refinar se habilitado
                 self_rag_metrics = {}
                 if ENABLE_SELF_RAG:
                     with LatencyTracker("self_rag"):
@@ -295,6 +334,7 @@ class RAGPipeline:
                     search_metrics=search_metrics,
                     self_rag_metrics=self_rag_metrics,
                     adaptive_params_used=adaptive_metrics,
+                    evaluation_metrics=evaluation_metrics,
                     duration=total_duration
                 )
                 

@@ -75,9 +75,10 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 
 ### 🔒 Segurança e Criptografia
 - **Criptografia em Repouso**: Dados sensíveis criptografados no banco (AES-128 + HMAC-SHA256)
+  - ⚠️ **IMPORTANTE**: O Encryption Manager está implementado em `src/core/encryption.py` mas **ainda NÃO está integrado ao sistema**. A funcionalidade está pronta para uso, mas requer integração nos repositórios e habilitação via `ENABLE_ENCRYPTION=true` no arquivo de configuração.
 - **Criptografia em Trânsito**: HTTPS/TLS1.3 com headers de segurança
 - **Headers de Segurança**: HSTS, CSP, X-Frame-Options, etc.
-- **Campos Criptografados**: conteúdo de documentos, metadados, comentários de feedback
+- **Campos Criptografados**: conteúdo de documentos, metadados, comentários de feedback (quando habilitado)
 - **Criptografia Condicional**: Habilitável/desabilitável por campo
 - **Geração de Chaves Seguras**: Script dedicado para gerenciar chaves
 - **Restrictive CORS**: Configuração rigorosa de origens permitidas via `ALLOWED_ORIGINS` e `CORS_MAX_AGE`.
@@ -963,7 +964,12 @@ Projeto para estudo de técnicas avançadas de RAG.
 - **Issues**: GitHub Issues
 - **Documentação**: Ver pasta `docs/`
 - **Exemplos**: `docs/MELHORIAS.md`
-- **Implementação de Adaptive Retrieval**: `docs/melhorias_feitas/IMPLEMENTACAO_ADAPTIVE_RETRIEVAL.md`
+- **Sistema de Avaliação RAG**: Documentação completa em `docs/SISTEMA_AVALIACAO_QUALIDADE.md`
+  - Métricas de qualidade (fidelidade, relevância, precisão do contexto)
+  - Avaliação manual e automática
+  - Dashboard administrativo
+  - Exemplos de uso da API
+  - **Implementação de Adaptive Retrieval**: `docs/melhorias_feitas/IMPLEMENTACAO_ADAPTIVE_RETRIEVAL.md`
 - **Implementação de Sentence Window Retrieval**: `docs/melhorias_feitas/IMPLEMENTACAO_SENTENCE_WINDOW.md`
 
 ---

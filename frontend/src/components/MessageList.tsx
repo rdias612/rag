@@ -1,5 +1,5 @@
 import ReactMarkdown from 'react-markdown';
-import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown, Copy, Check, Search } from "lucide-react";
+import { Bot, ArrowDown, FileText, Sparkles, Zap, BookOpen, ThumbsUp, ThumbsDown, Copy, Check, Search, Award } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
 import type { Message } from "../types";
@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DebugPanel } from './DebugPanel';
 import { SourceModal } from './SourceModal';
 import { ExplanationModal } from './ExplanationModal';
+import EvaluationModal from './EvaluationModal';
 import type { Source } from '../types';
 
 interface MessageListProps {
@@ -24,6 +25,19 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
     const [selectedExplanation, setSelectedExplanation] = useState<Message['explanation'] | null>(null);
     const [showExplanation, setShowExplanation] = useState(false);
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+    const [evaluationModal, setEvaluationModal] = useState<{
+        isOpen: boolean;
+        question: string;
+        answer: string;
+        context: string;
+        sources: any[];
+    }>({
+        isOpen: false,
+        question: '',
+        answer: '',
+        context: '',
+        sources: []
+    });
 
     const handleCopy = (content: string, index: number) => {
         navigator.clipboard.writeText(content);
@@ -155,7 +169,7 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                 <DebugPanel debugInfo={msg.debugInfo} />
                             )}
 
-                            {/* Feedback Buttons */}
+            {/* Feedback Buttons */}
                             {msg.role === 'assistant' && !isLoading && (
                                 <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
@@ -202,6 +216,24 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                                             <Search size={14} />
                                         </button>
                                     )}
+                                    <button
+                                        onClick={() => {
+                                            // Encontrar a pergunta correspondente (última mensagem do usuário antes desta)
+                                            const userQuestion = messages.slice(0, idx).reverse().find(m => m.role === 'user')?.content || '';
+                                            
+                                            setEvaluationModal({
+                                                isOpen: true,
+                                                question: userQuestion,
+                                                answer: msg.content,
+                                                context: msg.debugInfo?.context || '',
+                                                sources: msg.sources || []
+                                            });
+                                        }}
+                                        className="p-1.5 rounded-lg text-zinc-500 hover:text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+                                        title="Avaliar qualidade"
+                                    >
+                                        <Award size={14} />
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -259,6 +291,15 @@ export function MessageList({ messages, isLoading, onFeedback }: MessageListProp
                     setShowExplanation(false);
                     setSelectedExplanation(null);
                 }}
+            />
+
+            <EvaluationModal
+                isOpen={evaluationModal.isOpen}
+                onClose={() => setEvaluationModal({ ...evaluationModal, isOpen: false })}
+                question={evaluationModal.question}
+                answer={evaluationModal.answer}
+                context={evaluationModal.context}
+                sources={evaluationModal.sources}
             />
         </div>
     );

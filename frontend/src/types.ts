@@ -48,6 +48,7 @@ export interface DebugInfo {
     hyde_document?: string;
     question_type?: string;
     search_mode?: RetrievalMode;
+    context?: string;
     config?: {
         enable_hyde?: boolean;
         enable_reranking?: boolean;
