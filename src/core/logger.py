@@ -23,22 +23,21 @@ LOGS_DIR.mkdir(exist_ok=True)
 # =============================================================================
 # Formatters Customizados
 # =============================================================================
-class JSONFormatter(logging.Formatter):
-    """Formatter que gera logs em formato JSON."""
+class SimpleFormatter(logging.Formatter):
+    """Formatter simples que gera logs em formato de texto legível."""
     
     def format(self, record: logging.LogRecord) -> str:
-        log_data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-        }
+        timestamp = datetime.utcnow().isoformat()
+        level = record.levelname
+        logger_name = record.name
+        message = record.getMessage()
         
         # Adicionar dados extras se existirem
         if hasattr(record, "extra_data"):
-            log_data["data"] = record.extra_data
-            
-        return json.dumps(log_data, ensure_ascii=False, default=str)
+            extra_data_str = json.dumps(record.extra_data, ensure_ascii=False, default=str)
+            return f"{timestamp} {level} {logger_name} {message} | data={extra_data_str}"
+        
+        return f"{timestamp} {level} {logger_name} {message}"
 
 
 class DetailedFormatter(logging.Formatter):
@@ -92,14 +91,14 @@ def setup_logger(
     if logger.handlers:
         return logger
     
-    # Handler para arquivo (JSON)
+    # Handler para arquivo (texto simples)
     if log_to_file:
         file_handler = logging.FileHandler(
             LOGS_DIR / f"{name.replace('.', '_')}.log",
             encoding="utf-8"
         )
         file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(JSONFormatter())
+        file_handler.setFormatter(SimpleFormatter())
         logger.addHandler(file_handler)
     
     # Handler para console

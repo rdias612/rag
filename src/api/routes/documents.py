@@ -104,7 +104,7 @@ def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str)
             return
         
         texts = [chunk["content"] for chunk in chunks]
-        embeddings = get_embeddings_batch(texts)
+        embeddings = get_embeddings_batch(texts, document_name=original_filename)
         
         with _ingestion_lock:
             _ingestion_jobs[job_id]["message"] = "Inserindo no banco de dados..."
@@ -286,7 +286,7 @@ def _run_bulk_ingestion(
                 if not chunks:
                     api_logger.warning(f"  [!] Nenhum texto extraído de {file_name}")
                     docs_failed += 1
-                    _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, 0, "error")
+                    _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, 0, "error", chunking_type)
                     with _bulk_ingestion_lock:
                         _bulk_ingestion_status["results"].append({
                             "file": file_name,
@@ -296,7 +296,7 @@ def _run_bulk_ingestion(
                     continue
                 
                 texts = [chunk["content"] for chunk in chunks]
-                embeddings = get_embeddings_batch(texts)
+                embeddings = get_embeddings_batch(texts, document_name=file_name)
                 
                 if len(embeddings) != len(chunks):
                     raise ValueError(f"Mismatch: {len(chunks)} chunks vs {len(embeddings)} embeddings")
@@ -312,7 +312,7 @@ def _run_bulk_ingestion(
                 
                 inserted = _doc_repo.create_batch(documents_to_insert)
                 
-                _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, inserted, "success")
+                _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, inserted, "success", chunking_type)
                 
                 docs_processed += 1
                 api_logger.info(f"  [V] Concluído: {file_name} ({inserted} chunks)")

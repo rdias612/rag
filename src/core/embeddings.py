@@ -174,13 +174,14 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     return embedding
 
 
-def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[float]]:
+def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: str = None) -> list[list[float]]:
     """
     Gera embeddings para múltiplos textos em batch.
     
     Args:
         texts: Lista de textos para gerar embeddings
         batch_size: Tamanho do batch para cada requisição
+        document_name: Nome do documento sendo processado (para log)
         
     Returns:
         Lista de embeddings (cada um é uma lista de floats)
@@ -188,7 +189,8 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
     all_embeddings = []
     total_start = time.time()
     
-    embedding_logger.info(f"Starting batch embedding: {len(texts)} texts, batch_size={batch_size}")
+    doc_info = f" [{document_name}]" if document_name else ""
+    embedding_logger.info(f"Starting batch embedding{doc_info}: {len(texts)} texts, batch_size={batch_size}")
     
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
@@ -285,10 +287,10 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         batch_duration = time.time() - batch_start
         log_embedding_batch_response(len(batch), batch_duration, EMBEDDING_DIMENSION)
         
-        embedding_logger.info(f"Processados {min(i + batch_size, len(texts))}/{len(texts)} embeddings")
+        embedding_logger.info(f"Embeddings progress{doc_info}: {min(i + batch_size, len(texts))}/{len(texts)} chunks")
     
     total_duration = time.time() - total_start
-    embedding_logger.info(f"Batch embedding complete: {len(all_embeddings)} embeddings in {total_duration:.2f}s")
+    embedding_logger.info(f"Batch embedding complete{doc_info}: {len(all_embeddings)} embeddings in {total_duration:.2f}s")
     
     return all_embeddings
 
