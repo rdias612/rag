@@ -40,6 +40,7 @@ from src.config import (
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 from src.data.hierarchical_chunking import create_parent_child_chunks
+from src.data.sentence_window import create_sentence_index
 from src.core.logger import (
     ingestion_logger as logger, 
     log_execution_time
@@ -223,8 +224,6 @@ def process_document_sentence_window(file_path: Path) -> list[dict]:
     Returns:
         Lista de chunks de sentenças com metadados estruturados
     """
-    from src.data.sentence_window import create_sentence_index
-    
     # Obter extrator apropriado
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)

@@ -11,6 +11,9 @@ from src.config import (
     TOP_K_RESULTS,
     RERANKING_TOP_K_INITIAL
 )
+from src.core.mmr import mmr_filter
+from src.core.reranker import rerank_chunks
+from src.core.hyde import generate_hyde_embedding
 
 logger = logging.getLogger("rag.pipeline")
 
@@ -48,13 +51,11 @@ class RetrievalStrategy:
             
         # 2. MMR (Maximal Marginal Relevance)
         if self._enable_mmr and len(results) > final_top_k:
-            from src.core.mmr import mmr_filter
             results = mmr_filter(question_embedding, results, k=final_top_k * 2)
             search_metrics["mmr_applied"] = True
 
         # 3. Re-ranking
         if self._enable_reranking and results:
-            from src.core.reranker import rerank_chunks
             results = rerank_chunks(question, results, top_k=final_top_k)
             search_metrics["reranking_applied"] = True
             
@@ -63,6 +64,5 @@ class RetrievalStrategy:
     def apply_hyde(self, question: str) -> List[float]:
         """Aplica Hypothetical Document Embeddings (HyDE)."""
         if self._enable_hyde:
-            from src.core.hyde import generate_hyde_embedding
             return generate_hyde_embedding(question)
         return None

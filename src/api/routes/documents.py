@@ -39,6 +39,7 @@ from src.data.repositories import DocumentRepository, IngestionRepository
 from src.data.ingestion import (
     SUPPORTED_EXTENSIONS,
     process_document,
+    process_document_with_chunking_type,
     get_document_stats,
     get_all_documents
 )
@@ -280,7 +281,6 @@ def _run_bulk_ingestion(
                     chunking_type = chunking_map[file_path_str]
                     api_logger.info(f"  → Using chunking type: {chunking_type}")
                 
-                from src.data.ingestion import process_document_with_chunking_type
                 chunks = process_document_with_chunking_type(doc_path, chunking_type)
                 
                 if not chunks:

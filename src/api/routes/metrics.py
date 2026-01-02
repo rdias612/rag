@@ -14,6 +14,12 @@ import time
 from flask import Blueprint, request, jsonify, Response
 
 from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
+from src.core.embedding_cache import get_cache_stats, clear_embedding_cache
+from src.core.question_classifier import classify_question, get_question_type_description
+from src.core.evaluation import evaluate_rag_response, get_evaluation_summary
+from src.core.hyde import generate_hypothetical_document
+from src.core.metrics import get_metrics, check_metrics_available
+from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
 
 metrics_bp = Blueprint("metrics", __name__)
 

@@ -11,7 +11,9 @@ from functools import wraps
 from src.config import (
     ENABLE_HTTPS,
     SSL_PROTOCOL,
-    SSL_CIPHERS
+    SSL_CIPHERS,
+    SSL_CERT_PATH,
+    SSL_KEY_PATH
 )
 from src.core.logger import security_logger
 
@@ -181,7 +183,6 @@ def get_ssl_context():
     
     try:
         import ssl
-        from src.config import SSL_CERT_PATH, SSL_KEY_PATH
         
         if not SSL_CERT_PATH or not SSL_KEY_PATH:
             security_logger.warning(

@@ -2,10 +2,11 @@
 Base Repository com métodos comuns a todos os repositories.
 """
 from abc import ABC, abstractmethod
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from typing import Optional, TypeVar, Generic, Any
 
 from src.data.database import get_connection
+from psycopg2.extras import RealDictCursor
 
 T = TypeVar("T")
 
@@ -25,9 +26,6 @@ class BaseRepository(ABC, Generic[T]):
         Args:
             dict_cursor: Se True, usa RealDictCursor para retornar dicts
         """
-        from contextlib import ExitStack
-        from psycopg2.extras import RealDictCursor
-
         cursor_factory = RealDictCursor if dict_cursor else None
 
         # Permitir receber tanto uma conexão já aberta quanto um context manager.

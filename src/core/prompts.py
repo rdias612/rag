@@ -5,6 +5,7 @@ Tenta buscar no banco de dados, com fallback para as constantes no código.
 from typing import Optional
 from src.data.repositories import PromptRepository
 from src import config
+from src.core.question_classifier import QUESTION_TYPE_INSTRUCTIONS
 
 # Instância do repository
 _prompt_repo = PromptRepository()
@@ -40,7 +41,6 @@ def get_active_prompt(name: str) -> str:
     
     # Se for uma instrução de tipo de pergunta, buscar no question_classifier (será refatorado)
     if name.startswith('instruction_'):
-        from src.core.question_classifier import QUESTION_TYPE_INSTRUCTIONS
         type_key = name.replace('instruction_', '')
         return QUESTION_TYPE_INSTRUCTIONS.get(type_key, QUESTION_TYPE_INSTRUCTIONS.get('general', ''))
 

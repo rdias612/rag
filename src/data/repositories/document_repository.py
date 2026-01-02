@@ -27,6 +27,9 @@ try:
 except ImportError:
     ENCRYPTION_AVAILABLE = False
 
+    # Importar IngestionRepository (usado em métodos específicos)
+    from src.data.repositories.ingestion_repository import IngestionRepository
+
 
 class DocumentRepository(BaseRepository):
     """Gerencia documentos/chunks no banco de dados."""
@@ -262,8 +265,6 @@ class DocumentRepository(BaseRepository):
         Returns:
             Lista de documentos encontrados
         """
-        from src.data.repositories.ingestion_repository import IngestionRepository
-        
         # Buscar paths de documentos com este tipo de chunking
         ingestion_repo = IngestionRepository()
         source_paths = ingestion_repo.find_by_chunking_type(chunking_type, collection_id)

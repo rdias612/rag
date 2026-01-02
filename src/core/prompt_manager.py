@@ -10,6 +10,7 @@ from typing import Optional
 from src.data.repositories import PromptRepository
 from src.core.llm import generate_response
 from src import config
+from src.core.question_classifier import get_instructions_for_type
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,6 @@ Responda APENAS com o número da opção (1, 2, 3, etc). Não adicione mais nada
             return prompt
         
         # Fallback para question_classifier
-        from src.core.question_classifier import get_instructions_for_type
         return get_instructions_for_type(question_type)
 
 

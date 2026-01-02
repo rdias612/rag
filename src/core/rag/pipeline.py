@@ -19,6 +19,7 @@ from src.config import (
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
 from src.core.question_classifier import classify_question
+from src.core.query_expansion import expand_query
 from src.core.metrics import LatencyTracker, inc_query, observe_chunks_retrieved, inc_error
 from src.core.conversation import conversation_manager
 from src.core.self_rag import self_rag_pipeline
@@ -276,7 +277,6 @@ class RAGPipeline:
                     with LatencyTracker("self_rag"):
                         # Função de busca adicional usando Query Expansion
                         def additional_search(query: str, top_k: int):
-                            from src.core.query_expansion import expand_query
                             expanded_queries = expand_query(query)
                             results = []
                             for eq in expanded_queries[:2]:  # Limitar para não demorar muito
