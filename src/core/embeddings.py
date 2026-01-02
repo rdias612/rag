@@ -38,13 +38,22 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     
     start_time = time.time()
     
-    # Limpeza básica do texto para evitar erros no modelo/LM Studio
-    # Remover caracteres não imprimíveis que podem causar problemas
+    # Limpeza robusta do texto para evitar erros no modelo/LM Studio
+    # 1. Remover caracteres não imprimíveis e de controle (exceto \n, \r, \t)
     text = "".join(char for char in text if char.isprintable() or char in "\n\r\t")
+    # 2. Normalizar espaços (múltiplos espaços viram um único)
+    import re
+    text = re.sub(r'\s+', ' ', text)
     text = text.strip()
     
-    if not text:
-        embedding_logger.warning("Texto vazio após limpeza. Retornando None.")
+    # 3. Validar tamanho mínimo do texto (chunks muito pequenos causam problemas)
+    if len(text) < 10:
+        embedding_logger.warning(f"Texto muito pequeno ({len(text)} chars) após limpeza. Retornando None.")
+        return None
+    
+    # 4. Validar conteúdo do texto (evitar chunks só com caracteres especiais)
+    if len(text.strip(' \n\r\t.,!?;:()[]{}<>"/\'-=+*&^%$#@|~`_')) < 5:
+        embedding_logger.warning("Texto composto principalmente de caracteres especiais. Retornando None.")
         return None
 
     # Log do texto enviado para embedding
@@ -65,19 +74,42 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     embedding = data["data"][0]["embedding"]
     duration = time.time() - start_time
     
-    # Validar embedding
+    # Validar embedding de forma mais detalhada
+    null_count = sum(1 for v in embedding if v is None)
+    nan_count = sum(1 for v in embedding if isinstance(v, float) and (v != v))  # NaN check
+    inf_count = sum(1 for v in embedding if isinstance(v, float) and (v == float('inf') or v == float('-inf')))
+    
     is_valid = (
         embedding is not None and 
         isinstance(embedding, list) and 
         len(embedding) > 0 and 
-        not any(v is None for v in embedding)
+        null_count == 0 and
+        nan_count == 0 and
+        inf_count == 0
     )
 
     if not is_valid:
-        error_reason = "None" if embedding is None else ("not a list" if not isinstance(embedding, list) else "contains NULLs")
+        error_details = []
+        if embedding is None:
+            error_details.append("embedding is None")
+        if not isinstance(embedding, list):
+            error_details.append("not a list")
+        if null_count > 0:
+            error_details.append(f"{null_count} NULLs")
+        if nan_count > 0:
+            error_details.append(f"{nan_count} NaNs")
+        if inf_count > 0:
+            error_details.append(f"{inf_count} Infs")
+        
+        error_reason = ", ".join(error_details)
+        
         # Logar o texto que causou problema para análise
-        text_sample = text[:100] + "..." if len(text) > 100 else text
-        embedding_logger.warning(f"Embedding inválido retornado para '{text_sample}'. Tentando retry único... Razão: {error_reason}")
+        text_sample = text[:150] + "..." if len(text) > 150 else text
+        embedding_logger.warning(
+            f"Embedding inválido retornado para '{text_sample}'. "
+            f"Texto: {len(text)} chars, Embedding: {len(embedding) if embedding else 0} dims. "
+            f"Erro: {error_reason}. Tentando retry único..."
+        )
         
         # Um pequeno sleep antes de tentar de novo
         time.sleep(1.0)
@@ -94,17 +126,42 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
         data = response.json()
         embedding = data["data"][0]["embedding"]
         
-        # Validar novamente
+        # Validar novamente após retry
+        null_count = sum(1 for v in embedding if v is None)
+        nan_count = sum(1 for v in embedding if isinstance(v, float) and (v != v))
+        inf_count = sum(1 for v in embedding if isinstance(v, float) and (v == float('inf') or v == float('-inf')))
+        
         is_valid = (
             embedding is not None and 
             isinstance(embedding, list) and 
             len(embedding) > 0 and 
-            not any(v is None for v in embedding)
+            null_count == 0 and
+            nan_count == 0 and
+            inf_count == 0
         )
         
         if not is_valid:
-            error_reason = "None" if embedding is None else ("not a list" if not isinstance(embedding, list) else "contains NULLs")
-            embedding_logger.error(f"ERRO: Embedding inválido retornado após retry: {error_reason}")
+            error_details = []
+            if embedding is None:
+                error_details.append("embedding is None")
+            if not isinstance(embedding, list):
+                error_details.append("not a list")
+            if null_count > 0:
+                error_details.append(f"{null_count} NULLs")
+            if nan_count > 0:
+                error_details.append(f"{nan_count} NaNs")
+            if inf_count > 0:
+                error_details.append(f"{inf_count} Infs")
+            
+            error_reason = ", ".join(error_details)
+            
+            # Log mais detalhado para debug
+            text_sample = text[:150] + "..." if len(text) > 150 else text
+            embedding_logger.error(
+                f"ERRO: Embedding inválido após retry. "
+                f"Texto: '{text_sample}' ({len(text)} chars). "
+                f"Erro: {error_reason}"
+            )
             raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) após retry para o texto: '{text[:50]}...'")
 
     # Log do embedding gerado
@@ -162,11 +219,18 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
         # Validar e retentar individualmente se necessário
         validated_embeddings = []
         for idx, emb in enumerate(batch_embeddings):
+            # Validação robusta igual à função individual
+            null_count = sum(1 for v in emb if v is None) if emb else 0
+            nan_count = sum(1 for v in emb if isinstance(v, float) and (v != v)) if emb else 0
+            inf_count = sum(1 for v in emb if isinstance(v, float) and (v == float('inf') or v == float('-inf'))) if emb else 0
+            
             is_valid = (
                 emb is not None and 
                 isinstance(emb, list) and 
                 len(emb) > 0 and 
-                not any(v is None for v in emb)
+                null_count == 0 and
+                nan_count == 0 and
+                inf_count == 0
             )
             
             if is_valid:
@@ -175,7 +239,27 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
                 # Tentar recuperar individualmente
                 orig_idx = i + idx
                 problematic_text = texts[orig_idx]
-                embedding_logger.warning(f"Embedding inválido no batch (index {orig_idx}). Tentando recuperação individual...")
+                
+                error_details = []
+                if emb is None:
+                    error_details.append("embedding is None")
+                if not isinstance(emb, list):
+                    error_details.append("not a list")
+                if null_count > 0:
+                    error_details.append(f"{null_count} NULLs")
+                if nan_count > 0:
+                    error_details.append(f"{nan_count} NaNs")
+                if inf_count > 0:
+                    error_details.append(f"{inf_count} Infs")
+                
+                error_reason = ", ".join(error_details)
+                text_sample = problematic_text[:100] + "..." if len(problematic_text) > 100 else problematic_text
+                
+                embedding_logger.warning(
+                    f"Embedding inválido no batch (index {orig_idx}). "
+                    f"Texto: '{text_sample}' ({len(problematic_text)} chars). "
+                    f"Erro: {error_reason}. Tentando recuperação individual..."
+                )
                 
                 try:
                     # Retry individualmente (sem cache para garantir nova tentativa)
@@ -191,8 +275,10 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32) -> list[list[fl
                     validated_embeddings.append(None)
                     
                     # Log mais informativo e menos assustador, pois o sistema irá ignorar este trecho
-                    text_sample = problematic_text[:100] + "..." if len(problematic_text) > 100 else problematic_text
-                    embedding_logger.warning(f"CHUNK IGNORADO (Falha persistente no modelo) no index {orig_idx}: '{text_sample}'")
+                    embedding_logger.warning(
+                        f"CHUNK IGNORADO (Falha persistente no modelo) no index {orig_idx}: '{text_sample}'. "
+                        f"Motivo: {str(e)}"
+                    )
 
         all_embeddings.extend(validated_embeddings)
         

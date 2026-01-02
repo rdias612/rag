@@ -13,15 +13,20 @@ Este módulo será removido em uma versão futura.
 import json
 import time
 import warnings
+import os
 from functools import wraps
 from typing import Optional
 from contextlib import contextmanager
+
+from alembic.config import Config
+from alembic import command
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from src.config import (
     DATABASE_CONFIG, 
+    DATABASE_URL,
     EMBEDDING_DIMENSION, 
     TOP_K_RESULTS, 
     MIN_SIMILARITY_THRESHOLD,
@@ -115,14 +120,45 @@ def get_connection():
 get_db_connection = get_connection
 
 
+def run_migrations():
+    """Executa as migrações do Alembic programaticamente."""
+    db_logger.info("Iniciando migrações automáticas do banco de dados...")
+    try:
+        # Caminho para o arquivo alembic.ini (na raiz do projeto)
+        # src/data/database.py -> src/data -> src -> raiz
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        ini_path = os.path.join(base_dir, "alembic.ini")
+        
+        if not os.path.exists(ini_path):
+            db_logger.error(f"Arquivo alembic.ini não encontrado em: {ini_path}")
+            return False
+            
+        alembic_cfg = Config(ini_path)
+        
+        # Sobrescrever a URL do banco com a das configurações do app
+        # Escapar '%' para evitar problemas com o ConfigParser do Alembic
+        db_url = DATABASE_URL.replace("%", "%%")
+        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        
+        # Executar upgrade para a versão mais recente
+        command.upgrade(alembic_cfg, "head")
+        db_logger.info("Migrações concluídas com sucesso!")
+        return True
+    except Exception as e:
+        db_logger.error(f"Erro ao executar migrações: {e}")
+        return False
+
+
 def init_database():
     """
-    Verifica a conexão e se o esquema está presente.
-
-    A criação/alteração de schema agora é gerenciada por migrações Alembic.
-    Caso a tabela principal não exista, orienta a rodar as migrações.
+    Verifica a conexão e executa as migrações do Alembic.
     """
-    db_logger.info("Checking database readiness (migrations managed via Alembic)...")
+    db_logger.info("Inicializando banco de dados (Alembic)...")
+    
+    # 1. Executar migrações automáticas
+    run_migrations()
+    
+    # 2. Verificar prontidão
     start_time = time.time()
 
     with get_connection() as conn:
@@ -141,8 +177,8 @@ def init_database():
 
     if not exists:
         msg = (
-            "Esquema não encontrado. Rode as migrações antes de continuar: "
-            "alembic upgrade head"
+            "Esquema não encontrado mesmo após migrações. "
+            "Verifique os logs do Alembic."
         )
         db_logger.error(msg)
         raise RuntimeError(msg)

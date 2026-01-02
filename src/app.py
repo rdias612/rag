@@ -17,6 +17,16 @@ def create_app() -> Flask:
     """Factory function para criar a aplicação Flask."""
     app = Flask(__name__)
     
+    # Inicializar banco de dados (inclui migrações Alembic)
+    # Isso garante que o banco esteja pronto independente de como o app é iniciado
+    try:
+        api_logger.info("Inicializando banco de dados via create_app()...")
+        init_database()
+    except Exception as e:
+        api_logger.error(f"Erro ao inicializar banco de dados: {e}")
+        # Não interrompemos aqui para permitir que o Flask mostre erros se necessário
+        # ou para que o processo de boot continue se for um erro não-fatal
+    
     # Configurar JSON para não escapar caracteres Unicode (acentos, ç, etc)
     app.json.ensure_ascii = False
     
@@ -72,11 +82,7 @@ def main():
     
     api_logger.info("Conexão com banco de dados OK!")
     
-    # Inicializar banco (criar tabelas se não existirem)
-    api_logger.info("Inicializando banco de dados...")
-    init_database()
-    
-    # Criar e rodar aplicação
+    # Criar e rodar aplicação (create_app já inicializa o banco)
     app = create_app()
     
     # Determinar protocolo (HTTP ou HTTPS)
