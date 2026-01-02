@@ -44,8 +44,12 @@ class Conversation:
         Returns:
             Histórico formatado como string
         """
-        # Pegar as últimas N mensagens (excluindo a última do user, que é a pergunta atual)
-        recent = self.messages[-(max_messages + 1):-1] if len(self.messages) > 1 else []
+        # Se a última mensagem for do usuário, assumimos que é a pergunta atual e a ignoramos no histórico
+        # (pois ela já será incluída separadamente no prompt principal)
+        if self.messages and self.messages[-1].role == "user":
+            recent = self.messages[-(max_messages + 1):-1]
+        else:
+            recent = self.messages[-max_messages:]
         
         if not recent:
             return ""
@@ -185,6 +189,23 @@ class ConversationManager:
         # Criar nova sessão
         new_id = self.create_session()
         return new_id, self._sessions[new_id]
+    
+    def get_history_as_text(self, session_id: str, max_messages: int = 10) -> str:
+        """
+        Obtém o histórico de uma sessão formatado como texto.
+        
+        Args:
+            session_id: ID da sessão
+            max_messages: Número máximo de mensagens
+            
+        Returns:
+            Histórico formatado ou string vazia
+        """
+        session = self.get_session(session_id)
+        if session is None:
+            return ""
+        
+        return session.get_history_for_prompt(max_messages)
     
     def add_message(self, session_id: str, role: str, content: str) -> bool:
         """

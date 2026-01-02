@@ -79,18 +79,17 @@ def main():
     # Criar e rodar aplicação
     app = create_app()
     
-    print("\n" + "=" * 50)
-    
     # Determinar protocolo (HTTP ou HTTPS)
     protocol = "https" if ENABLE_HTTPS else "http"
-    print(f"🎉 RAG API rodando em: {protocol}://localhost:5000")
+    api_logger.info("=" * 50)
+    api_logger.info(f"🎉 RAG API rodando em: {protocol}://localhost:5000")
     
     if ENABLE_HTTPS:
-        print(f"🔒 HTTPS habilitado com TLS")
+        api_logger.info("🔒 HTTPS habilitado com TLS")
     else:
-        print("⚠️  HTTPS desabilitado (use apenas em desenvolvimento)")
+        api_logger.warning("⚠️  HTTPS desabilitado (use apenas em desenvolvimento)")
     
-    print("=" * 50 + "\n")
+    api_logger.info("=" * 50)
     
     # Configurar SSL context se HTTPS estiver habilitado
     ssl_context = get_ssl_context()

@@ -96,6 +96,8 @@ class SemanticChunker:
         if not text or not text.strip():
             return []
         
+        logger.debug(f"Iniciando chunking semântico. Tamanho do texto: {len(text)} caracteres.")
+        
         # Normalizar espaços em branco
         text = self._normalize_whitespace(text)
         
@@ -159,6 +161,8 @@ class SemanticChunker:
         
         # Mesclar chunks muito pequenos
         all_chunks = self._merge_small_chunks(all_chunks)
+        
+        logger.debug(f"Chunking semântico concluído: {len(all_chunks)} chunks gerados.")
         
         return all_chunks
     
@@ -534,10 +538,10 @@ def add_contextual_metadata(
 
 if __name__ == "__main__":
     # Teste rápido do módulo
-    print("=== Teste do Chunking Semântico ===\n")
+    logger.info("=== Teste do Chunking Semântico ===")
     
     status = check_spacy_available()
-    print(f"Status spaCy: {status}\n")
+    logger.info(f"Status spaCy: {status}")
     
     # Texto de exemplo
     sample_text = """
@@ -553,14 +557,13 @@ if __name__ == "__main__":
     
     chunks = chunk_text_semantic(sample_text, max_chunk_size=300)
     
-    print(f"Texto original: {len(sample_text)} caracteres")
-    print(f"Chunks gerados: {len(chunks)}\n")
+    logger.info(f"Texto original: {len(sample_text)} caracteres")
+    logger.info(f"Chunks gerados: {len(chunks)}")
     
     for i, chunk in enumerate(chunks, 1):
-        print(f"--- Chunk {i} ({len(chunk)} chars) ---")
-        print(chunk)
-        print()
+        logger.info(f"--- Chunk {i} ({len(chunk)} chars) ---")
+        logger.info(chunk)
+        logger.info("")
     
     quality = analyze_chunk_quality(chunks)
-    print(f"Qualidade: {quality}")
-
+    logger.info(f"Qualidade: {quality}")

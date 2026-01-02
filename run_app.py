@@ -67,8 +67,25 @@ def cleanup_ports():
         print("   ✓ Portas livres")
 
 
+def install_dependencies():
+    """Instala as dependências do projeto."""
+    print("📦 Verificando dependências...")
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
+            check=True,
+            capture_output=True
+        )
+        print("   ✓ Dependências verificadas/instaladas")
+    except Exception as e:
+        print(f"   ⚠ Erro ao verificar dependências: {e}")
+
+
 def run_app():
     print("🚀 Iniciando RAG System (Backend + Frontend)...\n")
+    
+    # Instalar dependências
+    install_dependencies()
     
     # Limpar portas antes de iniciar
     cleanup_ports()

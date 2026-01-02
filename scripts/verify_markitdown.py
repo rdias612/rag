@@ -9,19 +9,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def verify():
-    print("🔍 Verificando integração MarkItDown...\n")
+    logger.info("🔍 Verificando integração MarkItDown...")
     
     try:
         from src.data.ingestion import SUPPORTED_EXTENSIONS
-        print("✅ Módulos carregados com sucesso!")
-        print(f"✅ Extensões suportadas: {SUPPORTED_EXTENSIONS}")
+        logger.info("✅ Módulos carregados com sucesso!")
+        logger.info(f"✅ Extensões suportadas: {SUPPORTED_EXTENSIONS}")
         
-        print("\n🚀 MarkItDown está pronto para uso!")
+        logger.info("🚀 MarkItDown está pronto para uso!")
             
     except ImportError as e:
-        print(f"❌ Erro ao importar módulos: {e}")
+        logger.error(f"❌ Erro ao importar módulos: {e}")
     except Exception as e:
-        print(f"❌ Erro inesperado: {e}")
+        logger.error(f"❌ Erro inesperado: {e}")
 
 if __name__ == "__main__":
     verify()

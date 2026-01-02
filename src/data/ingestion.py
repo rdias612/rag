@@ -13,9 +13,13 @@ Formatos suportados:
 """
 import os
 import logging
+import warnings
 from pathlib import Path
 from datetime import datetime
 from typing import Generator, Callable, Optional, Literal
+
+# Suprimir avisos do pydub sobre ffmpeg (comum em Windows sem ffmpeg instalado)
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub")
 
 from markitdown import MarkItDown
 
@@ -36,9 +40,7 @@ from src.config import (
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 from src.data.hierarchical_chunking import create_parent_child_chunks
-
-logger = logging.getLogger(__name__)
-
+from src.core.logger import ingestion_logger as logger, log_execution_time
 
 # =============================================================================
 # Formatos suportados e Proibidos (MarkItDown requer API key para estes)
@@ -79,13 +81,16 @@ def extract_text_with_markitdown(file_path: Path) -> list[dict]:
 
     try:
         logger.info(f"Convertendo {file_path.name} para Markdown")
+        start_time = datetime.now()
         result = md_converter.convert(str(file_path))
         text = result.text_content
+        duration = (datetime.now() - start_time).total_seconds()
         
         if not text or not text.strip():
             logger.warning(f"MarkItDown retornou texto vazio para {file_path.name}")
             return []
             
+        logger.debug(f"Extração concluída para {file_path.name} em {duration:.2f}s. Tamanho: {len(text)} caracteres.")
         return [{"text": text.strip(), "page": 1}]
     except Exception as e:
         logger.error(f"Erro ao converter {file_path.name} com MarkItDown: {e}")
@@ -294,6 +299,8 @@ def _process_document_hierarchical(file_path: Path) -> list[dict]:
     }
     
     # Gerar chunks hierárquicos
+    logger.debug(f"Iniciando chunking hierárquico para {file_path.name}")
+    start_chunking = datetime.now()
     parent_chunks, child_chunks = create_parent_child_chunks(
         full_text,
         base_metadata,
@@ -301,6 +308,8 @@ def _process_document_hierarchical(file_path: Path) -> list[dict]:
         child_size=CHILD_CHUNK_SIZE,
         child_overlap=CHILD_CHUNK_OVERLAP
     )
+    duration_chunking = (datetime.now() - start_chunking).total_seconds()
+    logger.debug(f"Chunking concluído: {len(parent_chunks)} pais, {len(child_chunks)} filhos em {duration_chunking:.2f}s")
     
     # 1. Processar Chunks Pais
     for i, p in enumerate(parent_chunks):

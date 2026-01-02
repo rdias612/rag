@@ -25,7 +25,15 @@ from flask import Blueprint, request, jsonify
 
 from src.config import DOCUMENTS_DIR
 from src.core.embeddings import get_embeddings_batch
-from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
+from src.core.logger import (
+    api_logger, 
+    ingestion_logger, 
+    log_api_request, 
+    log_api_response, 
+    log_api_input,
+    log_ingestion_start,
+    log_ingestion_complete
+)
 from src.api.middleware.rate_limiter import limiter, LIMITS
 from src.data.repositories import DocumentRepository, IngestionRepository
 from src.data.ingestion import (
@@ -74,6 +82,9 @@ def _calculate_file_hash(file_path: Path) -> str:
 
 def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str):
     """Processa um documento em background."""
+    start_time = time.time()
+    log_ingestion_start(str(file_path), "upload")
+    
     try:
         with _ingestion_lock:
             _ingestion_jobs[job_id]["status"] = "processing"
@@ -89,6 +100,7 @@ def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str)
             with _ingestion_lock:
                 _ingestion_jobs[job_id]["status"] = "failed"
                 _ingestion_jobs[job_id]["error"] = "Nenhum texto extraído do documento"
+            ingestion_logger.warning(f"Job {job_id[:8]} failed: No text extracted from {original_filename}")
             return
         
         texts = [chunk["content"] for chunk in chunks]
@@ -107,16 +119,17 @@ def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str)
         
         inserted = _doc_repo.create_batch(documents_to_insert)
         
+        duration = time.time() - start_time
         with _ingestion_lock:
             _ingestion_jobs[job_id]["status"] = "completed"
             _ingestion_jobs[job_id]["chunks_inserted"] = inserted
             _ingestion_jobs[job_id]["message"] = f"Sucesso! {inserted} chunks indexados."
             _ingestion_jobs[job_id]["completed_at"] = datetime.now().isoformat()
         
-        api_logger.info(f"Ingestion job {job_id[:8]}... completed: {inserted} chunks")
+        log_ingestion_complete(str(file_path), inserted, duration)
         
     except Exception as e:
-        api_logger.error(f"Ingestion job {job_id[:8]}... failed: {e}")
+        ingestion_logger.error(f"Ingestion job {job_id[:8]}... failed: {e}", exc_info=True)
         with _ingestion_lock:
             _ingestion_jobs[job_id]["status"] = "failed"
             _ingestion_jobs[job_id]["error"] = str(e)

@@ -12,12 +12,15 @@ Uso:
 import sys
 import argparse
 import hashlib
+import time
+import logging
 from pathlib import Path
 
 # Adicionar diretório raiz ao path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import DOCUMENTS_DIR
+from src.core.logger import ingestion_logger as logger, setup_logger, log_execution_time
 from src.data.database import (
     init_database,
     insert_documents_batch,
@@ -44,79 +47,79 @@ def calculate_file_hash(file_path: Path) -> str:
 
 def check_services():
     """Verifica se todos os serviços estão funcionando."""
-    print("🔍 Verificando serviços...\n")
+    logger.info("🔍 Verificando serviços...")
     
     # Banco de dados
-    print("📊 PostgreSQL + pgvector:")
+    logger.info("📊 PostgreSQL + pgvector:")
     if check_connection():
-        print("   ✅ Conectado!")
+        logger.info("   ✅ Conectado!")
     else:
-        print("   ❌ Não conectado. Verifique se o container está rodando.")
+        logger.error("   ❌ Não conectado. Verifique se o container está rodando.")
         return False
     
     # LM Studio - Embeddings
-    print("\n🔢 LM Studio (Embeddings):")
+    logger.info("🔢 LM Studio (Embeddings):")
     if check_embedding_service():
-        print("   ✅ Serviço de embeddings funcionando!")
+        logger.info("   ✅ Serviço de embeddings funcionando!")
     else:
-        print("   ❌ Serviço de embeddings não disponível.")
-        print("   Verifique se o LM Studio está rodando com o modelo Nomic Embed.")
+        logger.error("   ❌ Serviço de embeddings não disponível.")
+        logger.error("   Verifique se o LM Studio está rodando com o modelo Nomic Embed.")
         return False
     
-    print("\n✅ Todos os serviços estão funcionando!")
+    logger.info("✅ Todos os serviços estão funcionando!")
     return True
 
 
 def show_stats():
     """Mostra estatísticas dos documentos."""
-    print("📊 Estatísticas\n")
+    logger.info("📊 Estatísticas")
     
     # Documentos no diretório
-    print(f"📁 Diretório: {DOCUMENTS_DIR}")
+    logger.info(f"📁 Diretório: {DOCUMENTS_DIR}")
     
     if DOCUMENTS_DIR.exists():
         stats = get_document_stats()
-        print(f"   Total de arquivos: {stats['total_files']}")
+        logger.info(f"   Total de arquivos: {stats['total_files']}")
         
         # Mostrar por tipo
         if stats.get('files_by_type'):
-            print("   Por formato:")
+            logger.info("   Por formato:")
             for ext, count in sorted(stats['files_by_type'].items()):
-                print(f"     - {ext}: {count}")
+                logger.info(f"     - {ext}: {count}")
         
-        print(f"   Tamanho total: {stats['total_size_mb']} MB")
-        print(f"   Formatos suportados: {', '.join(stats.get('supported_formats', []))}")
+        logger.info(f"   Tamanho total: {stats['total_size_mb']} MB")
+        logger.info(f"   Formatos suportados: {', '.join(stats.get('supported_formats', []))}")
         
         if stats['files']:
-            print("\n   Arquivos:")
+            logger.info("   Arquivos:")
             for f in stats['files'][:10]:
-                print(f"     - {f}")
+                logger.info(f"     - {f}")
             if len(stats['files']) > 10:
-                print(f"     ... e mais {len(stats['files']) - 10} arquivos")
+                logger.info(f"     ... e mais {len(stats['files']) - 10} arquivos")
     else:
-        print("   ⚠️ Diretório não encontrado!")
+        logger.warning("   ⚠️ Diretório não encontrado!")
     
     # Documentos no banco
-    print(f"\n💾 Banco de dados:")
+    logger.info("💾 Banco de dados:")
     try:
         count = get_document_count()
-        print(f"   Chunks indexados: {count}")
+        logger.info(f"   Chunks indexados: {count}")
     except Exception as e:
-        print(f"   ❌ Erro ao consultar banco: {e}")
+        logger.error(f"   ❌ Erro ao consultar banco: {e}")
 
 
 def show_ingested_documents():
     """Mostra lista de documentos já ingeridos."""
-    print("📋 Documentos Ingeridos\n")
+    logger.info("📋 Documentos Ingeridos")
     
     try:
         documents = list_ingested_documents()
         
         if not documents:
-            print("   Nenhum documento registrado ainda.")
+            logger.info("   Nenhum documento registrado ainda.")
             return
         
-        print(f"   Total: {len(documents)} documento(s)\n")
+        logger.info(f"   Total: {len(documents)} documento(s)")
         
         for doc in documents:
             file_name = Path(doc['file_path']).name
@@ -124,44 +127,44 @@ def show_ingested_documents():
             ingested_at = doc['ingested_at'].strftime("%Y-%m-%d %H:%M")
             status_icon = "✅" if doc['status'] == 'success' else "⚠️"
             
-            print(f"   {status_icon} {file_name}")
-            print(f"      Coleção: {doc['collection_id']} | Chunks: {doc['chunks_count']} | {size_mb:.2f} MB")
-            print(f"      Ingerido em: {ingested_at}")
-            print()
+            logger.info(f"   {status_icon} {file_name}")
+            logger.info(f"      Coleção: {doc['collection_id']} | Chunks: {doc['chunks_count']} | {size_mb:.2f} MB")
+            logger.info(f"      Ingerido em: {ingested_at}")
             
     except Exception as e:
-        print(f"   ❌ Erro ao listar documentos: {e}")
+        logger.error(f"   ❌ Erro ao listar documentos: {e}")
 
 
 def run_ingestion(force: bool = False):
     """Executa o processo de ingestão completo."""
-    print("🚀 Iniciando ingestão de documentos\n")
+    start_total = time.time()
+    logger.info("🚀 Iniciando ingestão de documentos")
     
     if force:
-        print("⚠️  Modo FORCE ativado - todos os documentos serão re-processados\n")
+        logger.warning("⚠️  Modo FORCE ativado - todos os documentos serão re-processados")
     
     # Verificar serviços
     if not check_services():
-        print("\n❌ Abortando: serviços não estão disponíveis.")
+        logger.error("❌ Abortando: serviços não estão disponíveis.")
         return
     
     # Inicializar banco
-    print("\n🔧 Inicializando banco de dados...")
+    logger.info("🔧 Inicializando banco de dados...")
     init_database()
     
     # Verificar diretório
     if not DOCUMENTS_DIR.exists():
-        print(f"\n❌ Diretório não encontrado: {DOCUMENTS_DIR}")
+        logger.error(f"❌ Diretório não encontrado: {DOCUMENTS_DIR}")
         return
     
     # Listar todos os documentos
     document_files = get_all_documents(DOCUMENTS_DIR)
     
     if not document_files:
-        print(f"\n⚠️ Nenhum documento encontrado em: {DOCUMENTS_DIR}")
+        logger.warning(f"⚠️ Nenhum documento encontrado em: {DOCUMENTS_DIR}")
         return
     
-    print(f"\n📂 Encontrados {len(document_files)} documento(s) no diretório\n")
+    logger.info(f"📂 Encontrados {len(document_files)} documento(s) no diretório")
     
     # Separar documentos: novos, modificados, já ingeridos
     docs_to_process = []
@@ -191,24 +194,24 @@ def run_ingestion(force: bool = False):
     
     # Resumo
     if docs_skipped:
-        print(f"⏭️  Pulando {len(docs_skipped)} documento(s) já ingerido(s)")
+        logger.info(f"⏭️  Pulando {len(docs_skipped)} documento(s) já ingerido(s)")
     if docs_modified:
-        print(f"🔄 Re-ingerindo {len(docs_modified)} documento(s) modificado(s)")
+        logger.info(f"🔄 Re-ingerindo {len(docs_modified)} documento(s) modificado(s)")
     if docs_to_process:
-        print(f"📥 Processando {len(docs_to_process)} novo(s) documento(s)")
+        logger.info(f"📥 Processando {len(docs_to_process)} novo(s) documento(s)")
     
     if not docs_to_process and not docs_modified:
-        print("\n✅ Nenhum documento novo ou modificado para processar.")
+        logger.info("✅ Nenhum documento novo ou modificado para processar.")
         return
     
     # Processar documentos modificados (remover chunks antigos primeiro)
     for doc_path, file_hash, file_size, existing in docs_modified:
-        print(f"\n🔄 Removendo chunks antigos de: {doc_path.name}")
+        logger.info(f"🔄 Removendo chunks antigos de: {doc_path.name}")
         removed = remove_document_chunks_by_source(str(doc_path))
-        print(f"   Removidos {removed} chunk(s)")
+        logger.debug(f"   Removidos {removed} chunk(s)")
         docs_to_process.append((doc_path, file_hash, file_size))
     
-    print(f"\n� Total a processar: {len(docs_to_process)} documento(s)\n")
+    logger.info(f"📋 Total a processar: {len(docs_to_process)} documento(s)")
     
     # Processar documentos
     all_chunks = []
@@ -225,7 +228,8 @@ def run_ingestion(force: bool = False):
         except ValueError:
             collection_id = "default"
         
-        print(f"📄 [{i}/{len(docs_to_process)}] Processando: {doc_path.name} (Coleção: {collection_id})")
+        logger.info(f"📄 [{i}/{len(docs_to_process)}] Processando: {doc_path.name} (Coleção: {collection_id})")
+        start_doc = time.time()
         
         try:
             chunks = process_document(doc_path)
@@ -242,10 +246,11 @@ def run_ingestion(force: bool = False):
                 "collection_id": collection_id
             }
             
-            print(f"   ✂️ Gerados {len(chunks)} chunks")
+            duration_doc = time.time() - start_doc
+            logger.info(f"   ✂️ Gerados {len(chunks)} chunks em {duration_doc:.2f}s")
             
         except Exception as e:
-            print(f"   ❌ Erro ao processar: {e}")
+            logger.error(f"   ❌ Erro ao processar {doc_path.name}: {e}")
             # Registrar como erro
             register_ingested_document(
                 file_path=str(doc_path),
@@ -258,18 +263,22 @@ def run_ingestion(force: bool = False):
             continue
     
     if not all_chunks:
-        print("\n⚠️ Nenhum chunk gerado. Verifique os documentos.")
+        logger.warning("⚠️ Nenhum chunk gerado. Verifique os documentos.")
         return
     
-    print(f"\n📊 Total de chunks: {len(all_chunks)}")
+    logger.info(f"📊 Total de chunks gerados: {len(all_chunks)}")
     
     # Gerar embeddings em batch
-    print("\n🔢 Gerando embeddings...")
+    logger.info("🔢 Gerando embeddings...")
+    start_emb = time.time()
     texts = [chunk["content"] for chunk in all_chunks]
     embeddings = get_embeddings_batch(texts)
+    duration_emb = time.time() - start_emb
+    logger.info(f"   ✅ Embeddings gerados em {duration_emb:.2f}s")
     
     # Preparar para inserção
-    print("\n💾 Inserindo no banco de dados...")
+    logger.info("💾 Inserindo no banco de dados...")
+    start_db = time.time()
     documents_to_insert = []
     for chunk, embedding in zip(all_chunks, embeddings):
         documents_to_insert.append({
@@ -287,10 +296,13 @@ def run_ingestion(force: bool = False):
         batch = documents_to_insert[i:i + batch_size]
         inserted = insert_documents_batch(batch)
         total_inserted += inserted
-        print(f"   Inseridos: {total_inserted}/{len(documents_to_insert)}")
+        logger.info(f"   Inseridos: {total_inserted}/{len(documents_to_insert)}")
+    
+    duration_db = time.time() - start_db
+    logger.info(f"   ✅ Inserção concluída em {duration_db:.2f}s")
     
     # Registrar documentos como ingeridos
-    print("\n📝 Registrando documentos processados...")
+    logger.info("📝 Registrando documentos processados...")
     for file_path_str, info in doc_chunk_counts.items():
         register_ingested_document(
             file_path=file_path_str,
@@ -301,21 +313,22 @@ def run_ingestion(force: bool = False):
             status="success"
         )
     
-    print(f"\n✅ Ingestão completa!")
-    print(f"   📄 Documentos processados: {len(doc_chunk_counts)}")
-    print(f"   📦 Chunks indexados: {total_inserted}")
+    duration_total = time.time() - start_total
+    logger.info(f"✅ Ingestão completa em {duration_total:.2f}s!")
+    logger.info(f"   📄 Documentos processados: {len(doc_chunk_counts)}")
+    logger.info(f"   📦 Chunks indexados: {total_inserted}")
 
 
 def clear_database():
     """Limpa todos os documentos do banco."""
-    print("⚠️ ATENÇÃO: Isso irá remover TODOS os documentos do banco!")
+    logger.warning("⚠️ ATENÇÃO: Isso irá remover TODOS os documentos do banco!")
     confirm = input("Digite 'CONFIRMAR' para continuar: ")
     
     if confirm == "CONFIRMAR":
         clear_documents()
-        print("✅ Banco limpo!")
+        logger.info("✅ Banco limpo!")
     else:
-        print("❌ Operação cancelada.")
+        logger.warning("❌ Operação cancelada.")
 
 
 def main():
@@ -325,8 +338,20 @@ def main():
     parser.add_argument("--check", action="store_true", help="Verificar serviços")
     parser.add_argument("--force", action="store_true", help="Forçar re-ingestão de todos os documentos")
     parser.add_argument("--list-ingested", action="store_true", help="Listar documentos já ingeridos")
+    parser.add_argument("--debug", action="store_true", help="Ativar logs de debug")
     
     args = parser.parse_args()
+    
+    # Configurar nível de log
+    if args.debug:
+        # Configurar todos os loggers relevantes para DEBUG
+        for logger_name in ["rag", "rag.ingestion", "rag.database", "rag.embeddings"]:
+            l = logging.getLogger(logger_name)
+            l.setLevel(logging.DEBUG)
+            for handler in l.handlers:
+                if isinstance(handler, logging.StreamHandler):
+                    handler.setLevel(logging.DEBUG)
+        logger.debug("Logs de DEBUG ativados")
     
     if args.stats:
         show_stats()

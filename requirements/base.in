@@ -34,7 +34,7 @@ pydantic-settings
 apscheduler
 
 # Document Processing
-markitdown
+markitdown[all]
 
 # Production Server
 gunicorn

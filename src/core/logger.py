@@ -86,6 +86,7 @@ def setup_logger(
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    logger.propagate = False
     
     # Evitar handlers duplicados
     if logger.handlers:
@@ -131,6 +132,9 @@ api_logger = setup_logger("rag.api")
 
 # Logger para pipeline RAG
 rag_logger = setup_logger("rag.pipeline")
+
+# Logger para ingestão
+ingestion_logger = setup_logger("rag.ingestion")
 
 # Logger para segurança (incluindo rate limiting)
 security_logger = setup_logger("rag.security")
@@ -295,6 +299,32 @@ def log_rag_result(chunks_found: int, sources: list, total_duration: float):
     log_with_data(rag_logger, logging.INFO, "RAG Query Complete", {
         "chunks_found": chunks_found,
         "sources": sources,
+        "total_duration_seconds": round(total_duration, 3)
+    })
+
+
+def log_ingestion_start(file_path: str, collection_id: str):
+    """Loga o início da ingestão de um documento."""
+    log_with_data(ingestion_logger, logging.INFO, "Ingestion Started", {
+        "file_path": file_path,
+        "collection_id": collection_id
+    })
+
+
+def log_ingestion_chunks(file_path: str, chunks_count: int, duration: float):
+    """Loga a geração de chunks de um documento."""
+    log_with_data(ingestion_logger, logging.INFO, "Chunks Generated", {
+        "file_path": file_path,
+        "chunks_count": chunks_count,
+        "duration_seconds": round(duration, 3)
+    })
+
+
+def log_ingestion_complete(file_path: str, total_chunks: int, total_duration: float):
+    """Loga a conclusão da ingestão de um documento."""
+    log_with_data(ingestion_logger, logging.INFO, "Ingestion Complete", {
+        "file_path": file_path,
+        "total_chunks": total_chunks,
         "total_duration_seconds": round(total_duration, 3)
     })
 

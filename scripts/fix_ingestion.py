@@ -1,10 +1,15 @@
 
 import sys
+import logging
 from pathlib import Path
+
+# Configurar logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 path = Path('c:/GIT/rag/src/data/ingestion.py')
 if not path.exists():
-    print(f'Error: {path} not found')
+    logger.error(f'Error: {path} not found')
     sys.exit(1)
 
 with open(path, 'r', encoding='utf-8') as f:
@@ -79,7 +84,7 @@ if start_idx != -1 and end_idx != -1:
     new_content = content[:start_idx] + new_func + content[end_idx:]
     with open(path, 'w', encoding='utf-8') as f:
         f.write(new_content)
-    print('Successfully updated ingestion.py')
+    logger.info('Successfully updated ingestion.py')
 else:
-    print(f'Error: Markers not found. start={start_idx}, end={end_idx}')
+    logger.error(f'Error: Markers not found. start={start_idx}, end={end_idx}')
     sys.exit(1)

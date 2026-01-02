@@ -49,7 +49,7 @@ mako==1.3.10
     # via alembic
 markdownify==1.2.2
     # via markitdown
-markitdown==0.1.4
+markitdown[all]==0.1.4
     # via -r requirements/base.in
 markupsafe==3.0.3
     # via
