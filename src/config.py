@@ -183,7 +183,7 @@ class Settings(BaseSettings):
     # =========================================================================
     # Rate Limiting (Phase 7)
     # =========================================================================
-    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_ENABLED: bool = False
     RATE_LIMIT_STORAGE: str = "memory://"  # ou "redis://localhost:6379"
 
     # Limites padrão
