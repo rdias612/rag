@@ -2,6 +2,7 @@
 Módulo de integração com o LLM (Phi-3.5 Mini) via LM Studio API.
 """
 import time
+import json
 import requests
 from typing import Optional, Generator
 
@@ -11,7 +12,9 @@ from src.core.logger import (
     log_llm_request,
     log_llm_response,
     log_llm_full_request,
-    log_llm_full_response
+    log_llm_full_response,
+    log_step,
+    log_error
 )
 
 
@@ -19,7 +22,8 @@ def generate_response(
     prompt: str,
     max_tokens: int = 1024,
     temperature: float = 0.7,
-    stream: bool = False
+    stream: bool = False,
+    request_id: str = None
 ) -> str:
     """
     Gera uma resposta usando o modelo Phi-3.5 Mini.
@@ -45,6 +49,17 @@ def generate_response(
         "temperature": temperature,
         "stream": stream
     }
+    
+    request_id = request_id or "unknown"
+    
+    # Log início da requisição
+    log_step(llm_logger, "LLM Request Started",
+              request_id=request_id,
+              model=LLM_MODEL,
+              prompt_length=len(prompt),
+              max_tokens=max_tokens,
+              temperature=temperature,
+              stream=stream)
     
     # Log da requisição (resumo)
     log_llm_request(prompt, LLM_MODEL, {
@@ -73,6 +88,11 @@ def generate_response(
     result = data["choices"][0]["message"]["content"]
     duration = time.time() - start_time
     
+    log_step(llm_logger, "LLM Response Received",
+              request_id=request_id,
+              response_length=len(result),
+              duration=f"{duration:.3f}s")
+    
     # Extrair tokens se disponível
     tokens = data.get("usage", {}).get("completion_tokens")
     
@@ -81,6 +101,11 @@ def generate_response(
     
     # Log da resposta completa (detalhado - JSON original)
     log_llm_full_response(data)
+    
+    log_step(llm_logger, "LLM Complete",
+              request_id=request_id,
+              total_duration=f"{duration:.3f}s",
+              status="success")
     
     return result
 
@@ -102,25 +127,37 @@ def _generate_stream(payload: dict) -> Generator[str, None, None]:
         timeout=120
     )
     
-    response.raise_for_status()
-    
-    for line in response.iter_lines():
-        if line:
-            line = line.decode("utf-8")
-            if line.startswith("data: "):
-                data = line[6:]
-                if data == "[DONE]":
-                    break
-                    
-                import json
-                try:
-                    chunk = json.loads(data)
-                    delta = chunk["choices"][0].get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield content
-                except json.JSONDecodeError:
-                    continue
+    try:
+        response.raise_for_status()
+        
+        log_step(llm_logger, "LLM Stream Started",
+                  request_id="unknown",
+                  model=payload.get("model"))
+        
+        for line in response.iter_lines():
+            if line:
+                line = line.decode("utf-8")
+                if line.startswith("data: "):
+                    data = line[6:]
+                    if data == "[DONE]":
+                        log_step(llm_logger, "LLM Stream Complete",
+                                  request_id="unknown",
+                                  status="done")
+                        break
+                        
+                    try:
+                        chunk = json.loads(data)
+                        delta = chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        log_error(llm_logger, "LLM Stream", e,
+                  request_id="unknown",
+                  model=payload.get("model"))
+        raise
 
 
 def generate_with_system_prompt(

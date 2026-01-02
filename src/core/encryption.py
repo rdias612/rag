@@ -12,6 +12,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from src.core.logger import security_logger
+from src.config import get_env
 
 
 class EncryptionManager:
@@ -55,8 +56,6 @@ class EncryptionManager:
         Returns:
             Chave de criptografia ou None se não encontrada
         """
-        from src.config import get_env
-        
         key_str = get_env("ENCRYPTION_KEY")
         if not key_str:
             return None
@@ -244,8 +243,6 @@ def get_encryption_manager() -> EncryptionManager:
     global _encryption_manager
     
     if _encryption_manager is None:
-        from src.config import get_env
-        
         # Verificar se criptografia está habilitada
         enable_encryption = get_env("ENABLE_ENCRYPTION", "false").lower() == "true"
         

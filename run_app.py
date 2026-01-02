@@ -8,6 +8,9 @@ import re
 # Portas usadas pela aplicação
 BACKEND_PORT = 5000
 FRONTEND_PORT = 5173
+DEBUG = False
+USE_RELOADER = False
+THREADED = True
 
 def kill_process_on_port(port: int) -> bool:
     """Mata processos usando uma porta específica (Windows)."""
@@ -104,7 +107,7 @@ def run_app():
     print(f"📡 Iniciando Backend na porta {BACKEND_PORT}...")
     backend_process = subprocess.Popen(
         [sys.executable, "-c", 
-         f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug=False, use_reloader=False, threaded=True)"],
+         f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug={DEBUG}, use_reloader={USE_RELOADER}, threaded={THREADED})"],
         cwd=root_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

@@ -2,6 +2,7 @@
 Módulo de geração de embeddings via LM Studio API (Nomic Embed v1.5).
 """
 import time
+import re
 import requests
 from typing import Union
 
@@ -11,11 +12,16 @@ from src.core.logger import (
     log_embedding_request,
     log_embedding_response,
     log_embedding_batch_request,
-    log_embedding_batch_response
+    log_embedding_batch_response,
+    log_step,
+    log_error
 )
 
+from src.config import EMBEDDING_CACHE_ENABLED
+from src.core.embedding_cache import embedding_cache
 
-def get_embedding(text: str, use_cache: bool = True) -> list[float]:
+
+def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> list[float]:
     """
     Gera o embedding de um texto usando o modelo Nomic Embed v1.5.
     
@@ -26,23 +32,27 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     Returns:
         Lista de floats representando o embedding
     """
-    from src.config import EMBEDDING_CACHE_ENABLED
-    from src.core.embedding_cache import embedding_cache
+    request_id = request_id or "unknown"
     
     # Verificar cache primeiro (se habilitado)
     if use_cache and EMBEDDING_CACHE_ENABLED:
         cached = embedding_cache.get(text)
         if cached is not None:
-            embedding_logger.debug(f"Embedding retrieved from cache")
+            log_step(embedding_logger, "Embedding from Cache",
+                      request_id=request_id,
+                      text_length=len(text))
             return cached
     
     start_time = time.time()
+    
+    log_step(embedding_logger, "Embedding Generation Started",
+              request_id=request_id,
+              text_length=len(text))
     
     # Limpeza robusta do texto para evitar erros no modelo/LM Studio
     # 1. Remover caracteres não imprimíveis e de controle (exceto \n, \r, \t)
     text = "".join(char for char in text if char.isprintable() or char in "\n\r\t")
     # 2. Normalizar espaços (múltiplos espaços viram um único)
-    import re
     text = re.sub(r'\s+', ' ', text)
     text = text.strip()
     
@@ -167,14 +177,22 @@ def get_embedding(text: str, use_cache: bool = True) -> list[float]:
     # Log do embedding gerado
     log_embedding_response(embedding, duration)
     
+    log_step(embedding_logger, "Embedding Generated",
+              request_id=request_id,
+              dimension=len(embedding),
+              duration=f"{duration:.3f}s",
+              was_cached=False)
+    
     # Armazenar no cache (se habilitado)
     if use_cache and EMBEDDING_CACHE_ENABLED:
         embedding_cache.set(text, embedding)
+        log_step(embedding_logger, "Embedding Cached",
+                  request_id=request_id)
     
     return embedding
 
 
-def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: str = None) -> list[list[float]]:
+def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: str = None, request_id: str = None) -> list[list[float]]:
     """
     Gera embeddings para múltiplos textos em batch.
     
@@ -188,9 +206,14 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
     """
     all_embeddings = []
     total_start = time.time()
+    request_id = request_id or "unknown"
     
     doc_info = f" [{document_name}]" if document_name else ""
-    embedding_logger.info(f"Starting batch embedding{doc_info}: {len(texts)} texts, batch_size={batch_size}")
+    log_step(embedding_logger, "Batch Embedding Started",
+              request_id=request_id,
+              document_name=document_name or "unknown",
+              texts_count=len(texts),
+              batch_size=batch_size)
     
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
@@ -290,7 +313,11 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
         embedding_logger.info(f"Embeddings progress{doc_info}: {min(i + batch_size, len(texts))}/{len(texts)} chunks")
     
     total_duration = time.time() - total_start
-    embedding_logger.info(f"Batch embedding complete{doc_info}: {len(all_embeddings)} embeddings in {total_duration:.2f}s")
+    log_step(embedding_logger, "Batch Embedding Complete",
+              request_id=request_id,
+              document_name=document_name or "unknown",
+              total_embeddings=len(all_embeddings),
+              total_duration=f"{total_duration:.2f}s")
     
     return all_embeddings
 

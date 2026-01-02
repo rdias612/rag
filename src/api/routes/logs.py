@@ -1,6 +1,7 @@
 """
 Rota para receber logs do frontend.
 """
+import json
 from flask import request, jsonify
 from src.core.logger import webserver_logger, flush_loggers
 
@@ -47,7 +48,6 @@ def init_logs_routes(bp):
                 
                 # Construir mensagem de log
                 if log_data:
-                    import json
                     data_str = json.dumps(log_data, ensure_ascii=False, default=str)
                     log_message = f"{message} {data_str}"
                 else:

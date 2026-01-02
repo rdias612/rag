@@ -31,7 +31,6 @@ def cache_stats():
     log_api_request("/api/cache/stats", "GET")
     
     try:
-        from src.core.embedding_cache import get_cache_stats
         stats = get_cache_stats()
         
         log_api_response("/api/cache/stats", 200, time.time() - start_time)
@@ -50,7 +49,6 @@ def cache_clear():
     log_api_request("/api/cache/clear", "POST")
     
     try:
-        from src.core.embedding_cache import clear_embedding_cache
         clear_embedding_cache()
         
         log_api_response("/api/cache/clear", 200, time.time() - start_time)
@@ -75,11 +73,6 @@ def classify_question_endpoint():
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
     try:
-        from src.core.question_classifier import (
-            classify_question,
-            get_question_type_description
-        )
-        
         question = data["question"]
         question_type = classify_question(question)
         description = get_question_type_description(question_type)
@@ -112,8 +105,6 @@ def evaluate_response():
         return jsonify({"error": f"Campos obrigatórios: {', '.join(missing)}"}), 400
     
     try:
-        from src.core.evaluation import evaluate_rag_response, get_evaluation_summary
-        
         scores = evaluate_rag_response(
             question=data["question"],
             answer=data["answer"],
@@ -145,8 +136,6 @@ def test_hyde():
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
     try:
-        from src.core.hyde import generate_hypothetical_document
-        
         question = data["question"]
         hypothetical_doc = generate_hypothetical_document(question)
         
@@ -165,8 +154,6 @@ def test_hyde():
 @metrics_bp.route("/metrics", methods=["GET"])
 def metrics():
     """Endpoint de métricas Prometheus."""
-    from src.core.metrics import get_metrics
-    
     content, content_type = get_metrics()
     return Response(content, mimetype=content_type)
 
@@ -176,8 +163,6 @@ def metrics_status():
     """Verifica status do módulo de métricas."""
     start_time = time.time()
     log_api_request("/api/metrics/status", "GET")
-    
-    from src.core.metrics import check_metrics_available
     
     status = check_metrics_available()
     log_api_response("/api/metrics/status", 200, time.time() - start_time)
@@ -196,8 +181,6 @@ def adaptive_retrieval_stats():
     log_api_request("/api/metrics/adaptive-retrieval/stats", "GET")
     
     try:
-        from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
-        
         days = request.args.get("days", 7, type=int)
         stats = adaptive_retrieval_repo.get_stats(days=days)
         
@@ -217,8 +200,6 @@ def adaptive_retrieval_recent():
     log_api_request("/api/metrics/adaptive-retrieval/recent", "GET")
     
     try:
-        from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
-        
         limit = request.args.get("limit", 50, type=int)
         metrics = adaptive_retrieval_repo.get_recent_metrics(limit=limit)
         
@@ -238,8 +219,6 @@ def adaptive_retrieval_performance():
     log_api_request("/api/metrics/adaptive-retrieval/performance", "GET")
     
     try:
-        from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
-        
         days = request.args.get("days", 7, type=int)
         perf = adaptive_retrieval_repo.get_performance_metrics(days=days)
         

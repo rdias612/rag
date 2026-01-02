@@ -7,6 +7,7 @@ from src.core.evaluation import evaluate_rag_response
 from src.api.middleware.rate_limiter import limiter, LIMITS
 from src.core.logger import api_logger, log_api_response
 import time
+from src.config import ENABLE_AUTO_EVALUATION
 
 quality_bp = Blueprint("quality_metrics", __name__)
 
@@ -160,7 +161,6 @@ def evaluate_response_endpoint():
         )
         
         # Salvar se habilitado
-        from src.config import ENABLE_AUTO_EVALUATION
         if ENABLE_AUTO_EVALUATION:
             evaluation_repo.save_evaluation(
                 question=data['question'],

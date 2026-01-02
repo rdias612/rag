@@ -11,6 +11,9 @@ import time
 from flask import Blueprint, jsonify
 
 from src.core.logger import api_logger, log_api_request, log_api_response
+from src.core.advanced_batch_processor import get_advanced_processor
+from src.core.connection_pool import get_connection_pool
+from src.config import ENABLE_ADVANCED_BATCH_PROCESSING, ENABLE_CONNECTION_POOL
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -22,9 +25,6 @@ def get_advanced_batch_processor_stats():
     log_api_request("/api/embeddings/advanced-stats", "GET")
     
     try:
-        from src.core.advanced_batch_processor import get_advanced_processor
-        from src.config import ENABLE_ADVANCED_BATCH_PROCESSING
-        
         processor = get_advanced_processor()
         stats = processor.get_stats()
         
@@ -48,8 +48,6 @@ def reset_advanced_batch_processor_stats():
     log_api_request("/api/embeddings/advanced-stats/reset", "POST")
     
     try:
-        from src.core.advanced_batch_processor import get_advanced_processor
-        
         processor = get_advanced_processor()
         processor.reset_stats()
         
@@ -70,9 +68,6 @@ def get_connection_pool_stats():
     log_api_request("/api/admin/pool-stats", "GET")
     
     try:
-        from src.core.connection_pool import get_connection_pool
-        from src.config import ENABLE_CONNECTION_POOL
-        
         pool = get_connection_pool()
         healthy = pool.health_check()
         stats = pool.get_stats()
@@ -98,8 +93,6 @@ def reset_connection_pool_stats():
     log_api_request("/api/admin/pool-stats/reset", "POST")
     
     try:
-        from src.core.connection_pool import get_connection_pool
-        
         pool = get_connection_pool()
         pool.reset_stats()
         

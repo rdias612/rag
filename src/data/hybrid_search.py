@@ -16,7 +16,7 @@ from src.config import (
     MIN_SIMILARITY_THRESHOLD,
     HYBRID_SEARCH_ALPHA
 )
-from src.core.logger import db_logger
+from src.core.logger import db_logger, log_stage, log_step, log_error
 
 
 def get_connection():
@@ -167,7 +167,8 @@ def search_hybrid(
     top_k: int = TOP_K_RESULTS,
     alpha: float = None,
     min_similarity: Optional[float] = None,
-    collection_id: Optional[str] = None
+    collection_id: Optional[str] = None,
+    request_id: str = None
 ) -> list[dict]:
     """
     Busca híbrida combinando busca vetorial e Full-Text Search.
@@ -187,6 +188,7 @@ def search_hybrid(
         Lista de documentos ranqueados com score híbrido
     """
     start_time = time.time()
+    request_id = request_id or "unknown"
     
     if alpha is None:
         alpha = HYBRID_SEARCH_ALPHA
@@ -194,7 +196,11 @@ def search_hybrid(
     if min_similarity is None:
         min_similarity = MIN_SIMILARITY_THRESHOLD
     
-    db_logger.info(f"Hybrid search: alpha={alpha}, top_k={top_k}")
+    log_step(db_logger, "Hybrid Search Started",
+              request_id=request_id,
+              alpha=alpha,
+              top_k=top_k,
+              collection_id=collection_id)
     
     # Buscar mais resultados inicialmente para ter margem de fusão
     search_k = top_k * 3
@@ -227,6 +233,10 @@ def search_hybrid(
             
             vector_results = cur.fetchall()
             
+            log_step(db_logger, "Vector Search Results",
+                      request_id=request_id,
+                      results=len(vector_results))
+            
             # 2. Busca Full-Text
             where_conditions_f = ["search_vector @@ query", "(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
             params_f = [query]
@@ -253,6 +263,10 @@ def search_hybrid(
             """, tuple(params_f))
             
             fts_results = cur.fetchall()
+            
+            log_step(db_logger, "FTS Search Results",
+                      request_id=request_id,
+                      results=len(fts_results))
             
     finally:
         conn.close()
@@ -327,10 +341,12 @@ def search_hybrid(
     
     duration = time.time() - start_time
     
-    db_logger.info(
-        f"Hybrid search completed: {len(vector_results)} vector + {len(fts_results)} FTS "
-        f"-> {len(final_results)} final results in {duration:.3f}s"
-    )
+    log_step(db_logger, "Hybrid Search Complete",
+              request_id=request_id,
+              vector_results=len(vector_results),
+              fts_results=len(fts_results),
+              final_results=len(final_results),
+              total_duration=f"{duration:.3f}s")
     
     return final_results
 

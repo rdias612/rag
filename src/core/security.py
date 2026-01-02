@@ -6,6 +6,7 @@ Implementa:
 - Headers de segurança (HSTS, CSP, XSS Protection, etc.)
 - Proteção contra ataques comuns
 """
+import ssl
 from flask import Flask, request, redirect
 from functools import wraps
 from src.config import (
@@ -182,8 +183,6 @@ def get_ssl_context():
         return None
     
     try:
-        import ssl
-        
         if not SSL_CERT_PATH or not SSL_KEY_PATH:
             security_logger.warning(
                 "HTTPS enabled but SSL_CERT_PATH or SSL_KEY_PATH not set"

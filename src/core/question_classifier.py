@@ -10,6 +10,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Tentar carregar repository de instruções de tipos de pergunta (few-shot)
+try:
+    from src.data.repositories import _question_type_instruction_repo
+    _QUESTION_INSTRUCTION_REPO_AVAILABLE = True
+except Exception:
+    _question_type_instruction_repo = None
+    _QUESTION_INSTRUCTION_REPO_AVAILABLE = False
+
 
 # Tipos de perguntas e seus padrões
 QUESTION_PATTERNS = {
@@ -179,13 +187,13 @@ def get_instructions_for_type(question_type: str) -> str:
         Instruções para incluir no prompt
     """
     # 1. Tentar buscar do banco de dados (com exemplos few-shot)
+    # 1. Tentar buscar do banco de dados (com exemplos few-shot)
     try:
-        from src.data.repositories import _question_type_instruction_repo
-        db_instructions = _question_type_instruction_repo.find_by_question_type(question_type)
-        
-        if db_instructions:
-            logger.debug(f"Using DB instructions (few-shot) for type '{question_type}'")
-            return db_instructions
+        if _QUESTION_INSTRUCTION_REPO_AVAILABLE and _question_type_instruction_repo:
+            db_instructions = _question_type_instruction_repo.find_by_question_type(question_type)
+            if db_instructions:
+                logger.debug(f"Using DB instructions (few-shot) for type '{question_type}'")
+                return db_instructions
     except Exception as e:
         logger.warning(f"Failed to fetch instructions from DB: {e}")
     

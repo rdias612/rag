@@ -5,6 +5,7 @@ Detecta automaticamente o idioma do texto e carrega o modelo spaCy apropriado
 para chunking mais preciso de documentos multilíngues.
 """
 import logging
+import spacy
 from typing import Optional
 from functools import lru_cache
 
@@ -92,8 +93,6 @@ def _load_spacy_model(language: str):
         Modelo spaCy carregado com sentencizer
     """
     try:
-        import spacy
-        
         # Usar modelo em branco (mais leve) com sentencizer
         nlp = spacy.blank(language)
         nlp.add_pipe("sentencizer")

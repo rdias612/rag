@@ -11,6 +11,7 @@ Métricas:
 """
 import logging
 import re
+import math
 from typing import Optional
 
 from src.core.llm import generate_response
@@ -145,7 +146,6 @@ def calculate_context_precision(question: str, chunks: list[dict]) -> float:
 
 def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     """Calcula similaridade de cosseno."""
-    import math
     dot_product = sum(a * b for a, b in zip(vec1, vec2))
     magnitude1 = math.sqrt(sum(a * a for a in vec1))
     magnitude2 = math.sqrt(sum(b * b for b in vec2))

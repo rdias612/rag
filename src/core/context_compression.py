@@ -6,6 +6,7 @@ os chunks antes de enviá-los ao LLM, mantendo as informações essenciais
 e reduzindo custos de tokens.
 """
 import time
+import re
 from typing import Optional
 
 from src.core.logger import rag_logger
@@ -174,8 +175,6 @@ def extract_key_sentences(
     Returns:
         Contexto com apenas as sentenças mais relevantes
     """
-    import re
-    
     # Dividir em sentenças
     sentences = re.split(r'(?<=[.!?])\s+', context)
     

@@ -4,6 +4,7 @@ Registra interações com LLM, banco de dados e API.
 """
 import logging
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -390,3 +391,178 @@ def log_execution_time(logger: logging.Logger):
                 raise
         return wrapper
     return decorator
+
+
+# =============================================================================
+# Funções Auxiliares para Request ID e Logging Estruturado
+# =============================================================================
+def generate_request_id() -> str:
+    """
+    Gera um request ID único para rastrear uma requisição.
+    
+    Formato: [timestamp]-[random_chars]
+    Exemplo: 1704227123-abc123xyz
+    
+    Returns:
+        String única representando o request ID
+    """
+    timestamp = int(time.time())
+    random_part = str(uuid.uuid4())[:8]
+    return f"{timestamp}-{random_part}"
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def log_stage(stage_name: str, logger_instance: logging.Logger, **extra_data):
+    """
+    Context manager para logging de início/fim de uma fase do pipeline.
+    
+    Args:
+        stage_name: Nome da fase (ex: "Embedding", "Search", "Reranking")
+        logger_instance: Logger a ser usado
+        **extra_data: Dados adicionais para o log (ex: request_id)
+    
+    Example:
+        with log_stage("Embedding", logger, request_id="abc-123"):
+            embedding = get_embedding(text)
+    """
+    request_id = extra_data.get("request_id", "unknown")
+    logger_instance.info(f"[{stage_name}] Started | request_id={request_id}")
+    start_time = time.time()
+    try:
+        yield
+        duration = time.time() - start_time
+        logger_instance.info(
+            f"[{stage_name}] Completed | request_id={request_id} | duration={duration:.3f}s"
+        )
+    except Exception as e:
+        duration = time.time() - start_time
+        logger_instance.error(
+            f"[{stage_name}] Failed | request_id={request_id} | duration={duration:.3f}s | error={str(e)}",
+            exc_info=True
+        )
+        raise
+
+
+def log_flow(flow_name: str):
+    """
+    Decorator para logging de início/fim de um fluxo completo.
+    
+    Args:
+        flow_name: Nome do fluxo (ex: "RAG Query", "Hybrid Search")
+    
+    Example:
+        @log_flow("RAG Query")
+        def query_rag(question: str, **kwargs):
+            ...
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            request_id = kwargs.get("request_id", "unknown")
+            flow_logger = logging.getLogger(f"rag.{flow_name.lower().replace(' ', '_')}")
+            
+            flow_logger.info(f"{flow_name.upper()} Started | request_id={request_id}")
+            start_time = time.time()
+            
+            try:
+                result = func(*args, **kwargs)
+                duration = time.time() - start_time
+                flow_logger.info(
+                    f"{flow_name.upper()} Completed | request_id={request_id} | "
+                    f"duration={duration:.3f}s | status=success"
+                )
+                return result
+            except Exception as e:
+                duration = time.time() - start_time
+                flow_logger.error(
+                    f"{flow_name.upper()} Failed | request_id={request_id} | "
+                    f"duration={duration:.3f}s | error={str(e)}",
+                    exc_info=True
+                )
+                raise
+        return wrapper
+    return decorator
+
+
+def log_exceptions(logger_instance: logging.Logger = None):
+    """
+    Decorator para logging detalhado de exceções.
+    
+    Args:
+        logger_instance: Logger a ser usado (opcional, usa o logger do módulo se não fornecido)
+    
+    Example:
+        @log_exceptions()
+        def my_function():
+            ...
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            target_logger = logger_instance or logging.getLogger(func.__module__)
+            request_id = kwargs.get("request_id", "unknown")
+            
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                # Logar contexto da falha
+                target_logger.error(
+                    f"{func.__name__} failed | request_id={request_id} | "
+                    f"error_type={type(e).__name__} | error_message={str(e)} | "
+                    f"args={str(args)[:200]} | kwargs={str(kwargs)[:200]}",
+                    exc_info=True
+                )
+                raise
+        return wrapper
+    return decorator
+
+
+def log_step(logger_instance: logging.Logger, step_name: str, **data):
+    """
+    Loga um passo específico do fluxo com dados estruturados.
+    
+    Args:
+        logger_instance: Logger a ser usado
+        step_name: Nome do passo (ex: "Validation Passed", "Embedding Generated")
+        **data: Dados adicionais para o log (ex: request_id, question, top_k)
+    
+    Example:
+        log_step(logger, "Embedding Generated", 
+                  request_id="abc-123", 
+                  dimension=768)
+    """
+    request_id = data.get("request_id", "unknown")
+    log_with_data(
+        logger_instance, 
+        logging.INFO, 
+        f"[{step_name}] | request_id={request_id}", 
+        data
+    )
+
+
+def log_error(logger_instance: logging.Logger, component: str, error: Exception, **context):
+    """
+    Loga erro com contexto completo.
+    
+    Args:
+        logger_instance: Logger a ser usado
+        component: Nome do componente que falhou (ex: "LLM Request", "Reranker")
+        error: Exceção capturada
+        **context: Contexto adicional (ex: request_id, query, model)
+    
+    Example:
+        log_error(logger, "LLM Request", e,
+                  request_id="abc-123",
+                  model="llama3.2",
+                  prompt_length=8500)
+    """
+    request_id = context.get("request_id", "unknown")
+    logger_instance.error(
+        f"[{component}] Error | request_id={request_id} | "
+        f"error_type={type(error).__name__} | error_message={str(error)} | "
+        f"context={context}",
+        exc_info=True
+    )

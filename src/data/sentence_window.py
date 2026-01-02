@@ -10,6 +10,7 @@ Benefícios:
 - Usa spaCy para melhor detecção de sentenças em português
 """
 import logging
+import re
 from typing import List, Optional, Tuple
 import spacy
 
@@ -71,8 +72,6 @@ def split_into_sentences_regex(text: str) -> List[str]:
     Returns:
         Lista de sentenças
     """
-    import re
-    
     # Padrões de fim de sentença
     sentence_endings = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
     

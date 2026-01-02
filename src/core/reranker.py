@@ -19,6 +19,7 @@ from src.config import (
     RERANKER_TYPE, 
     RERANKER_API_URL
 )
+from src.core.logger import rag_logger, log_step, log_error
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,9 @@ class LLMReranker(Reranker):
         # Clipa para [0,1]
         return max(0.0, min(1.0, score))
 
-    def score_pair(self, query: str, doc: str, use_fallback: bool = True) -> float:
+    def score_pair(self, query: str, doc: str, use_fallback: bool = True, request_id: str = None) -> float:
+        request_id = request_id or "unknown"
+        
         payload = {
             "model": self.model_name,
             "messages": self._build_prompt(query, doc),
@@ -84,14 +87,35 @@ class LLMReranker(Reranker):
             
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
-            return self._extract_score(content)
+            score = self._extract_score(content)
+            
+            log_step(rag_logger, "LLM Rerank Scored",
+                      request_id=request_id,
+                      model=self.model_name,
+                      score=score)
+            
+            return score
         except Exception as exc:  # noqa: BLE001
             logger.warning("Rerank LLM falhou: %s", exc)
+            log_error(rag_logger, "LLM Reranker", exc,
+                      request_id=request_id,
+                      model=self.model_name,
+                      query=query[:50])
             return 0.0
 
-    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content") -> List[Dict[str, Any]]:
+    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content", request_id: str = None) -> List[Dict[str, Any]]:
+        request_id = request_id or "unknown"
+        
         if not chunks:
+            log_step(rag_logger, "Reranking Skipped (No Chunks)",
+                      request_id=request_id)
             return []
+        
+        log_step(rag_logger, "LLM Reranking Started",
+                  request_id=request_id,
+                  chunks_count=len(chunks),
+                  top_k=top_k,
+                  model=self.model_name)
 
         scored = []
         for chunk in chunks:
@@ -102,6 +126,11 @@ class LLMReranker(Reranker):
             scored.append(copy)
 
         scored.sort(key=lambda x: x.get("rerank_score", 0.0), reverse=True)
+        
+        log_step(rag_logger, "LLM Reranking Complete",
+                  request_id=request_id,
+                  results_returned=len(scored[:top_k]))
+        
         return scored[:top_k]
 
 class CrossEncoderAPIReranker(Reranker):
@@ -111,9 +140,20 @@ class CrossEncoderAPIReranker(Reranker):
         self.api_url = api_url
         self.model_name = model_name
 
-    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content") -> List[Dict[str, Any]]:
+    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content", request_id: str = None) -> List[Dict[str, Any]]:
+        request_id = request_id or "unknown"
+        
         if not chunks:
+            log_step(rag_logger, "Reranking Skipped (No Chunks)",
+                      request_id=request_id)
             return []
+        
+        log_step(rag_logger, "Cross-Encoder Reranking Started",
+                  request_id=request_id,
+                  chunks_count=len(chunks),
+                  top_k=top_k,
+                  model=self.model_name,
+                  api_url=self.api_url)
         
         payload = {
             "model": self.model_name,
@@ -138,9 +178,17 @@ class CrossEncoderAPIReranker(Reranker):
                 chunk["rerank_score"] = score
                 scored_chunks.append(chunk)
             
+            log_step(rag_logger, "Cross-Encoder Reranking Complete",
+                      request_id=request_id,
+                      results_returned=len(scored_chunks))
+            
             return scored_chunks
         except Exception as exc:
             logger.error("Erro no CrossEncoder API Reranker: %s", exc)
+            log_error(rag_logger, "Cross-Encoder Reranker", exc,
+                      request_id=request_id,
+                      model=self.model_name,
+                      api_url=self.api_url)
             # Fallback: retorna chunks originais sem reordenação
             return chunks[:top_k]
 
@@ -157,9 +205,9 @@ def get_reranker() -> Reranker:
             _reranker_instance = LLMReranker(RERANKER_MODEL)
     return _reranker_instance
 
-def rerank_chunks(query: str, chunks: list[dict], top_k: int = 5) -> list[dict]:
+def rerank_chunks(query: str, chunks: list[dict], top_k: int = 5, request_id: str = None) -> list[dict]:
     reranker = get_reranker()
-    return reranker.rerank(query, chunks, top_k)
+    return reranker.rerank(query, chunks, top_k, request_id=request_id)
 
 def check_reranker_available() -> dict:
     reranker = get_reranker()
