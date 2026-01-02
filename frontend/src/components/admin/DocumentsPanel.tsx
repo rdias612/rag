@@ -18,6 +18,9 @@ import {
 import { ConfirmModal } from '../ConfirmModal';
 import { ChunkingSelectionModal } from '../ChunkingSelectionModal';
 import { API_URL } from '../../api';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('DocumentsPanel');
 
 interface DocumentStats {
     total_files: number;
@@ -149,30 +152,30 @@ export function DocumentsPanel() {
             if (docsResult.status === 'fulfilled') {
                 setDocStats(docsResult.value);
             } else {
-                console.error('[DocumentsPanel] documents/stats failed:', docsResult.reason);
+                logger.error('[DocumentsPanel] documents/stats failed:', docsResult.reason);
             }
 
             if (collectionsResult.status === 'fulfilled') {
                 setCollections(collectionsResult.value.collections || []);
             } else {
-                console.error('[DocumentsPanel] collections failed:', collectionsResult.reason);
+                logger.error('[DocumentsPanel] collections failed:', collectionsResult.reason);
                 setCollections([]); // fallback
             }
 
             if (ingestedResult.status === 'fulfilled') {
                 setIngestedDocs(ingestedResult.value.documents || []);
             } else {
-                console.error('[DocumentsPanel] documents/ingested failed:', ingestedResult.reason);
+                logger.error('[DocumentsPanel] documents/ingested failed:', ingestedResult.reason);
                 setIngestedDocs([]); // fallback
             }
 
             if (statusResult.status === 'fulfilled') {
                 setIngestionStatus(statusResult.value);
             } else {
-                console.error('[DocumentsPanel] documents/ingest-status failed:', statusResult.reason);
+                logger.error('[DocumentsPanel] documents/ingest-status failed:', statusResult.reason);
             }
         } catch (error) {
-            console.error('[DocumentsPanel] Failed to fetch documents data:', error);
+            logger.error('[DocumentsPanel] Failed to fetch documents data:', error);
         } finally {
             setLoading(false);
         }
@@ -233,7 +236,7 @@ export function DocumentsPanel() {
                 fetchData();
             }
         } catch (error) {
-            console.error("Error starting ingestion:", error);
+            logger.error("Error starting ingestion:", error);
         } finally {
             setLoading(false);
         }
@@ -254,7 +257,7 @@ export function DocumentsPanel() {
                 setShowNoFilesModal(true);
             }
         } catch (error) {
-            console.error("Error scanning:", error);
+            logger.error("Error scanning:", error);
         } finally {
             setScanning(false);
         }
@@ -301,7 +304,7 @@ export function DocumentsPanel() {
                 fetchData();
             }
         } catch (error) {
-            console.error("Error starting reprocess:", error);
+            logger.error("Error starting reprocess:", error);
         } finally {
             setLoading(false);
         }
@@ -323,7 +326,7 @@ export function DocumentsPanel() {
                 setShowNoFilesModal(true);
             }
         } catch (error) {
-            console.error('Failed to scan all documents:', error);
+            logger.error('Failed to scan all documents:', error);
         } finally {
             setScanning(false);
         }
@@ -346,7 +349,7 @@ export function DocumentsPanel() {
                 fetchData();
             }
         } catch (error) {
-            console.error('Failed to delete document:', error);
+            logger.error('Failed to delete document:', error);
         } finally {
             setDeleting(null);
         }

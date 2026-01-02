@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, Target, Activity } from 'lucide-react';
 import { API_URL } from '../../api';
 import { useToast } from '../../hooks/useToast';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('QualityMetricsPanel');
 
 interface QualityStats {
   total_evaluations: number;
@@ -70,7 +73,7 @@ export const QualityMetricsPanel: React.FC = () => {
       setTrends(trendsData.trends);
 
     } catch (error) {
-      console.error('Error loading quality metrics:', error);
+      logger.error('Error loading quality metrics:', error);
       showToast('Erro ao carregar métricas de qualidade', 'error');
     } finally {
       setLoading(false);

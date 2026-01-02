@@ -1,5 +1,0 @@
-Este é o parágrafo 1. Ele contém informações sobre o Sol. O Sol é uma estrela no centro do Sistema Solar. É uma esfera quase perfeita de plasma quente.
-
-Este é o parágrafo 2. Ele fala sobre a Lua. A Lua é o único satélite natural da Terra. É o quinto maior satélite do Sistema Solar. A Lua está em rotação síncrona com a Terra.
-
-Este é o parágrafo 3. Ele descreve Marte. Marte é o quarto planeta a partir do Sol. É frequentemente chamado de Planeta Vermelho devido à sua aparência ferruginosa. Marte tem dois satélites naturais, Fobos e Deimos.

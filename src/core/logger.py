@@ -35,7 +35,7 @@ class SimpleFormatter(logging.Formatter):
         # Adicionar dados extras se existirem
         if hasattr(record, "extra_data"):
             extra_data_str = json.dumps(record.extra_data, ensure_ascii=False, default=str)
-            return f"{timestamp} {level} {logger_name} {message} | data={extra_data_str}"
+            return f"{timestamp} {level} {logger_name} {message} {extra_data_str}"
         
         return f"{timestamp} {level} {logger_name} {message}"
 
@@ -68,44 +68,12 @@ class DetailedFormatter(logging.Formatter):
 # =============================================================================
 # Configuração dos Loggers
 # =============================================================================
-def update_logger_formatter(logger_name: str):
-    """
-    Atualiza o formatter de um logger existente para o novo formato.
-    
-    Remove handlers antigos e adiciona novos com o SimpleFormatter.
-    
-    Args:
-        logger_name: Nome do logger a ser atualizado
-    """
-    logger = logging.getLogger(logger_name)
-    
-    # Remover todos os handlers existentes
-    logger.handlers.clear()
-    
-    # Reconfigurar com novos handlers
-    level = logger.level
-    
-    # Handler para arquivo (texto simples)
-    file_handler = logging.FileHandler(
-        LOGS_DIR / f"{logger_name.replace('.', '_')}.log",
-        encoding="utf-8"
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(SimpleFormatter())
-    logger.addHandler(file_handler)
-    
-    # Handler para console
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(DetailedFormatter())
-    logger.addHandler(console_handler)
-
-
 def setup_logger(
     name: str,
     level: int = logging.DEBUG,
     log_to_file: bool = True,
-    log_to_console: bool = True
+    log_to_console: bool = True,
+    log_file: str = "server.log"
 ) -> logging.Logger:
     """
     Configura e retorna um logger.
@@ -115,6 +83,7 @@ def setup_logger(
         level: Nível de log
         log_to_file: Se deve salvar em arquivo
         log_to_console: Se deve exibir no console
+        log_file: Nome do arquivo de log (padrão: server.log para backend)
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
@@ -132,10 +101,10 @@ def setup_logger(
         # Caso contrário, remove handlers antigos e reconfigura
         logger.handlers.clear()
     
-    # Handler para arquivo (texto simples)
+    # Handler para arquivo (texto simples) - consolidado em um único arquivo
     if log_to_file:
         file_handler = logging.FileHandler(
-            LOGS_DIR / f"{name.replace('.', '_')}.log",
+            LOGS_DIR / log_file,
             encoding="utf-8"
         )
         file_handler.setLevel(logging.DEBUG)
@@ -153,31 +122,34 @@ def setup_logger(
 
 
 # =============================================================================
-# Loggers Específicos
+# Loggers Específicos - Backend (todos usam server.log)
 # =============================================================================
 # Logger genérico
-logger = setup_logger("rag")
+logger = setup_logger("rag", log_file="server.log")
 
 # Logger para interações com LLM
-llm_logger = setup_logger("rag.llm")
+llm_logger = setup_logger("rag.llm", log_file="server.log")
 
 # Logger para banco de dados
-db_logger = setup_logger("rag.database")
+db_logger = setup_logger("rag.database", log_file="server.log")
 
 # Logger para embeddings
-embedding_logger = setup_logger("rag.embeddings")
+embedding_logger = setup_logger("rag.embeddings", log_file="server.log")
 
 # Logger para API
-api_logger = setup_logger("rag.api")
+api_logger = setup_logger("rag.api", log_file="server.log")
 
 # Logger para pipeline RAG
-rag_logger = setup_logger("rag.pipeline")
+rag_logger = setup_logger("rag.pipeline", log_file="server.log")
 
 # Logger para ingestão
-ingestion_logger = setup_logger("rag.ingestion")
+ingestion_logger = setup_logger("rag.ingestion", log_file="server.log")
 
 # Logger para segurança (incluindo rate limiting)
-security_logger = setup_logger("rag.security")
+security_logger = setup_logger("rag.security", log_file="server.log")
+
+# Logger para webserver (logs recebidos do frontend)
+webserver_logger = setup_logger("webserver", log_file="webserver.log")
 
 
 # =============================================================================
@@ -385,6 +357,17 @@ def log_api_response(endpoint: str, status_code: int, duration: float):
         "status_code": status_code,
         "duration_seconds": round(duration, 3)
     })
+
+
+def flush_loggers(*loggers: logging.Logger):
+    """Force flush on file handlers to avoid buffered logs being lost."""
+    for logger in loggers:
+        for handler in logger.handlers:
+            try:
+                handler.flush()
+            except Exception:
+                # Ignore handlers that do not support flush
+                pass
 
 
 # =============================================================================

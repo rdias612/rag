@@ -7,8 +7,11 @@ import { AdminDashboard } from "./components/AdminDashboard";
 import { Toast } from "./components/Toast";
 import { useToast } from "./hooks/useToast";
 import { useTheme } from "./components/ThemeContext";
+import { createLogger } from "./logger";
 import type { Message, Session } from "./types";
 import { fetchSessions, streamChat, createSession, deleteSession, fetchHistory, fetchCollections, submitFeedback } from "./api";
+
+const logger = createLogger("App");
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -71,7 +74,7 @@ function App() {
       const data = await fetchSessions();
       setSessions(data.sessions || []);
     } catch (error) {
-      console.error("Failed to load sessions", error);
+      logger.error("Failed to load sessions", error);
       showToast("Não foi possível carregar as sessões. Verifique sua conexão.", "error");
     }
   }
@@ -85,7 +88,7 @@ function App() {
         setMessages(history.messages);
       }
     } catch (error) {
-      console.error("Failed to load history", error);
+      logger.error("Failed to load history", error);
       showToast("Erro ao carregar histórico da sessão.", "error");
     } finally {
       setIsLoading(false);
@@ -97,7 +100,7 @@ function App() {
       const data = await fetchCollections();
       setCollections(data.collections || []);
     } catch (error) {
-      console.error("Failed to load collections", error);
+      logger.error("Failed to load collections", error);
       showToast("Não foi possível carregar as coleções.", "error");
     }
   }
@@ -109,7 +112,7 @@ function App() {
       setMessages([]);
       loadSessions();
     } catch (error) {
-      console.error("Failed to create session", error);
+      logger.error("Failed to create session", error);
       showToast("Não foi possível criar nova sessão.", "error");
     }
   }
@@ -177,7 +180,7 @@ function App() {
       }
 
     } catch (error) {
-      console.error("Chat error", error);
+      logger.error("Chat error", error);
       let errorMessage = "Desculpe, encontrei um erro. Tente novamente.";
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         errorMessage = "Não foi possível conectar ao servidor. Verifique sua conexão.";
@@ -206,7 +209,7 @@ function App() {
       }
       showToast("Chat excluído com sucesso.", "success");
     } catch (error) {
-      console.error("Failed to delete", error);
+      logger.error("Failed to delete", error);
       showToast("Erro ao excluir chat.", "error");
     }
   }
@@ -230,7 +233,7 @@ function App() {
 
       showToast("Feedback registrado. Obrigado!", "success");
     } catch (error) {
-      console.error("Feedback error", error);
+      logger.error("Feedback error", error);
       showToast("Erro ao registrar feedback.", "error");
     }
   }

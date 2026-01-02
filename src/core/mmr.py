@@ -35,10 +35,10 @@ def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     return dot_product / (magnitude1 * magnitude2)
 
 
-def mmr_rerank(
+def mmr_filter(
     query_embedding: list[float],
     chunks: list[dict],
-    top_k: int = 5,
+    k: int = 5,
     lambda_param: float = 0.7,
     embedding_key: str = "embedding",
     similarity_key: str = "similarity"
@@ -55,7 +55,7 @@ def mmr_rerank(
     Args:
         query_embedding: Embedding da query
         chunks: Lista de chunks com embeddings
-        top_k: Número de chunks a selecionar
+        k: Número de chunks a selecionar
         lambda_param: Balanço entre relevância (1.0) e diversidade (0.0)
                      Recomendado: 0.7 (70% relevância, 30% diversidade)
         embedding_key: Chave do embedding nos chunks
@@ -67,7 +67,7 @@ def mmr_rerank(
     if not chunks:
         return []
     
-    if len(chunks) <= top_k:
+    if len(chunks) <= k:
         return chunks
     
     # Verificar se chunks têm embeddings
@@ -75,12 +75,12 @@ def mmr_rerank(
     
     if not has_embeddings:
         logger.warning("Chunks sem embeddings, usando similaridade existente como aproximação")
-        return _mmr_without_embeddings(chunks, top_k, lambda_param, similarity_key)
+        return _mmr_without_embeddings(chunks, k, lambda_param, similarity_key)
     
     selected = []
     candidates = list(range(len(chunks)))  # Índices dos candidatos
     
-    while len(selected) < top_k and candidates:
+    while len(selected) < k and candidates:
         best_score = float("-inf")
         best_idx = -1
         best_candidate_pos = -1
@@ -132,7 +132,7 @@ def mmr_rerank(
 
 def _mmr_without_embeddings(
     chunks: list[dict],
-    top_k: int,
+    k: int,
     lambda_param: float,
     similarity_key: str
 ) -> list[dict]:
@@ -140,13 +140,13 @@ def _mmr_without_embeddings(
     Versão simplificada do MMR quando não há embeddings.
     Usa apenas a similaridade existente e aproximação de diversidade por texto.
     """
-    if len(chunks) <= top_k:
+    if len(chunks) <= k:
         return chunks
     
     selected = []
     candidates = chunks.copy()
     
-    while len(selected) < top_k and candidates:
+    while len(selected) < k and candidates:
         best_score = float("-inf")
         best_idx = -1
         

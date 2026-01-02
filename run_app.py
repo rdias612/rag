@@ -104,7 +104,7 @@ def run_app():
     print(f"📡 Iniciando Backend na porta {BACKEND_PORT}...")
     backend_process = subprocess.Popen(
         [sys.executable, "-c", 
-         f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug=True, threaded=True)"],
+         f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug=False, use_reloader=False, threaded=True)"],
         cwd=root_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

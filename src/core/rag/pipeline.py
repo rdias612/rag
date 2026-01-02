@@ -340,7 +340,8 @@ class RAGPipeline:
                 
         except Exception as e:
             logger.error(f"Error in RAG Pipeline: {e}", exc_info=True)
-            inc_error()
+            # Track error type for Prometheus metrics
+            inc_error(type(e).__name__)
             raise
 
     def query_stream(

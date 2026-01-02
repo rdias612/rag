@@ -2,6 +2,9 @@ import { X, Upload, FileText, CheckCircle, AlertCircle } from "lucide-react";
 import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../utils";
+import { createLogger } from "../logger";
+
+const logger = createLogger("UploadModal");
 
 const UPLOAD_URL = "http://localhost:5000/api/ingest";
 
@@ -128,7 +131,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
             }, 2000);
 
         } catch (error) {
-            console.error(error);
+            logger.error("Upload failed", error);
             setStatus('error');
             setMessage(error instanceof Error ? error.message : 'Upload failed');
         }

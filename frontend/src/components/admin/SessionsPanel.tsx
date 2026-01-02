@@ -10,6 +10,9 @@ import {
     User,
     Bot
 } from 'lucide-react';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('SessionsPanel');
 
 interface Session {
     session_id: string;
@@ -48,7 +51,7 @@ export function SessionsPanel() {
             const data = await res.json();
             setSessions(data.sessions || []);
         } catch (error) {
-            console.error('Failed to fetch sessions:', error);
+            logger.error('Failed to fetch sessions:', error);
         } finally {
             setLoading(false);
         }
@@ -66,7 +69,7 @@ export function SessionsPanel() {
                 alert('Erro ao carregar histórico da sessão');
             }
         } catch (error) {
-            console.error('Failed to fetch session history:', error);
+            logger.error('Failed to fetch session history:', error);
             alert('Erro ao carregar histórico da sessão');
         } finally {
             setLoadingHistory(false);
@@ -91,7 +94,7 @@ export function SessionsPanel() {
             await fetch(`${API_URL}/chat/sessions/${sessionId}`, { method: 'DELETE' });
             setSessions(prev => prev.filter(s => s.session_id !== sessionId));
         } catch (error) {
-            console.error('Failed to delete session:', error);
+            logger.error('Failed to delete session:', error);
             alert('Erro ao excluir sessão');
         } finally {
             setDeleting(null);

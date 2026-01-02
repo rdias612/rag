@@ -9,6 +9,9 @@ import {
     BarChart3
 } from 'lucide-react';
 import { API_URL } from '../../api';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('SystemOverview');
 
 interface HealthData {
     status: string;
@@ -79,7 +82,7 @@ export function SystemOverview() {
             setIngestionStatus(ingestRes);
             setLastRefresh(new Date());
         } catch (error) {
-            console.error('Failed to fetch system data:', error);
+            logger.error('Failed to fetch system data:', error);
         } finally {
             setLoading(false);
         }

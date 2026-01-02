@@ -9,6 +9,9 @@ import {
     Save,
     Tag
 } from 'lucide-react';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('PromptsManagement');
 
 interface Prompt {
     id: number;
@@ -58,7 +61,7 @@ export function PromptsManagement() {
             setPrompts(data.prompts || []);
         } catch (err) {
             setError('Erro ao carregar prompts');
-            console.error(err);
+            logger.error('Error loading prompts', err);
         } finally {
             setLoading(false);
         }
@@ -74,7 +77,7 @@ export function PromptsManagement() {
             setIsCreating(false);
         } catch (err) {
             alert('Erro ao carregar dados do prompt');
-            console.error(err);
+            logger.error('Error loading prompt data', err);
         }
     };
 
@@ -104,7 +107,7 @@ export function PromptsManagement() {
             fetchPrompts();
         } catch (err) {
             alert('Erro ao deletar prompt');
-            console.error(err);
+            logger.error('Error deleting prompt', err);
         }
     };
 
@@ -145,7 +148,7 @@ export function PromptsManagement() {
             fetchPrompts();
         } catch (err) {
             alert('Erro ao salvar prompt');
-            console.error(err);
+            logger.error('Error saving prompt', err);
         }
     };
 

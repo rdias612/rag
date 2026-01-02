@@ -1,7 +1,7 @@
 """
 Aplicação Flask principal.
 """
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 import sys
 
@@ -11,6 +11,7 @@ from src.core.logger import api_logger
 from src.core.security import init_security, get_ssl_context
 from src.config import ENABLE_HTTPS, ALLOWED_ORIGINS_LIST, CORS_MAX_AGE
 from src.api.middleware.rate_limiter import init_rate_limiter
+from src.core.logger import api_logger, flush_loggers
 
 
 def create_app() -> Flask:
@@ -44,6 +45,28 @@ def create_app() -> Flask:
     
     # Registrar blueprint da API
     app.register_blueprint(api, url_prefix="/api")
+
+    # Middleware simples de logging para todas as rotas /api/*
+    @app.before_request
+    def _log_request():
+        if request.path.startswith("/api/"):
+            try:
+                body = request.get_json(silent=True)
+            except Exception:
+                body = None
+            api_logger.info(
+                f"API Request {request.method} {request.path} | args={dict(request.args)} | json={body}"
+            )
+            flush_loggers(api_logger)
+
+    @app.after_request
+    def _log_response(response):
+        if request.path.startswith("/api/"):
+            api_logger.info(
+                f"API Response {request.method} {request.path} {response.status_code} | len={response.content_length}"
+            )
+            flush_loggers(api_logger)
+        return response
     
     # Inicializar middleware de segurança (headers de segurança e HTTPS)
     init_security(app)
@@ -100,10 +123,12 @@ def main():
     # Configurar SSL context se HTTPS estiver habilitado
     ssl_context = get_ssl_context()
     
+    # Run without the Flask reloader to avoid duplicate processes and missing logs
     app.run(
         host="0.0.0.0",
         port=5000,
-        debug=True,
+        debug=False,
+        use_reloader=False,
         ssl_context=ssl_context
     )
 

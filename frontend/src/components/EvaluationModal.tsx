@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { X, Award, CheckCircle, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { useToast } from '../hooks/useToast';
+import { createLogger } from '../logger';
+
+const logger = createLogger('EvaluationModal');
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -55,7 +58,7 @@ export const EvaluationModal: React.FC<EvaluationModalProps> = ({
       setResult(data);
       showToast('Avaliação realizada com sucesso!', 'success');
     } catch (error) {
-      console.error('Error evaluating:', error);
+      logger.error('Error evaluating:', error);
       showToast('Erro ao realizar avaliação', 'error');
     } finally {
       setLoading(false);

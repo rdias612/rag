@@ -99,6 +99,15 @@ def get_hyde_embedding(
     return embedding, hypothetical_doc
 
 
+def generate_hyde_embedding(
+    question: str,
+    temperature: float = 0.3
+) -> list[float]:
+    """Convenience wrapper that returns only the HyDE embedding."""
+    embedding, _ = get_hyde_embedding(question, temperature)
+    return embedding
+
+
 def hyde_enhanced_query(
     question: str,
     original_embedding: list[float],

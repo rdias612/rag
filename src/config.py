@@ -52,8 +52,11 @@ class Settings(BaseSettings):
     # Modelo LLM (Phi-3.5 Mini)
     LLM_MODEL: str = Field(default="phi-3.5-mini-instruct", validation_alias="LLM_MODEL")
     
-    # Modelo Reranker
-    RERANKER_MODEL: str = Field(default="text-embedding-bge-reranker-v2-m3", validation_alias="RERANKER_MODEL")
+    # Configurações do Reranker
+    # RERANKER_TYPE: "llm" (usa prompt na LLM) ou "api" (usa endpoint /rerank de Cross-Encoder)
+    RERANKER_TYPE: str = Field(default="llm", validation_alias="RERANKER_TYPE")
+    RERANKER_MODEL: str = Field(default="phi-3.5-mini-instruct", validation_alias="RERANKER_MODEL")
+    RERANKER_API_URL: Optional[str] = Field(default=None, validation_alias="RERANKER_API_URL")
 
     # =========================================================================
     # Chunking
@@ -97,8 +100,7 @@ class Settings(BaseSettings):
     EMBEDDING_CACHE_MAX_SIZE: int = 1000
     USE_QUESTION_CLASSIFIER: bool = True
     USE_ENHANCED_PROMPTS: bool = True
-    ENABLE_RERANKING: bool = True
-    RERANKING_MODEL: str = Field(default="text-embedding-bge-reranker-v2-m3", validation_alias="RERANKER_MODEL")
+    ENABLE_RERANKING: bool = False
     RERANKING_TOP_K_INITIAL: int = 15
     ENABLE_QUERY_EXPANSION: bool = True
     QUERY_EXPANSION_COUNT: int = 3

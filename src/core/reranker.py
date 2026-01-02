@@ -1,29 +1,40 @@
 """
-Reranker leve usando a LLM servida pelo LM Studio.
+Módulo de Reranking.
 
-Estratégia: enviar pares (query, documento) para a API /chat/completions
-e extrair um score numérico entre 0 e 1 retornado pela LLM. Mantém a
-imagem leve (sem torch/sentence-transformers) e reutiliza a infra do LM Studio.
+Suporta dois modos:
+1. LLM: Usa uma LLM (via LM Studio) com prompt para pontuar documentos.
+2. API: Usa um endpoint /rerank dedicado (Cross-Encoder real, ex: TEI, Jina, Cohere).
 """
 import logging
 import re
-from typing import Optional
+from abc import ABC, abstractmethod
+from typing import Optional, List, Dict, Any
 
 import requests
 
-from src.config import LM_STUDIO_BASE_URL, RERANKER_MODEL
+from src.config import (
+    LM_STUDIO_BASE_URL, 
+    RERANKER_MODEL, 
+    LLM_MODEL, 
+    RERANKER_TYPE, 
+    RERANKER_API_URL
+)
 
 logger = logging.getLogger(__name__)
 
-_reranker_instance: Optional["LLMReranker"] = None
+class Reranker(ABC):
+    @abstractmethod
+    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content") -> List[Dict[str, Any]]:
+        """Reordena chunks com base na relevância para a query."""
+        pass
 
-
-class LLMReranker:
+class LLMReranker(Reranker):
     """Reranker baseado em LLM via LM Studio (chat/completions)."""
 
     def __init__(self, model_name: str, max_doc_chars: int = 2000):
         self.model_name = model_name
         self.max_doc_chars = max_doc_chars
+        self.fallback_model = LLM_MODEL
 
     def _build_prompt(self, query: str, doc: str) -> list[dict]:
         truncated_doc = doc[: self.max_doc_chars]
@@ -49,7 +60,7 @@ class LLMReranker:
         # Clipa para [0,1]
         return max(0.0, min(1.0, score))
 
-    def score_pair(self, query: str, doc: str) -> float:
+    def score_pair(self, query: str, doc: str, use_fallback: bool = True) -> float:
         payload = {
             "model": self.model_name,
             "messages": self._build_prompt(query, doc),
@@ -60,6 +71,17 @@ class LLMReranker:
             resp = requests.post(
                 f"{LM_STUDIO_BASE_URL}/chat/completions", json=payload, timeout=30
             )
+            
+            if resp.status_code == 400 and use_fallback and self.model_name != self.fallback_model:
+                logger.warning("Reranker model '%s' falhou (400). Tentando fallback para '%s'...", self.model_name, self.fallback_model)
+                payload["model"] = self.fallback_model
+                resp = requests.post(
+                    f"{LM_STUDIO_BASE_URL}/chat/completions", json=payload, timeout=30
+                )
+
+            if resp.status_code != 200:
+                logger.warning("Rerank LLM erro %d: %s", resp.status_code, resp.text)
+            
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
             return self._extract_score(content)
@@ -67,7 +89,7 @@ class LLMReranker:
             logger.warning("Rerank LLM falhou: %s", exc)
             return 0.0
 
-    def rerank(self, query: str, chunks: list[dict], top_k: int = 5, content_key: str = "content") -> list[dict]:
+    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content") -> List[Dict[str, Any]]:
         if not chunks:
             return []
 
@@ -82,21 +104,67 @@ class LLMReranker:
         scored.sort(key=lambda x: x.get("rerank_score", 0.0), reverse=True)
         return scored[:top_k]
 
+class CrossEncoderAPIReranker(Reranker):
+    """Reranker que usa um endpoint /rerank real (Cross-Encoder)."""
+    
+    def __init__(self, api_url: str, model_name: str):
+        self.api_url = api_url
+        self.model_name = model_name
 
-def get_reranker(model_name: Optional[str] = None) -> LLMReranker:
+    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 5, content_key: str = "content") -> List[Dict[str, Any]]:
+        if not chunks:
+            return []
+        
+        payload = {
+            "model": self.model_name,
+            "query": query,
+            "documents": [c.get(content_key, "") for c in chunks],
+            "top_n": top_k
+        }
+        
+        try:
+            # Tenta endpoint padrão /rerank
+            url = self.api_url if self.api_url.endswith("/rerank") else f"{self.api_url.rstrip('/')}/rerank"
+            resp = requests.post(url, json=payload, timeout=30)
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            
+            # Mapeia resultados de volta para os chunks originais
+            scored_chunks = []
+            for res in results:
+                idx = res["index"]
+                score = res["relevance_score"]
+                chunk = chunks[idx].copy()
+                chunk["rerank_score"] = score
+                scored_chunks.append(chunk)
+            
+            return scored_chunks
+        except Exception as exc:
+            logger.error("Erro no CrossEncoder API Reranker: %s", exc)
+            # Fallback: retorna chunks originais sem reordenação
+            return chunks[:top_k]
+
+_reranker_instance: Optional[Reranker] = None
+
+def get_reranker() -> Reranker:
     global _reranker_instance
     if _reranker_instance is None:
-        _reranker_instance = LLMReranker(model_name=model_name or RERANKER_MODEL)
+        if RERANKER_TYPE == "api" and RERANKER_API_URL:
+            logger.info("Usando Cross-Encoder Reranker via API: %s", RERANKER_API_URL)
+            _reranker_instance = CrossEncoderAPIReranker(RERANKER_API_URL, RERANKER_MODEL)
+        else:
+            logger.info("Usando LLM-as-a-Reranker (modelo: %s)", RERANKER_MODEL)
+            _reranker_instance = LLMReranker(RERANKER_MODEL)
     return _reranker_instance
-
 
 def rerank_chunks(query: str, chunks: list[dict], top_k: int = 5) -> list[dict]:
     reranker = get_reranker()
     return reranker.rerank(query, chunks, top_k)
 
-
 def check_reranker_available() -> dict:
+    reranker = get_reranker()
     return {
-        "lm_studio_reranker": True,
-        "model_name": (get_reranker().model_name if _reranker_instance else None),
+        "type": RERANKER_TYPE,
+        "model_name": RERANKER_MODEL,
+        "api_url": RERANKER_API_URL if RERANKER_TYPE == "api" else LM_STUDIO_BASE_URL
     }

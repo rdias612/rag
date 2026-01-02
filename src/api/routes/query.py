@@ -8,13 +8,22 @@ Endpoints:
 - POST /chat - Chat com histórico
 """
 import time
+import traceback
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from pydantic import ValidationError
 
 from src.api.schemas import QueryRequest, ChatRequest, SearchRequest, StreamQueryRequest
 from src.core.rag import query_rag, query_rag_stream, search_only, query_rag_with_history
 from src.core.rag_explainer import explainer
-from src.core.logger import api_logger, log_api_request, log_api_response, log_api_input
+from src.core.logger import (
+    api_logger,
+    rag_logger,
+    logger,
+    log_api_request,
+    log_api_response,
+    log_api_input,
+    flush_loggers,
+)
 from src.api.middleware.rate_limiter import limiter, LIMITS
 
 query_bp = Blueprint("query", __name__)
@@ -148,6 +157,7 @@ def chat():
     start_time = time.time()
     data = request.get_json() or {}
     log_api_input("/api/chat", "POST", data)
+    flush_loggers(api_logger, rag_logger, logger)
     
     try:
         req = ChatRequest(**data)
@@ -157,6 +167,9 @@ def chat():
         return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     try:
+        # Explicit log to confirm chat handler execution and question receipt
+        api_logger.info(f"/chat received question (len={len(req.question)})")
+        rag_logger.info(f"/chat processing: session={req.session_id or 'new'} question='{req.question[:80]}'")
         result = query_rag_with_history(
             question=req.question,
             session_id=req.session_id,
@@ -170,9 +183,23 @@ def chat():
         )
         
         log_api_response("/api/chat", 200, time.time() - start_time)
+        api_logger.info("/chat completed successfully")
+        flush_loggers(api_logger, rag_logger, logger)
         return jsonify(result)
     
     except Exception as e:
-        api_logger.error(f"Error in /chat: {e}")
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "session_id": req.session_id if 'req' in locals() else None,
+            "question": req.question if 'req' in locals() else data.get('question', 'N/A')
+        }
+
+        # Log full stacktrace for easier diagnosis
+        logger.error(f"Error in /chat: {e}", exc_info=True)
+        api_logger.error(f"Error in /chat: {e}", exc_info=True)
+        rag_logger.error(f"Error in /chat: {e} | {traceback.format_exc()}")
+
         log_api_response("/api/chat", 500, time.time() - start_time)
-        return jsonify({"error": str(e)}), 500
+        flush_loggers(api_logger, rag_logger, logger)
+        return jsonify({"error": str(e), "details": error_details}), 500

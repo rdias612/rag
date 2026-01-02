@@ -22,6 +22,7 @@ from src.api.routes.prompts import prompts_bp
 from src.api.routes.metrics import metrics_bp
 from src.api.routes.admin import admin_bp
 from src.api.routes.quality_metrics import quality_bp
+from src.api.routes.logs import init_logs_routes
 
 # Registrar sub-blueprints no blueprint principal
 api.register_blueprint(health_bp)  # /health, /stats, /collections
@@ -32,6 +33,9 @@ api.register_blueprint(prompts_bp, url_prefix="/prompts")  # /prompts/*
 api.register_blueprint(metrics_bp)  # /cache/*, /classify, /evaluate, /hyde/*, /metrics
 api.register_blueprint(quality_bp, url_prefix="/metrics/quality")  # /stats, /recent, /trends, /top-worst, /evaluate
 api.register_blueprint(admin_bp)  # /embeddings/*, /admin/*
+
+# Registrar rota de logs (recebe logs do frontend)
+init_logs_routes(api)
 
 # =============================================================================
 # Agendador de Tarefas em Background (APScheduler)
