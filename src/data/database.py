@@ -108,7 +108,11 @@ def get_connection():
             raise e
         finally:
             conn.close()
-            db_logger.debug("Database connection closed")
+        db_logger.debug("Database connection closed")
+
+
+# Alias para backward compatibility
+get_db_connection = get_connection
 
 
 def init_database():

@@ -5,6 +5,7 @@
 # Web Framework
 flask
 flask-cors
+flask-limiter
 
 # Security
 cryptography

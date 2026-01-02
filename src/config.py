@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = Field(default="phi-3.5-mini-instruct", validation_alias="LLM_MODEL")
     
     # Modelo Reranker
-    RERANKER_MODEL: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", validation_alias="RERANKER_MODEL")
+    RERANKER_MODEL: str = Field(default="text-embedding-bge-reranker-v2-m3", validation_alias="RERANKER_MODEL")
 
     # =========================================================================
     # Chunking
@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     USE_QUESTION_CLASSIFIER: bool = True
     USE_ENHANCED_PROMPTS: bool = True
     ENABLE_RERANKING: bool = True
-    RERANKING_MODEL: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", validation_alias="RERANKER_MODEL")
+    RERANKING_MODEL: str = Field(default="text-embedding-bge-reranker-v2-m3", validation_alias="RERANKER_MODEL")
     RERANKING_TOP_K_INITIAL: int = 15
     ENABLE_QUERY_EXPANSION: bool = True
     QUERY_EXPANSION_COUNT: int = 3
@@ -115,7 +115,6 @@ class Settings(BaseSettings):
     ENABLE_AUTO_EVALUATION: bool = False
     ENABLE_EVALUATION_UI: bool = True
     EVALUATION_MIN_SCORE_THRESHOLD: float = 0.4
-    ENABLE_ADAPTIVE_RETRIEVAL: bool = True
     ENABLE_SELF_RAG: bool = False
     SELF_RAG_MIN_SCORE: int = 60
     SELF_RAG_MAX_ITERATIONS: int = 1
@@ -310,6 +309,15 @@ RATE_LIMIT_QUERY = settings.RATE_LIMIT_QUERY
 RATE_LIMIT_SEARCH = settings.RATE_LIMIT_SEARCH
 RATE_LIMIT_INGEST = settings.RATE_LIMIT_INGEST
 RATE_LIMIT_HEALTH = settings.RATE_LIMIT_HEALTH
+
+# =============================================================================
+# Adaptive Retrieval (Phase 2)
+# =============================================================================
+ADAPTIVE_RETRIEVAL_LOG_LEVEL = settings.ADAPTIVE_RETRIEVAL_LOG_LEVEL
+ADAPTIVE_TOP_K_MIN = settings.ADAPTIVE_TOP_K_MIN
+ADAPTIVE_TOP_K_MAX = settings.ADAPTIVE_TOP_K_MAX
+ADAPTIVE_MIN_SIM_MIN = settings.ADAPTIVE_MIN_SIM_MIN
+ADAPTIVE_MIN_SIM_MAX = settings.ADAPTIVE_MIN_SIM_MAX
 
 # =============================================================================
 # Prompts (Mantidos como constantes por não precisarem de override via env)

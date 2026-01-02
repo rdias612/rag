@@ -610,7 +610,7 @@ Combina similaridade semântica (embeddings) com busca textual (FTS):
 
 ### 2. Re-ranking
 Refina resultados usando Cross-Encoder:
-- Modelo: `cross-encoder/ms-marco-MiniLM-L-6-v2`
+- Modelo: `text-embedding-bge-reranker-v2-m3`
 - Top-K inicial: 15 → Top-K final: 5
 - Melhora significativamente a precisão
 

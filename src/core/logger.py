@@ -114,6 +114,9 @@ def setup_logger(
 # =============================================================================
 # Loggers Específicos
 # =============================================================================
+# Logger genérico
+logger = setup_logger("rag")
+
 # Logger para interações com LLM
 llm_logger = setup_logger("rag.llm")
 
