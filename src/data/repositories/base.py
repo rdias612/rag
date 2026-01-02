@@ -19,22 +19,34 @@ class BaseRepository(ABC, Generic[T]):
     @contextmanager
     def _get_cursor(self, dict_cursor: bool = False):
         """
-        Obtém cursor com conexão gerenciada.
-        
+        Obtém cursor garantindo que diferentes tipos de conexão funcionem
+        (instância direta, conexão externa ou context manager).
+
         Args:
             dict_cursor: Se True, usa RealDictCursor para retornar dicts
         """
+        from contextlib import ExitStack
         from psycopg2.extras import RealDictCursor
-        
+
         cursor_factory = RealDictCursor if dict_cursor else None
-        
-        if self._external_connection:
-            with self._external_connection.cursor(cursor_factory=cursor_factory) as cur:
+
+        # Permitir receber tanto uma conexão já aberta quanto um context manager.
+        connection_source = self._external_connection or get_connection()
+
+        with ExitStack() as stack:
+            # Se for um context manager (ex.: GeneratorContextManager), entrar nele.
+            if hasattr(connection_source, "__enter__"):
+                conn = stack.enter_context(connection_source)
+                manage_commit = False  # commit/rollback é responsabilidade do context manager
+            else:
+                conn = connection_source
+                manage_commit = False if self._external_connection else True
+
+            cur = stack.enter_context(conn.cursor(cursor_factory=cursor_factory))
+            try:
                 yield cur
-        else:
-            with get_connection() as conn:
-                with conn.cursor(cursor_factory=cursor_factory) as cur:
-                    yield cur
+            finally:
+                if manage_commit:
                     conn.commit()
     
     @abstractmethod

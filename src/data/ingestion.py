@@ -40,7 +40,14 @@ from src.config import (
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 from src.data.hierarchical_chunking import create_parent_child_chunks
-from src.core.logger import ingestion_logger as logger, log_execution_time
+from src.core.logger import (
+    ingestion_logger as logger, 
+    log_execution_time,
+    update_logger_formatter
+)
+
+# Forçar atualização do formatter para o novo formato de texto legível
+update_logger_formatter("rag.ingestion")
 
 # =============================================================================
 # Formatos suportados e Proibidos (MarkItDown requer API key para estes)

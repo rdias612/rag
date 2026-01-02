@@ -68,6 +68,39 @@ class DetailedFormatter(logging.Formatter):
 # =============================================================================
 # Configuração dos Loggers
 # =============================================================================
+def update_logger_formatter(logger_name: str):
+    """
+    Atualiza o formatter de um logger existente para o novo formato.
+    
+    Remove handlers antigos e adiciona novos com o SimpleFormatter.
+    
+    Args:
+        logger_name: Nome do logger a ser atualizado
+    """
+    logger = logging.getLogger(logger_name)
+    
+    # Remover todos os handlers existentes
+    logger.handlers.clear()
+    
+    # Reconfigurar com novos handlers
+    level = logger.level
+    
+    # Handler para arquivo (texto simples)
+    file_handler = logging.FileHandler(
+        LOGS_DIR / f"{logger_name.replace('.', '_')}.log",
+        encoding="utf-8"
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(SimpleFormatter())
+    logger.addHandler(file_handler)
+    
+    # Handler para console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(DetailedFormatter())
+    logger.addHandler(console_handler)
+
+
 def setup_logger(
     name: str,
     level: int = logging.DEBUG,
@@ -89,7 +122,15 @@ def setup_logger(
     
     # Evitar handlers duplicados
     if logger.handlers:
-        return logger
+        # Verifica se algum handler já usa o novo formato
+        has_simple_formatter = any(
+            isinstance(h.formatter, SimpleFormatter) 
+            for h in logger.handlers
+        )
+        if has_simple_formatter:
+            return logger  # Já está configurado corretamente
+        # Caso contrário, remove handlers antigos e reconfigura
+        logger.handlers.clear()
     
     # Handler para arquivo (texto simples)
     if log_to_file:
