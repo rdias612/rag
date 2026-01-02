@@ -5,14 +5,29 @@ Gerencia persistência e consulta de métricas de adaptive retrieval.
 """
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from sqlalchemy import text
-from src.data.database import get_db_connection
+import json
+from src.data.repositories.base import BaseRepository
 from src.core.logger import logger
 
 
-class AdaptiveRetrievalRepository:
+class AdaptiveRetrievalRepository(BaseRepository):
     """Repository para métricas de adaptive retrieval."""
     
+    def create(self, entity: Any) -> int:
+        """Não implementado para este repository."""
+        raise NotImplementedError("Use save_metric em seu lugar")
+
+    def find_by_id(self, id: int) -> Optional[Any]:
+        """Busca métrica por ID."""
+        try:
+            with self._get_cursor() as cur:
+                cur.execute("SELECT * FROM adaptive_retrieval_metrics WHERE id = %s", (id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Error finding adaptive metric by id: {e}")
+            raise
+
     def save_metric(
         self,
         session_id: Optional[str],
@@ -46,10 +61,8 @@ class AdaptiveRetrievalRepository:
         Returns:
             ID da métrica salva
         """
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
+            with self._get_cursor() as cur:
                 cur.execute("""
                     INSERT INTO adaptive_retrieval_metrics (
                         session_id, question, complexity_score, word_count,
@@ -68,22 +81,16 @@ class AdaptiveRetrievalRepository:
                     min_similarity_original,
                     min_similarity_adjusted,
                     adjustment_reason,
-                    characteristics,
+                    json.dumps(characteristics),
                     duration_ms
                 ))
                 result = cur.fetchone()
-                conn.commit()
                 metric_id = result[0] if result else None
                 logger.info(f"Adaptive metric saved: ID={metric_id}, complexity={complexity_score}")
                 return metric_id
         except Exception as e:
-            if conn:
-                conn.rollback()
             logger.error(f"Error saving adaptive retrieval metric: {e}")
             raise
-        finally:
-            if conn:
-                conn.close()
     
     def get_stats(self, days: int = 7) -> Dict[str, Any]:
         """
@@ -95,15 +102,13 @@ class AdaptiveRetrievalRepository:
         Returns:
             Dict com estatísticas agregadas
         """
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
+            with self._get_cursor() as cur:
                 # Total de queries com adaptive
                 cur.execute("""
                     SELECT COUNT(*) as total
                     FROM adaptive_retrieval_metrics
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                 """, (days,))
                 total = cur.fetchone()[0]
                 
@@ -114,7 +119,12 @@ class AdaptiveRetrievalRepository:
                         "avg_complexity": 0,
                         "avg_top_k": 0,
                         "avg_min_similarity": 0,
-                        "complexity_distribution": {},
+                        "complexity_distribution": {
+                            "simple": 0,
+                            "medium": 0,
+                            "complex": 0
+                        },
+                        "complexity_by_score": {},
                         "days": days
                     }
                 
@@ -125,8 +135,8 @@ class AdaptiveRetrievalRepository:
                         AVG(top_k_adjusted)::float as avg_top_k,
                         AVG(min_similarity_adjusted)::float as avg_min_similarity
                     FROM adaptive_retrieval_metrics
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
-                """, (days,))
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
+                """, (days, days))
                 row = cur.fetchone()
                 avg_complexity = round(row[0], 2) if row[0] else 0
                 avg_top_k = round(row[1], 1) if row[1] else 0
@@ -138,7 +148,7 @@ class AdaptiveRetrievalRepository:
                         complexity_score,
                         COUNT(*) as count
                     FROM adaptive_retrieval_metrics
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                     GROUP BY complexity_score
                     ORDER BY complexity_score
                 """, (days,))
@@ -166,9 +176,6 @@ class AdaptiveRetrievalRepository:
         except Exception as e:
             logger.error(f"Error getting adaptive retrieval stats: {e}")
             raise
-        finally:
-            if conn:
-                conn.close()
     
     def get_recent_metrics(self, limit: int = 50) -> List[Dict[str, Any]]:
         """
@@ -180,10 +187,8 @@ class AdaptiveRetrievalRepository:
         Returns:
             Lista de métricas
         """
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
+            with self._get_cursor() as cur:
                 cur.execute("""
                     SELECT 
                         id, session_id, question, complexity_score, word_count,
@@ -216,9 +221,6 @@ class AdaptiveRetrievalRepository:
         except Exception as e:
             logger.error(f"Error getting recent adaptive metrics: {e}")
             raise
-        finally:
-            if conn:
-                conn.close()
     
     def get_performance_metrics(self, days: int = 7) -> Dict[str, Any]:
         """
@@ -230,10 +232,8 @@ class AdaptiveRetrievalRepository:
         Returns:
             Dict com métricas de performance
         """
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
+            with self._get_cursor() as cur:
                 # Média de duração
                 cur.execute("""
                     SELECT 
@@ -243,7 +243,7 @@ class AdaptiveRetrievalRepository:
                         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms)::float as median_duration
                     FROM adaptive_retrieval_metrics
                     WHERE duration_ms IS NOT NULL
-                    AND created_at >= NOW() - INTERVAL '%s days'
+                    AND created_at >= NOW() - INTERVAL '1 day' * %s
                 """, (days,))
                 row = cur.fetchone()
                 
@@ -266,10 +266,7 @@ class AdaptiveRetrievalRepository:
         except Exception as e:
             logger.error(f"Error getting adaptive retrieval performance metrics: {e}")
             raise
-        finally:
-            if conn:
-                conn.close()
-    
+
     def cleanup_old_metrics(self, days: int = 30) -> int:
         """
         Remove métricas antigas para economizar espaço.
@@ -280,28 +277,20 @@ class AdaptiveRetrievalRepository:
         Returns:
             Número de registros removidos
         """
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
+            with self._get_cursor() as cur:
                 cur.execute("""
                     DELETE FROM adaptive_retrieval_metrics
-                    WHERE created_at < NOW() - INTERVAL '%s days'
+                    WHERE created_at < NOW() - INTERVAL '1 day' * %s
                     RETURNING id
                 """, (days,))
                 deleted_ids = [row[0] for row in cur.fetchall()]
-                conn.commit()
                 deleted_count = len(deleted_ids)
                 logger.info(f"Cleaned up {deleted_count} old adaptive metrics (older than {days} days)")
                 return deleted_count
         except Exception as e:
-            if conn:
-                conn.rollback()
             logger.error(f"Error cleaning up adaptive metrics: {e}")
             raise
-        finally:
-            if conn:
-                conn.close()
 
 
 # Instância global

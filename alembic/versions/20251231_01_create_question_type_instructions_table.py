@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers
-revision = '20251231_01'
-down_revision = '20251230_01_add_sentence_window_fields'
+revision = '20251231_02'
+down_revision = '20251231_01'
 branch_labels = None
 depends_on = None
 

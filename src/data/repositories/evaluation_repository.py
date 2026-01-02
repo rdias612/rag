@@ -130,9 +130,9 @@ class EvaluationRepository(BaseRepository):
                     MAX(overall_score) as max_score,
                     PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY overall_score) as median_score
                 FROM rag_evaluations
-                WHERE created_at >= NOW() - INTERVAL '%s days'
+                WHERE created_at >= NOW() - (%s || ' days')::interval
             """
-            cur.execute(query, (days,))
+            cur.execute(query, (str(days),))
             result = cur.fetchone()
             return dict(result) if result else {}
     
@@ -153,10 +153,10 @@ class EvaluationRepository(BaseRepository):
         """
         if group_by == 'day':
             date_format = 'YYYY-MM-DD'
-            date_trunc = 'DATE(created_at)'
+            date_trunc = "DATE_TRUNC('day', created_at)"
         else:
             date_format = 'YYYY-"W"WW'
-            date_trunc = 'EXTRACT(WEEK FROM created_at)'
+            date_trunc = "DATE_TRUNC('week', created_at)"
         
         query = f"""
             SELECT 
@@ -166,13 +166,13 @@ class EvaluationRepository(BaseRepository):
                 AVG(faithfulness) as avg_faithfulness,
                 AVG(answer_relevancy) as avg_relevancy
             FROM rag_evaluations
-            WHERE created_at >= NOW() - INTERVAL %s days
+            WHERE created_at >= NOW() - (%s || ' days')::interval
             GROUP BY {date_trunc}
             ORDER BY period ASC
         """
         
         with self._get_cursor(dict_cursor=True) as cur:
-            cur.execute(query, (days,))
+            cur.execute(query, (str(days),))
             results = cur.fetchall()
             return [dict(row) for row in results]
     
@@ -233,7 +233,7 @@ class EvaluationRepository(BaseRepository):
                 'best' as category,
                 question, overall_score, created_at
             FROM rag_evaluations
-            WHERE created_at >= NOW() - INTERVAL %s days
+            WHERE created_at >= NOW() - (%s || ' days')::interval
             ORDER BY overall_score DESC
             LIMIT %s)
             
@@ -243,13 +243,13 @@ class EvaluationRepository(BaseRepository):
                 'worst' as category,
                 question, overall_score, created_at
             FROM rag_evaluations
-            WHERE created_at >= NOW() - INTERVAL %s days
+            WHERE created_at >= NOW() - (%s || ' days')::interval
             ORDER BY overall_score ASC
             LIMIT %s)
         """
         
         with self._get_cursor(dict_cursor=True) as cur:
-            cur.execute(query, (days, limit, days, limit))
+            cur.execute(query, (str(days), limit, str(days), limit))
             results = cur.fetchall()
             results_list = [dict(row) for row in results]
         
@@ -273,9 +273,9 @@ class EvaluationRepository(BaseRepository):
         with self._get_cursor() as cur:
             cur.execute("""
                 DELETE FROM rag_evaluations
-                WHERE created_at < NOW() - INTERVAL %s days
+                WHERE created_at < NOW() - (%s || ' days')::interval
                 RETURNING COUNT(*)
-            """, (days,))
+            """, (str(days),))
             result = cur.fetchone()
             count = result[0] if result else 0
         

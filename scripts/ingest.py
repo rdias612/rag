@@ -32,7 +32,15 @@ from src.data.database import (
     remove_document_chunks_by_source,
     list_ingested_documents
 )
-from src.data.ingestion import process_document, get_document_stats, get_all_documents, SUPPORTED_EXTENSIONS
+from src.data.ingestion import (
+    process_document,
+    process_document_with_chunking_type,
+    get_document_stats, 
+    get_all_documents, 
+    SUPPORTED_EXTENSIONS
+)
+from src.data.repositories.ingestion_repository import IngestionRepository
+from src.data.repositories.document_repository import DocumentRepository
 from src.core.embeddings import get_embeddings_batch, check_embedding_service
 
 
@@ -113,7 +121,8 @@ def show_ingested_documents():
     logger.info("📋 Documentos Ingeridos")
     
     try:
-        documents = list_ingested_documents()
+        ingestion_repo = IngestionRepository()
+        documents = ingestion_repo.list_all()
         
         if not documents:
             logger.info("   Nenhum documento registrado ainda.")
@@ -126,17 +135,23 @@ def show_ingested_documents():
             size_mb = doc['file_size'] / (1024 * 1024)
             ingested_at = doc['ingested_at'].strftime("%Y-%m-%d %H:%M")
             status_icon = "✅" if doc['status'] == 'success' else "⚠️"
+            chunking_type = doc.get('chunking_type', 'N/A')
             
             logger.info(f"   {status_icon} {file_name}")
             logger.info(f"      Coleção: {doc['collection_id']} | Chunks: {doc['chunks_count']} | {size_mb:.2f} MB")
-            logger.info(f"      Ingerido em: {ingested_at}")
+            logger.info(f"      Tipo: {chunking_type} | Ingerido em: {ingested_at}")
             
     except Exception as e:
         logger.error(f"   ❌ Erro ao listar documentos: {e}")
 
 
-def run_ingestion(force: bool = False):
-    """Executa o processo de ingestão completo."""
+def run_ingestion(force: bool = False, chunking_type: str = "hierarchical"):
+    """Executa o processo de ingestão completo.
+    
+    Args:
+        force: Força re-ingestão de todos os documentos
+        chunking_type: Tipo de chunking a usar ('hierarchical' ou 'sentence')
+    """
     start_total = time.time()
     logger.info("🚀 Iniciando ingestão de documentos")
     
@@ -164,6 +179,7 @@ def run_ingestion(force: bool = False):
         logger.warning(f"⚠️ Nenhum documento encontrado em: {DOCUMENTS_DIR}")
         return
     
+    logger.info(f"🔧 Modo de chunking: {chunking_type}")
     logger.info(f"📂 Encontrados {len(document_files)} documento(s) no diretório")
     
     # Separar documentos: novos, modificados, já ingeridos
@@ -171,12 +187,16 @@ def run_ingestion(force: bool = False):
     docs_skipped = []
     docs_modified = []
     
+    # Usar repositórios novos
+    ingestion_repo = IngestionRepository()
+    doc_repo = DocumentRepository()
+    
     for doc_path in document_files:
         file_path_str = str(doc_path)
         file_hash = calculate_file_hash(doc_path)
         file_size = doc_path.stat().st_size
         
-        existing = get_ingested_document(file_path_str)
+        existing = ingestion_repo.find_by_path(file_path_str)
         
         if existing:
             if force:
@@ -207,7 +227,7 @@ def run_ingestion(force: bool = False):
     # Processar documentos modificados (remover chunks antigos primeiro)
     for doc_path, file_hash, file_size, existing in docs_modified:
         logger.info(f"🔄 Removendo chunks antigos de: {doc_path.name}")
-        removed = remove_document_chunks_by_source(str(doc_path))
+        removed = doc_repo.delete_by_source(str(doc_path))
         logger.debug(f"   Removidos {removed} chunk(s)")
         docs_to_process.append((doc_path, file_hash, file_size))
     
@@ -232,7 +252,7 @@ def run_ingestion(force: bool = False):
         start_doc = time.time()
         
         try:
-            chunks = process_document(doc_path)
+            chunks = process_document_with_chunking_type(doc_path, chunking_type)
             
             # Adicionar collection_id a cada chunk
             for chunk in chunks:
@@ -252,13 +272,14 @@ def run_ingestion(force: bool = False):
         except Exception as e:
             logger.error(f"   ❌ Erro ao processar {doc_path.name}: {e}")
             # Registrar como erro
-            register_ingested_document(
+            ingestion_repo.create_or_update(
                 file_path=str(doc_path),
                 file_hash=file_hash,
                 file_size=file_size,
                 collection_id=collection_id,
                 chunks_count=0,
-                status="error"
+                status="error",
+                chunking_type=chunking_type
             )
             continue
     
@@ -288,13 +309,13 @@ def run_ingestion(force: bool = False):
             "collection_id": chunk.get("collection_id", "default")
         })
     
-    # Inserir em batches
+    # Inserir em batches usando repositório novo
     batch_size = 100
     total_inserted = 0
     
     for i in range(0, len(documents_to_insert), batch_size):
         batch = documents_to_insert[i:i + batch_size]
-        inserted = insert_documents_batch(batch)
+        inserted = doc_repo.create_batch(batch)
         total_inserted += inserted
         logger.info(f"   Inseridos: {total_inserted}/{len(documents_to_insert)}")
     
@@ -304,13 +325,14 @@ def run_ingestion(force: bool = False):
     # Registrar documentos como ingeridos
     logger.info("📝 Registrando documentos processados...")
     for file_path_str, info in doc_chunk_counts.items():
-        register_ingested_document(
+        ingestion_repo.create_or_update(
             file_path=file_path_str,
             file_hash=info["hash"],
             file_size=info["size"],
             collection_id=info["collection_id"],
             chunks_count=info["chunks"],
-            status="success"
+            status="success",
+            chunking_type=chunking_type
         )
     
     duration_total = time.time() - start_total
@@ -339,6 +361,8 @@ def main():
     parser.add_argument("--force", action="store_true", help="Forçar re-ingestão de todos os documentos")
     parser.add_argument("--list-ingested", action="store_true", help="Listar documentos já ingeridos")
     parser.add_argument("--debug", action="store_true", help="Ativar logs de debug")
+    parser.add_argument("--chunking-type", choices=["hierarchical", "sentence"], 
+                       default="hierarchical", help="Tipo de chunking: hierarchical (parent-child) ou sentence (sentence window)")
     
     args = parser.parse_args()
     
@@ -362,7 +386,7 @@ def main():
     elif args.list_ingested:
         show_ingested_documents()
     else:
-        run_ingestion(force=args.force)
+        run_ingestion(force=args.force, chunking_type=args.chunking_type)
 
 
 if __name__ == "__main__":

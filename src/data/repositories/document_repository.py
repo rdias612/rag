@@ -111,7 +111,9 @@ class DocumentRepository(BaseRepository):
     
     def find_similar(self, query_embedding: list[float], top_k: int = TOP_K_RESULTS,
                      min_similarity: Optional[float] = None,
-                     collection_id: Optional[str] = None) -> list[dict]:
+                     collection_id: Optional[str] = None,
+                     chunking_type: Optional[str] = None,
+                     source_paths: Optional[list[str]] = None) -> list[dict]:
         """Busca documentos similares por embedding."""
         start_time = time.time()
         
@@ -127,6 +129,20 @@ class DocumentRepository(BaseRepository):
             if collection_id:
                 where_conditions.append("collection_id = %s")
                 params.append(collection_id)
+            
+            if chunking_type:
+                # Filtrar por tipo de chunking no metadata
+                # Para hierarchical: buscar chunks do tipo 'child'
+                # Para sentence: buscar chunks do tipo 'sentence'
+                if chunking_type == "hierarchical":
+                    where_conditions.append("metadata->>'chunk_type' = 'child'")
+                elif chunking_type == "sentence":
+                    where_conditions.append("metadata->>'chunk_type' = 'sentence'")
+            
+            if source_paths:
+                placeholders = ",".join(["%s"] * len(source_paths))
+                where_conditions.append(f"metadata->>'source_path' IN ({placeholders})")
+                params.extend(source_paths)
             
             where_clause = "WHERE " + " AND ".join(where_conditions)
             params.extend([query_embedding, top_k])
@@ -223,6 +239,48 @@ class DocumentRepository(BaseRepository):
         with self._get_cursor() as cur:
             cur.execute("DELETE FROM documentos")
             return cur.rowcount
+    
+    def find_similar_by_chunking_type(self, query_embedding: list[float], 
+                                      chunking_type: str,
+                                      top_k: int = TOP_K_RESULTS,
+                                      min_similarity: Optional[float] = None,
+                                      collection_id: Optional[str] = None) -> list[dict]:
+        """
+        Busca documentos similares filtrando especificamente por tipo de chunking.
+        
+        Método otimizado que usa a tabela documentos_ingeridos para
+        identificar quais arquivos usaram determinado tipo de chunking
+        e busca apenas nesses documentos.
+        
+        Args:
+            query_embedding: Vetor de embedding da query
+            chunking_type: Tipo de chunking ('hierarchical' ou 'sentence')
+            top_k: Número de resultados
+            min_similarity: Similaridade mínima
+            collection_id: Filtrar por coleção
+            
+        Returns:
+            Lista de documentos encontrados
+        """
+        from src.data.repositories.ingestion_repository import IngestionRepository
+        
+        # Buscar paths de documentos com este tipo de chunking
+        ingestion_repo = IngestionRepository()
+        source_paths = ingestion_repo.find_by_chunking_type(chunking_type, collection_id)
+        
+        if not source_paths:
+            # Nenhum documento com este tipo de chunking
+            return []
+        
+        # Buscar apenas nesses documentos
+        return self.find_similar(
+            query_embedding=query_embedding,
+            top_k=top_k,
+            min_similarity=min_similarity,
+            collection_id=None,  # Já filtrado por source_paths
+            chunking_type=chunking_type,
+            source_paths=source_paths
+        )
     
     def get_parent_content(self, source_path: str, parent_index: int) -> Optional[str]:
         """Recupera o texto de um chunk pai baseado no caminho do arquivo e índice."""

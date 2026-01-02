@@ -2,9 +2,9 @@
 Serviço de busca de documentos.
 """
 from typing import Optional, List, Dict, Any
-from src.data.database import search_similar
 from src.data.hybrid_search import search_hybrid
 from src.data.sentence_window import expand_sentence_results
+from src.data.repositories.document_repository import DocumentRepository
 from src.config import ENABLE_HYBRID_SEARCH, HYBRID_SEARCH_ALPHA, TOP_K_RESULTS, SENTENCE_WINDOW_SIZE
 
 
@@ -14,6 +14,7 @@ class SearchService:
     def __init__(self):
         self._use_hybrid = ENABLE_HYBRID_SEARCH
         self._hybrid_alpha = HYBRID_SEARCH_ALPHA
+        self._doc_repo = DocumentRepository()
     
     def search(
         self,
@@ -23,7 +24,8 @@ class SearchService:
         min_similarity: float = None,
         use_hybrid: bool = None,
         hybrid_alpha: float = None,
-        collection_id: str = None
+        collection_id: str = None,
+        chunking_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Executa busca de documentos.
@@ -36,6 +38,7 @@ class SearchService:
             use_hybrid: Forçar busca híbrida on/off
             hybrid_alpha: Alpha para busca híbrida (se None, usa config)
             collection_id: Filtrar por coleção
+            chunking_type: Filtrar por tipo de chunking ('hierarchical', 'sentence', ou None)
             
         Returns:
             Lista de documentos com score
@@ -52,12 +55,24 @@ class SearchService:
                 collection_id=collection_id
             )
         else:
-            return search_similar(
-                query_embedding=query_embedding,
-                top_k=top_k,
-                min_similarity=min_similarity,
-                collection_id=collection_id
-            )
+            # Usar DocumentRepository com filtro de chunking_type
+            if chunking_type:
+                # Busca otimizada usando tabela documentos_ingeridos
+                return self._doc_repo.find_similar_by_chunking_type(
+                    query_embedding=query_embedding,
+                    chunking_type=chunking_type,
+                    top_k=top_k,
+                    min_similarity=min_similarity,
+                    collection_id=collection_id
+                )
+            else:
+                # Busca normal sem filtro de chunking_type
+                return self._doc_repo.find_similar(
+                    query_embedding=query_embedding,
+                    top_k=top_k,
+                    min_similarity=min_similarity,
+                    collection_id=collection_id
+                )
     
     def search_only(
         self,
@@ -100,12 +115,12 @@ class SearchService:
         Returns:
             Lista de janelas expandidas com contexto
         """
-        # 1. Buscar sentenças individuais
-        sentence_results = search_similar(
+        # 1. Buscar sentenças individuais usando DocumentRepository
+        sentence_results = self._doc_repo.find_similar(
             query_embedding=query_embedding,
             top_k=top_k * 2,  # Buscar mais para expandir
             collection_id=collection_id,
-            filters={"chunk_type": "sentence"}  # Filtra apenas sentences
+            chunking_type="sentence"  # Filtra apenas sentences
         )
         
         if not sentence_results:
@@ -114,17 +129,17 @@ class SearchService:
         # 2. Agrupar por documento
         sentences_by_doc = {}
         for result in sentence_results:
-            doc_id = result.get("metadata", {}).get("document_id")
-            if doc_id:
-                if doc_id not in sentences_by_doc:
-                    sentences_by_doc[doc_id] = []
-                sentences_by_doc[doc_id].append(result)
+            source_path = result.get("metadata", {}).get("source_path")
+            if source_path:
+                if source_path not in sentences_by_doc:
+                    sentences_by_doc[source_path] = []
+                sentences_by_doc[source_path].append(result)
         
         # 3. Para cada documento, expandir janelas
         expanded_results = []
-        for doc_id, sentences in sentences_by_doc.items():
+        for source_path, sentences in sentences_by_doc.items():
             # Buscar todas as sentenças do documento
-            all_sentences = self._get_all_sentences_for_document(doc_id)
+            all_sentences = self._get_all_sentences_for_document(source_path)
             
             # Expandir
             windows = expand_sentence_results(
@@ -140,32 +155,30 @@ class SearchService:
         expanded_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
         return expanded_results[:top_k]
     
-    def _get_all_sentences_for_document(self, document_id: str) -> List[dict]:
+    def _get_all_sentences_for_document(self, source_path: str) -> List[dict]:
         """
         Recupera todas as sentenças de um documento ordenadas por índice.
         
         Args:
-            document_id: ID do documento
+            source_path: Caminho do arquivo fonte
             
         Returns:
             Lista de sentenças ordenadas
         """
-        from src.data.database import execute_query
-        
-        query = """
-            SELECT content, metadata
-            FROM chunks
-            WHERE metadata->>'document_id' = %s
-              AND chunk_type = 'sentence'
-            ORDER BY (metadata->>'sentence_index')::INTEGER
-        """
-        
-        results = execute_query(query, (document_id,))
-        
-        return [
-            {
-                "content": row["content"],
-                "metadata": row["metadata"]
-            }
-            for row in results
-        ]
+        # Usar DocumentRepository para buscar por source_path
+        with self._doc_repo._get_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT content, metadata
+                FROM documentos
+                WHERE metadata->>'source_path' = %s
+                  AND metadata->>'chunk_type' = 'sentence'
+                ORDER BY (metadata->>'sentence_index')::INTEGER
+            """, (source_path,))
+            
+            return [
+                {
+                    "content": row["content"],
+                    "metadata": row["metadata"]
+                }
+                for row in cur.fetchall()
+            ]

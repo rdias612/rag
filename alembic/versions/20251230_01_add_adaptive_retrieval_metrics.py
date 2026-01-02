@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '20251230_01_add_adaptive_retrieval_metrics'
-down_revision = '20251227_01_add_prompt_metadata'
+revision = '20251230_01'
+down_revision = '20251227_01'
 branch_labels = None
 depends_on = None
 
