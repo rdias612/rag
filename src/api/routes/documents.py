@@ -178,7 +178,8 @@ def _scan_documents():
 def _run_bulk_ingestion(
     force: bool = False,
     specific_files: list[str] = None,
-    files_with_chunking: list[dict] = None
+    files_with_chunking: list[dict] = None,
+    clear_database: bool = False
 ):
     """
     Executa ingestão em massa em background.
@@ -188,8 +189,15 @@ def _run_bulk_ingestion(
         specific_files: Lista de caminhos específicos para processar (formato string)
         files_with_chunking: Lista de dicts com 'file_path' e 'chunking_type'
                            (usado quando frontend envia seleção de chunking)
+        clear_database: Se True, limpa toda a base antes de processar
     """
     global _bulk_ingestion_status
+    
+    # Limpar base se solicitado
+    if clear_database:
+        doc_cleared = _doc_repo.clear_all()
+        ing_cleared = _ingestion_repo.clear_all()
+        api_logger.info(f"Database cleared: {doc_cleared} chunks, {ing_cleared} records")
     
     try:
         all_document_files = get_all_documents(DOCUMENTS_DIR)
@@ -544,6 +552,82 @@ def get_ingested_documents():
         return jsonify({"error": str(e)}), 500
 
 
+@documents_bp.route("/documents/directory", methods=["GET"])
+def get_directory_documents():
+    """Lista todos os documentos no diretório com seu status de ingestão."""
+    start_time = time.time()
+    log_api_request("/api/documents/directory", "GET")
+    
+    try:
+        document_files = get_all_documents(DOCUMENTS_DIR)
+        ingested_docs = _ingestion_repo.list_all()
+        
+        # Criar mapa de caminhos para busca rápida
+        ingested_map = {doc["file_path"]: doc for doc in ingested_docs}
+        
+        results = []
+        for doc_path in document_files:
+            file_path_str = str(doc_path)
+            file_name = doc_path.name
+            
+            try:
+                file_size = doc_path.stat().st_size
+            except:
+                file_size = 0
+            
+            existing = ingested_map.get(file_path_str)
+            
+            status = "not_processed"
+            collection_id = "default"
+            chunks_count = 0
+            ingested_at = None
+            
+            if existing:
+                try:
+                    current_hash = _calculate_file_hash(doc_path)
+                    if existing["file_hash"] == current_hash:
+                        status = "ok"
+                    else:
+                        status = "outdated"
+                except Exception as e:
+                    api_logger.warning(f"Could not calculate hash for {file_name}: {e}")
+                    status = "error"
+                
+                collection_id = existing.get("collection_id", "default")
+                chunks_count = existing.get("chunks_count", 0)
+                ingested_at = existing.get("ingested_at")
+                if hasattr(ingested_at, "isoformat"):
+                    ingested_at = ingested_at.isoformat()
+            else:
+                # Tentar determinar coleção pelo path mesmo se não ingerido
+                try:
+                    relative_path = doc_path.relative_to(DOCUMENTS_DIR)
+                    collection_id = relative_path.parts[0] if len(relative_path.parts) > 1 else "default"
+                except ValueError:
+                    collection_id = "default"
+
+            results.append({
+                "file_name": file_name,
+                "file_path": file_path_str,
+                "file_size": file_size,
+                "status": status,
+                "collection_id": collection_id,
+                "chunks_count": chunks_count,
+                "ingested_at": ingested_at
+            })
+            
+        log_api_response("/api/documents/directory", 200, time.time() - start_time)
+        return jsonify({
+            "documents": results,
+            "count": len(results)
+        })
+        
+    except Exception as e:
+        api_logger.error(f"Error in /documents/directory: {e}")
+        log_api_response("/api/documents/directory", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
 @documents_bp.route("/documents/delete", methods=["POST"])
 def delete_ingested_document():
     """Deleta um documento e todos os seus chunks do banco."""
@@ -641,6 +725,48 @@ def scan_with_selection():
         return jsonify({"error": str(e)}), 500
 
 
+@documents_bp.route("/documents/scan-all", methods=["GET"])
+def scan_all_documents():
+    """
+    Retorna lista de TODOS os documentos no diretório para seleção de chunking type.
+    
+    Usado no fluxo de 'Reprocessar Base' para mostrar todos os documentos antes
+    de limpar a base de conhecimento e reiniciar a ingestão.
+    """
+    start_time = time.time()
+    log_api_request("/api/documents/scan-all", "GET")
+    
+    try:
+        all_document_files = get_all_documents(DOCUMENTS_DIR)
+        
+        # Adicionar campo chunkingType (default: hierarchical)
+        all_with_chunking = []
+        for doc_path in all_document_files:
+            try:
+                file_size = doc_path.stat().st_size
+                all_with_chunking.append({
+                    "file": doc_path.name,
+                    "path": str(doc_path),
+                    "reason": "reprocess",  # Indica que é para reprocessamento completo
+                    "size": file_size,
+                    "chunkingType": "hierarchical"  # Default
+                })
+            except Exception as e:
+                api_logger.warning(f"Could not scan {doc_path}: {e}")
+        
+        duration = time.time() - start_time
+        log_api_response("/api/documents/scan-all", 200, duration)
+        
+        return jsonify({
+            "pending": all_with_chunking,
+            "count": len(all_with_chunking)
+        }), 200
+    except Exception as e:
+        api_logger.error(f"Error scanning all documents: {e}")
+        log_api_response("/api/documents/scan-all", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
 # =============================================================================
 # Endpoints de Ingestão em Massa
 # =============================================================================
@@ -721,7 +847,17 @@ def get_bulk_ingestion_status():
 
 @documents_bp.route("/documents/reprocess", methods=["POST"])
 def reprocess_knowledge_base():
-    """Limpa toda a base de conhecimento e reinicia ingestão."""
+    """
+    Limpa toda a base de conhecimento e reinicia ingestão.
+    
+    Body:
+    {
+        "files": [  // Opcional: lista de arquivos específicos com chunking_type
+            {"file_path": "/path/to/file.pdf", "chunking_type": "hierarchical"},
+            {"file_path": "/path/to/file2.pdf", "chunking_type": "sentence"}
+        ]
+    }
+    """
     global _bulk_ingestion_status
     
     start_time = time.time()
@@ -732,7 +868,11 @@ def reprocess_knowledge_base():
             log_api_response("/api/documents/reprocess", 409, time.time() - start_time)
             return jsonify({"error": "Ingestão já está em andamento"}), 409
     
+    data = request.get_json() or {}
+    files_with_chunking = data.get("files", None)
+    
     try:
+        # Limpar base de dados
         doc_cleared = _doc_repo.clear_all()
         ing_cleared = _ingestion_repo.clear_all()
         cleared = {"chunks_deleted": doc_cleared, "control_records_deleted": ing_cleared}
@@ -745,19 +885,22 @@ def reprocess_knowledge_base():
             _bulk_ingestion_status["message"] = "Base limpa. Iniciando reprocessamento..."
             _bulk_ingestion_status["results"] = []
         
-        document_files = get_all_documents(DOCUMENTS_DIR)
-        
-        thread = threading.Thread(target=_run_bulk_ingestion, args=(True,))
+        # Iniciar thread de ingestão com clear_database=True
+        thread = threading.Thread(
+            target=_run_bulk_ingestion,
+            args=(True, None, files_with_chunking, True)
+        )
         thread.daemon = True
         thread.start()
         
-        api_logger.info(f"Reprocessing started: cleared {cleared}, processing {len(document_files)} files")
+        total_files = len(get_all_documents(DOCUMENTS_DIR))
+        api_logger.info(f"Reprocessing started: cleared {cleared}, processing {total_files} files")
         log_api_response("/api/documents/reprocess", 202, time.time() - start_time)
         
         return jsonify({
             "message": "Reprocessamento iniciado",
             "cleared": cleared,
-            "total_files": len(document_files)
+            "total_files": total_files
         }), 202
         
     except Exception as e:

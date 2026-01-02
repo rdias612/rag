@@ -8,6 +8,8 @@ import {
     Trash2,
     Play,
     AlertCircle,
+    AlertTriangle,
+    XCircle,
     CheckCircle,
     Clock,
     Loader2,
@@ -26,15 +28,15 @@ interface DocumentStats {
 }
 
 interface IngestedDocument {
-    id: number;
+    id?: number;
     file_path: string;
     file_name: string;
-    file_hash: string;
+    file_hash?: string;
     file_size: number;
     collection_id: string;
     chunks_count: number;
     status: string;
-    ingested_at: string;
+    ingested_at: string | null;
 }
 interface IngestionStatus {
     running: boolean;
@@ -64,12 +66,12 @@ export function DocumentsPanel() {
 
     // Modal states
     const [showReprocessModal, setShowReprocessModal] = useState(false);
-    const [showScanModal, setShowScanModal] = useState(false);
     const [showNoFilesModal, setShowNoFilesModal] = useState(false);
     const [showChunkingSelectionModal, setShowChunkingSelectionModal] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<any[]>([]);
     const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
+    const [isReprocessing, setIsReprocessing] = useState(false); // Diferenciar entre atualizar e reprocessar
 
     // Column resizing states
     const [fileColumnWidth, setFileColumnWidth] = useState(300);
@@ -131,7 +133,7 @@ export function DocumentsPanel() {
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
-                fetchWithTimeout(`${API_URL}/documents/ingested`).then(r => {
+                fetchWithTimeout(`${API_URL}/documents/directory`).then(r => {
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.json();
                 }),
@@ -239,26 +241,7 @@ export function DocumentsPanel() {
 
     const handleScanClick = async () => {
         setScanning(true);
-        try {
-            const res = await fetch(`${API_URL}/documents/scan`);
-            if (!res.ok) throw new Error("Failed to scan documents");
-            const data = await res.json();
-
-            if (data.pending && data.pending.length > 0) {
-                setPendingFiles(data.pending);
-                setShowScanModal(true);
-            } else {
-                setShowNoFilesModal(true);
-            }
-        } catch (error) {
-            console.error("Error scanning:", error);
-        } finally {
-            setScanning(false);
-        }
-    };
-
-    const handleScanWithSelectionClick = async () => {
-        setScanning(true);
+        setIsReprocessing(false); // Modo atualizar
         try {
             const res = await fetch(`${API_URL}/documents/scan-with-selection`);
             if (!res.ok) throw new Error("Failed to scan documents");
@@ -284,14 +267,22 @@ export function DocumentsPanel() {
             file_path: f.path,
             chunking_type: f.chunkingType
         }));
-        startIngestion(true, null, filesForBackend);
+
+        // Se for reprocessamento, usa /documents/reprocess, senão usa /documents/ingest-all
+        if (isReprocessing) {
+            startReprocessWithChunking(filesForBackend);
+        } else {
+            startIngestion(true, null, filesForBackend);
+        }
     };
 
-    const reprocessKnowledgeBase = async () => {
+    const startReprocessWithChunking = async (filesWithChunking: any[]) => {
+        setLoading(true);
         try {
             const res = await fetch(`${API_URL}/documents/reprocess`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: filesWithChunking })
             });
 
             if (res.ok) {
@@ -301,16 +292,40 @@ export function DocumentsPanel() {
                     progress: 0,
                     total: data.total_files,
                     current_file: null,
-                    message: 'Base limpa. Reprocessando...',
+                    message: 'Base limpa. Reprocessando com seleção de chunking...',
                     results: []
                 });
                 // Atualizar lista de documentos ingeridos (agora vazia)
                 setIngestedDocs([]);
+                // Iniciar polling
+                fetchData();
             }
         } catch (error) {
-            console.error('Failed to reprocess:', error);
+            console.error("Error starting reprocess:", error);
         } finally {
-            setShowReprocessModal(false);
+            setLoading(false);
+        }
+    };
+
+    const reprocessKnowledgeBase = async () => {
+        setShowReprocessModal(false);
+        setIsReprocessing(true); // Marca como modo reprocessamento
+        setScanning(true);
+        try {
+            const res = await fetch(`${API_URL}/documents/scan-all`);
+            if (!res.ok) throw new Error("Failed to scan documents");
+            const data = await res.json();
+
+            if (data.pending && data.pending.length > 0) {
+                setPendingFiles(data.pending);
+                setShowChunkingSelectionModal(true);
+            } else {
+                setShowNoFilesModal(true);
+            }
+        } catch (error) {
+            console.error('Failed to scan all documents:', error);
+        } finally {
+            setScanning(false);
         }
     };
 
@@ -343,9 +358,12 @@ export function DocumentsPanel() {
         return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     };
 
-    const formatDate = (dateStr: string) => {
+    const formatDate = (dateStr: string | null) => {
+        if (!dateStr) return '-';
         try {
-            return new Date(dateStr).toLocaleString('pt-BR', {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '-';
+            return date.toLocaleString('pt-BR', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric',
@@ -353,7 +371,7 @@ export function DocumentsPanel() {
                 minute: '2-digit'
             });
         } catch {
-            return dateStr;
+            return '-';
         }
     };
 
@@ -372,13 +390,22 @@ export function DocumentsPanel() {
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'success':
-                return <CheckCircle size={14} className="text-emerald-400" />;
+            case 'ok':
+            case 'completed':
+                return <CheckCircle size={16} className="text-emerald-400" />;
+            case 'not_processed':
+                return <XCircle size={16} className="text-rose-400" />;
+            case 'outdated':
+                return <AlertTriangle size={16} className="text-amber-400" />;
+            case 'processing':
+                return <Loader2 size={16} className="text-accent-primary animate-spin" />;
+            case 'failed':
             case 'error':
-                return <AlertCircle size={14} className="text-red-400" />;
-            case 'skipped':
-                return <Clock size={14} className="text-yellow-400" />;
+                return <AlertCircle size={16} className="text-rose-400" />;
+            case 'pending':
+                return <Clock size={16} className="text-amber-400" />;
             default:
-                return <FileText size={14} className="text-text-secondary" />;
+                return <Clock size={16} className="text-text-secondary" />;
         }
     };
 
@@ -406,25 +433,10 @@ export function DocumentsPanel() {
                         {scanning ? 'Escaneando...' : ingestionStatus?.running ? 'Processando...' : 'Atualizar'}
                     </button>
                     <button
-                        onClick={handleScanWithSelectionClick}
-                        disabled={loading || scanning || ingestionStatus?.running}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Escaneia documentos e permite selecionar tipo de chunking (Explicação ou Precisão)"
-                    >
-                        {scanning ? (
-                            <Loader2 size={14} className="animate-spin" />
-                        ) : ingestionStatus?.running ? (
-                            <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                            <FileText size={14} />
-                        )}
-                        {scanning ? 'Escaneando...' : 'Ingestão com Seleção'}
-                    </button>
-                    <button
                         onClick={() => setShowReprocessModal(true)}
                         disabled={loading || ingestionStatus?.running}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Limpa todos os dados e reprocessa do zero"
+                        title="Limpa todos os dados e permite escolher tipo de chunking para cada documento"
                     >
                         <RotateCcw size={14} />
                         Reprocessar Base
@@ -520,7 +532,7 @@ export function DocumentsPanel() {
                                 <CheckCircle size={16} className="text-emerald-400" />
                             </div>
                             <p className="text-2xl font-bold text-text-primary">
-                                {ingestedDocs.length}
+                                {ingestedDocs.filter(d => d.status === 'ok' || d.status === 'outdated').length}
                             </p>
                         </div>
 
@@ -548,7 +560,7 @@ export function DocumentsPanel() {
                     {/* Ingested Documents Table */}
                     <div className="bg-card backdrop-blur-xl border border-border rounded-xl overflow-hidden">
                         <div className="p-4 border-b border-border flex items-center justify-between">
-                            <h3 className="text-sm font-medium text-text-primary">Documentos Ingeridos</h3>
+                            <h3 className="text-sm font-medium text-text-primary">Documentos</h3>
                             {selectedDocs.length > 0 && (
                                 <button
                                     onClick={() => startIngestion(true, selectedDocs)}
@@ -601,7 +613,7 @@ export function DocumentsPanel() {
                                     <tbody>
                                         {ingestedDocs.map((doc) => (
                                             <tr
-                                                key={doc.id}
+                                                key={doc.file_path}
                                                 className={`border-b border-border hover:bg-surface transition-colors ${selectedDocs.includes(doc.file_path) ? 'bg-accent-primary/5' : ''
                                                     }`}
                                             >
@@ -649,30 +661,34 @@ export function DocumentsPanel() {
                                                     {getStatusIcon(doc.status)}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {deleteConfirm === doc.file_path ? (
-                                                        <div className="flex items-center gap-1">
+                                                    {(doc.status === 'ok' || doc.status === 'outdated' || doc.status === 'error') ? (
+                                                        deleteConfirm === doc.file_path ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    onClick={() => deleteDocument(doc.file_path)}
+                                                                    disabled={deleting === doc.file_path}
+                                                                    className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded transition-colors disabled:opacity-50"
+                                                                >
+                                                                    {deleting === doc.file_path ? '...' : 'Sim'}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setDeleteConfirm(null)}
+                                                                    className="text-xs px-2 py-1 bg-surface hover:bg-surface/80 text-text-primary rounded transition-colors border border-border"
+                                                                >
+                                                                    Não
+                                                                </button>
+                                                            </div>
+                                                        ) : (
                                                             <button
-                                                                onClick={() => deleteDocument(doc.file_path)}
-                                                                disabled={deleting === doc.file_path}
-                                                                className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded transition-colors disabled:opacity-50"
+                                                                onClick={() => setDeleteConfirm(doc.file_path)}
+                                                                className="p-1.5 hover:bg-red-500/10 text-text-secondary hover:text-red-400 rounded transition-colors"
+                                                                title="Deletar documento"
                                                             >
-                                                                {deleting === doc.file_path ? '...' : 'Sim'}
+                                                                <Trash2 size={14} />
                                                             </button>
-                                                            <button
-                                                                onClick={() => setDeleteConfirm(null)}
-                                                                className="text-xs px-2 py-1 bg-surface hover:bg-surface/80 text-text-primary rounded transition-colors border border-border"
-                                                            >
-                                                                Não
-                                                            </button>
-                                                        </div>
+                                                        )
                                                     ) : (
-                                                        <button
-                                                            onClick={() => setDeleteConfirm(doc.file_path)}
-                                                            className="p-1.5 hover:bg-red-500/10 text-text-secondary hover:text-red-400 rounded transition-colors"
-                                                            title="Deletar documento"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
+                                                        <div className="w-8" />
                                                     )}
                                                 </td>
                                             </tr>
@@ -684,7 +700,7 @@ export function DocumentsPanel() {
                             <div className="p-8 text-center text-text-secondary">
                                 <Database size={32} className="mx-auto mb-2 opacity-30" />
                                 <p className="text-sm">Nenhum documento ingerido ainda</p>
-                                <p className="text-xs mt-1 text-text-secondary">Clique em "Iniciar Ingestão" para processar documentos</p>
+                                <p className="text-xs mt-1 text-text-secondary">Clique em "Atualizar" para processar documentos</p>
                             </div>
                         )}
                     </div>
@@ -737,66 +753,6 @@ export function DocumentsPanel() {
                 variant="danger"
                 loading={ingestionStatus?.running}
             />
-
-            {/* Scan Modal */}
-            {
-                showScanModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowScanModal(false)} />
-                        <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-w-lg w-full mx-4 animate-fade-in overflow-hidden">
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-accent-primary/10 rounded-xl">
-                                        <RefreshCw className="text-accent-primary" size={24} />
-                                    </div>
-                                    <h3 className="text-lg font-semibold text-text-primary">
-                                        Documentos Pendentes
-                                    </h3>
-                                </div>
-
-                                <p className="text-text-secondary text-sm mb-4">
-                                    Os seguintes arquivos foram detectados como novos ou modificados e serão processados:
-                                </p>
-
-                                <div className="max-h-60 overflow-y-auto space-y-2 mb-6 pr-2">
-                                    {pendingFiles.map((file, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-surface rounded-lg border border-border">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${file.reason === 'new' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                                                    }`}>
-                                                    {file.reason === 'new' ? 'Novo' : 'Modificado'}
-                                                </span>
-                                                <span className="text-text-primary text-sm truncate">{file.file}</span>
-                                            </div>
-                                            <span className="text-text-secondary text-[10px] font-mono whitespace-nowrap">
-                                                {(file.size / 1024).toFixed(1)} KB
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setShowScanModal(false)}
-                                        className="flex-1 px-4 py-2.5 text-sm font-medium bg-surface hover:bg-surface/80 text-text-primary rounded-xl transition-colors border border-border"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setShowScanModal(false);
-                                            startIngestion(false);
-                                        }}
-                                        className="flex-1 px-4 py-2.5 text-sm font-medium bg-accent-primary hover:bg-accent-hover text-white rounded-xl transition-colors shadow-lg shadow-accent-primary/20"
-                                    >
-                                        Iniciar Ingestão
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
 
             {/* No Files Modal */}
             {
