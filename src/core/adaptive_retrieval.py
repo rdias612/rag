@@ -5,7 +5,7 @@ Ajusta dinamicamente os parâmetros de busca (top_k, min_similarity)
 baseado na complexidade e características da query.
 """
 import re
-import logging
+
 from typing import Optional
 
 from src.config import (
@@ -15,20 +15,6 @@ from src.config import (
     ADAPTIVE_MIN_SIM_MAX,
     ADAPTIVE_RETRIEVAL_LOG_LEVEL
 )
-
-# Configurar nível de log
-adaptive_logger = logging.getLogger("rag.adaptive_retrieval")
-log_level = logging.DEBUG if ADAPTIVE_RETRIEVAL_LOG_LEVEL.upper() == "DEBUG" else logging.INFO
-adaptive_logger.setLevel(log_level)
-
-# Se não tiver handler, adicionar um
-if not adaptive_logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setLevel(log_level)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    adaptive_logger.addHandler(handler)
-
 
 def analyze_query_complexity(question: str) -> dict:
     """
@@ -154,14 +140,14 @@ def get_adaptive_params(
         "adjustment_reason": adjustment_reason
     }
     
-    adaptive_logger.info(
+    print(
         f"Adaptive params: top_k={top_k} (orig: {base_top_k}), "
         f"min_sim={min_similarity:.2f} (orig: {base_min_similarity:.2f}), "
         f"reason={adjustment_reason}, "
         f"complexity={complexity}/10, words={word_count}"
     )
     
-    adaptive_logger.debug(
+    print(
         f"Query analysis details: word_count={word_count}, "
         f"complexity_score={complexity}, "
         f"has_technical_terms={analysis['has_technical_terms']}, "

@@ -6,7 +6,7 @@ Endpoints:
 - GET /stats - Estatísticas do sistema
 - GET /collections - Lista coleções
 """
-import logging
+
 import time
 from flask import Blueprint, jsonify
 
@@ -14,7 +14,7 @@ from src.data.database import check_connection
 from src.data.repositories import DocumentRepository
 from src.api.middleware.rate_limiter import limiter, LIMITS
 
-api_logger = logging.getLogger("rag.api")
+print("rag.api")
 
 health_bp = Blueprint("health", __name__)
 
@@ -27,12 +27,12 @@ _doc_repo = DocumentRepository()
 def health_check():
     """Endpoint de health check."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/health", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/health", "GET")
     
     db_ok = check_connection()
     status_code = 200 if db_ok else 503
     
-    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+    print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                    "/api/health", status_code, time.time() - start_time)
     
     return jsonify({
@@ -46,12 +46,12 @@ def health_check():
 def get_stats():
     """Retorna estatísticas do sistema."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/stats", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/stats", "GET")
     
     try:
         doc_count = _doc_repo.count()
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/stats", 200, time.time() - start_time)
         
         return jsonify({
@@ -59,8 +59,8 @@ def get_stats():
             "status": "ok"
         })
     except Exception as e:
-        api_logger.exception("Error in /stats: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /stats: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -69,15 +69,15 @@ def get_stats():
 def get_collections():
     """Lista todas as coleções disponíveis."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/collections", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/collections", "GET")
     
     try:
         collections = _doc_repo.list_collections()
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/collections", 200, time.time() - start_time)
         return jsonify({"collections": collections})
     except Exception as e:
-        api_logger.exception("Error in /collections: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /collections: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/collections", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500

@@ -4,15 +4,11 @@ Módulo Self-RAG (Retrieval-Augmented Generation com Reflexão).
 Após gerar uma resposta, avalia se ela está completa e correta.
 Se necessário, busca mais informações e regenera.
 """
-import logging
+
 import time
 from typing import Optional, Tuple
 
 from src.core.llm import generate_response
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
 
 # Prompt para avaliar completude da resposta
 EVALUATION_PROMPT = """Avalie se a resposta abaixo responde adequadamente à pergunta do usuário.
@@ -112,13 +108,13 @@ def evaluate_response(
         
         result["evaluation_time_ms"] = round((time.time() - start_time) * 1000, 2)
         
-        rag_logger.info("Self-RAG evaluation: score=%d, complete=%s",
+        print("Self-RAG evaluation: score=%d, complete=%s",
                      result['score'], result['is_complete'])
         
         return result
         
     except Exception as e:
-        rag_logger.error("Self-RAG evaluation failed: %s", str(e))
+        print("Self-RAG evaluation failed: %s", str(e))
         return {
             "score": 70,
             "is_complete": True,
@@ -156,11 +152,11 @@ def refine_response(
     
     try:
         refined = generate_response(prompt, temperature=temperature, max_tokens=1024)
-        rag_logger.info("Self-RAG: Response refined with additional context")
+        print("Self-RAG: Response refined with additional context")
         return refined.strip()
         
     except Exception as e:
-        rag_logger.error("Self-RAG refinement failed: %s", str(e))
+        print("Self-RAG refinement failed: %s", str(e))
         return previous_answer
 
 def self_rag_pipeline(
@@ -235,7 +231,7 @@ def self_rag_pipeline(
                     metrics["was_refined"] = True
                     
             except Exception as e:
-                rag_logger.error("Self-RAG search/refine failed: %s", str(e))
+                print("Self-RAG search/refine failed: %s", str(e))
                 break
     
     metrics["total_time_ms"] = round((time.time() - start_time) * 1000, 2)

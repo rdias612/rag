@@ -4,19 +4,13 @@ Módulo HyDE (Hypothetical Document Embeddings).
 Gera respostas hipotéticas para queries, usa o embedding dessa resposta
 para buscar documentos, melhorando significativamente o recall.
 """
-import logging
+
 import time
 from typing import Optional
 
 from src.core.llm import generate_response
 from src.core.embeddings import get_embedding
 from src.core.prompts import get_active_prompt
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
-logger = logging.getLogger("rag.hyde")
-
 
 # Prompt para gerar documento hipotético
 HYDE_PROMPT = """Como um redator técnico sênior, escreva um parágrafo detalhado que seria a resposta técnica ideal para a pergunta abaixo. 
@@ -68,13 +62,13 @@ def generate_hypothetical_document(
         )
         
         duration = time.time() - start_time
-        rag_logger.info("HyDE: Generated hypothetical doc (%d chars) in %.2fs",
+        print("HyDE: Generated hypothetical doc (%d chars) in %.2fs",
                      len(hypothetical_doc), duration)
         
         return hypothetical_doc.strip()
         
     except Exception as e:
-        logger.error("HyDE generation failed: %s", str(e))
+        print("HyDE generation failed: %s", str(e))
         # Fallback: retornar a própria pergunta
         return question
 
@@ -145,7 +139,7 @@ def hyde_enhanced_query(
         "hyde_time_ms": round(duration * 1000, 2)
     }
     
-    rag_logger.info("HyDE: Combined embedding with weight %s in %.2fs", hyde_weight, duration)
+    print("HyDE: Combined embedding with weight %s in %.2fs", hyde_weight, duration)
     
     return combined_embedding, metrics
 

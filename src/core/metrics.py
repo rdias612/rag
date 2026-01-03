@@ -11,9 +11,9 @@ Fornece histogramas de latência, contadores e gauges para monitorar:
 import time
 from functools import wraps
 from typing import Callable, Any
-import logging
 
-logger = logging.getLogger(__name__)
+
+print(__name__)
 
 # Flag para indicar se prometheus está disponível
 PROMETHEUS_AVAILABLE = False
@@ -30,9 +30,9 @@ try:
         REGISTRY
     )
     PROMETHEUS_AVAILABLE = True
-    logger.info("prometheus-client disponível para métricas")
+    print("prometheus-client disponível para métricas")
 except ImportError:
-    logger.warning(
+    print(
         "prometheus-client não instalado. "
         "Métricas desabilitadas. "
         "Instale com: pip install prometheus-client"

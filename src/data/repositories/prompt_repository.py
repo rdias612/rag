@@ -1,14 +1,10 @@
 """
 Repository para operações com prompts.
 """
-import logging
 import time
 from typing import Optional
 
 from src.data.repositories.base import BaseRepository
-
-# Standard logger for repository operations
-repo_logger = logging.getLogger("rag.repositories")
 
 # Cache em memória para prompts
 PROMPT_CACHE = {}
@@ -51,10 +47,10 @@ class PromptRepository(BaseRepository):
                 """, (name, template, category, description, priority, tags or [], use_case, created_by))
                 prompt_id = cur.fetchone()[0]
             
-            repo_logger.info("Created prompt '%s' with ID %d", name, prompt_id)
+            print(f"Created prompt '{name}' with ID {prompt_id}")
             return True, prompt_id, ""
         except Exception as e:
-            repo_logger.error("Error creating prompt: %s", e, exc_info=True)
+            print(f"Error creating prompt: {e}")
             return False, 0, str(e)
     
     def find_by_id(self, id: int) -> Optional[dict]:
@@ -93,7 +89,7 @@ class PromptRepository(BaseRepository):
                     return template
                 return None
         except Exception as e:
-            repo_logger.error("Error fetching prompt '%s': %s", name, e, exc_info=True)
+            print(f"Error fetching prompt '{name}': {e}")
             return None
     
     def list_all(self) -> list[dict]:
@@ -187,10 +183,10 @@ class PromptRepository(BaseRepository):
             if prompt_name in PROMPT_CACHE:
                 del PROMPT_CACHE[prompt_name]
             
-            repo_logger.info("Updated prompt %d", prompt_id)
+            print(f"Updated prompt {prompt_id}")
             return True, ""
         except Exception as e:
-            repo_logger.error("Error updating prompt %d: %s", prompt_id, e, exc_info=True)
+            print(f"Error updating prompt {prompt_id}: {e}")
             return False, str(e)
     
     def can_delete(self, prompt_id: int) -> tuple[bool, str]:
@@ -231,10 +227,10 @@ class PromptRepository(BaseRepository):
                 if cur.rowcount == 0:
                     return False, "Prompt não encontrado"
             
-            repo_logger.info("Deleted prompt %d", prompt_id)
+            print(f"Deleted prompt {prompt_id}")
             return True, ""
         except Exception as e:
-            repo_logger.error("Error deleting prompt %d: %s", prompt_id, e, exc_info=True)
+            print(f"Error deleting prompt {prompt_id}: {e}")
             return False, str(e)
     
     def count_active_in_category(self, category: str) -> int:

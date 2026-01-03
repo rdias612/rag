@@ -1,14 +1,10 @@
 """
 Repository para controle de ingestão de documentos.
 """
-import logging
 import time
 from typing import Optional, List
 
 from src.data.repositories.base import BaseRepository
-
-# Standard logger for repository operations
-repo_logger = logging.getLogger("rag.repositories")
 
 
 class IngestionRepository(BaseRepository):
@@ -79,14 +75,14 @@ class IngestionRepository(BaseRepository):
             ID do registro criado
         """
         start_time = time.time()
-        repo_logger.debug("DB INSERT | table=documentos_ingeridos | file_path=%s", file_path)
+        print(f"DB INSERT | table=documentos_ingeridos | file_path={file_path}")
         
         with self._get_cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO documentos_ingeridos 
                     (file_path, file_hash, file_size, collection_id, chunks_count, status, chunking_type)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (file_path, file_hash, file_size, collection_id, chunks_count, status, chunking_type)
@@ -94,8 +90,8 @@ class IngestionRepository(BaseRepository):
             doc_id = cur.fetchone()[0]
         
         duration = time.time() - start_time
-        repo_logger.debug("DB INSERT Result | affected_rows=%d | duration=%.3fs", 1, duration)
-        repo_logger.info("Registered ingested document: %s (ID: %d) in %.2fs", file_path, doc_id, duration)
+        print(f"DB INSERT Result | affected_rows=1 | duration={duration:.3f}s")
+        print(f"Registered ingested document: {file_path} (ID: {doc_id}) in {duration:.2f}s")
         
         return doc_id
     
@@ -118,7 +114,7 @@ class IngestionRepository(BaseRepository):
             True se atualizado, False se não encontrado
         """
         start_time = time.time()
-        repo_logger.debug("DB UPDATE | table=documentos_ingeridos | file_path=%s", file_path)
+        print(f"DB UPDATE | table=documentos_ingeridos | file_path={file_path}")
         
         with self._get_cursor() as cur:
             cur.execute(
@@ -139,8 +135,8 @@ class IngestionRepository(BaseRepository):
         
         duration = time.time() - start_time
         if updated:
-            repo_logger.debug("DB UPDATE Result | affected_rows=%d | duration=%.3fs", 1, duration)
-            repo_logger.info("Updated ingested document: %s in %.2fs", file_path, duration)
+            print(f"DB UPDATE Result | affected_rows=1 | duration={duration:.3f}s")
+            print(f"Updated ingested document: {file_path} in {duration:.2f}s")
         
         return updated
     
@@ -323,7 +319,7 @@ class IngestionRepository(BaseRepository):
         
         duration = time.time() - start_time
         if deleted:
-            repo_logger.info("Deleted ingestion record for %s in %.2fs", file_path, duration)
+            print(f"Deleted ingestion record for {file_path} in {duration:.2f}s")
         
         return deleted
     
@@ -341,7 +337,7 @@ class IngestionRepository(BaseRepository):
             deleted = cur.rowcount
         
         duration = time.time() - start_time
-        repo_logger.info("Cleared all ingestion records (%d records) in %.2fs", deleted, duration)
+        print(f"Cleared all ingestion records ({deleted} records) in {duration:.2f}s")
         
         return deleted
     
@@ -392,3 +388,7 @@ class IngestionRepository(BaseRepository):
                 'hierarchical_count': row['hierarchical_count'] or 0,
                 'sentence_count': row['sentence_count'] or 0
             }
+
+
+# Instância global para uso
+_ingestion_repo = IngestionRepository()

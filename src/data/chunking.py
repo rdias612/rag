@@ -6,10 +6,10 @@ respeitando limites naturais do texto (parágrafos, pontuação).
 """
 import re
 from typing import List, Optional
-import logging
+
 
 # Configurar logger
-logger = logging.getLogger(__name__)
+print(__name__)
 
 # Importar detector de idioma
 try:
@@ -24,7 +24,7 @@ except ImportError:
     LANGUAGE_DETECTION_AVAILABLE = False
     LANGDETECT_AVAILABLE = False
     DEFAULT_LANGUAGE = 'pt'
-    logger.warning("language_detector não disponível")
+    print("language_detector não disponível")
 
 # Tentar carregar spaCy
 try:
@@ -36,15 +36,15 @@ try:
         nlp = spacy.blank("pt")
         nlp.add_pipe("sentencizer")
         nlp.max_length = 50000000  # Aumentar para 50 milhões de caracteres
-        logger.info("spaCy carregado com sucesso (sentencizer pt, max_length=50M)")
+        print("spaCy carregado com sucesso (sentencizer pt, max_length=50M)")
     except Exception as e:
         nlp = None
-        logger.warning(f"Erro ao carregar spaCy padrão: {e}")
+        print(f"Erro ao carregar spaCy padrão: {e}")
         
 except ImportError:
     SPACY_AVAILABLE = False
     nlp = None
-    logger.warning("spaCy não instalado. Usando fallback com regex.")
+    print("spaCy não instalado. Usando fallback com regex.")
 
 
 class SemanticChunker:
@@ -81,7 +81,7 @@ class SemanticChunker:
         self._detected_language = None  # Cache do idioma detectado
         
         if not SPACY_AVAILABLE:
-            logger.warning("Usando fallback regex para segmentação de sentenças")
+            print("Usando fallback regex para segmentação de sentenças")
     
     def chunk(self, text: str) -> List[str]:
         """
@@ -96,7 +96,7 @@ class SemanticChunker:
         if not text or not text.strip():
             return []
         
-        logger.debug(f"Iniciando chunking semântico. Tamanho do texto: {len(text)} caracteres.")
+        print(f"Iniciando chunking semântico. Tamanho do texto: {len(text)} caracteres.")
         
         # Normalizar espaços em branco
         text = self._normalize_whitespace(text)
@@ -109,7 +109,7 @@ class SemanticChunker:
         # (Embora nlp.max_length tenha aumentado, processar blocos de 1M é mais seguro)
         MAX_SPACY_BLOCK = 1000000
         if len(text) > MAX_SPACY_BLOCK:
-            logger.info(f"Texto muito grande ({len(text)} chars). Dividindo em blocos de {MAX_SPACY_BLOCK} para processamento.")
+            print(f"Texto muito grande ({len(text)} chars). Dividindo em blocos de {MAX_SPACY_BLOCK} para processamento.")
             blocks = [text[i:i + MAX_SPACY_BLOCK] for i in range(0, len(text), MAX_SPACY_BLOCK)]
             all_chunks = []
             for block in blocks:
@@ -162,7 +162,7 @@ class SemanticChunker:
         # Mesclar chunks muito pequenos
         all_chunks = self._merge_small_chunks(all_chunks)
         
-        logger.debug(f"Chunking semântico concluído: {len(all_chunks)} chunks gerados.")
+        print(f"Chunking semântico concluído: {len(all_chunks)} chunks gerados.")
         
         return all_chunks
     
@@ -209,7 +209,7 @@ class SemanticChunker:
         # Detectar idioma se não foi detectado ainda
         if LANGUAGE_DETECTION_AVAILABLE and self._detected_language is None:
             self._detected_language = detect_language(text)
-            logger.debug(f"Idioma detectado para chunking: {self._detected_language}")
+            print(f"Idioma detectado para chunking: {self._detected_language}")
         
         # Usar modelo do idioma detectado ou default
         if LANGUAGE_DETECTION_AVAILABLE and self._detected_language:
@@ -531,17 +531,17 @@ def add_contextual_metadata(
         
         enriched.append(new_chunk)
     
-    logger.info(f"Contextual metadata added to {len(enriched)} chunks")
+    print(f"Contextual metadata added to {len(enriched)} chunks")
     
     return enriched
 
 
 if __name__ == "__main__":
     # Teste rápido do módulo
-    logger.info("=== Teste do Chunking Semântico ===")
+    print("=== Teste do Chunking Semântico ===")
     
     status = check_spacy_available()
-    logger.info(f"Status spaCy: {status}")
+    print(f"Status spaCy: {status}")
     
     # Texto de exemplo
     sample_text = """
@@ -557,13 +557,13 @@ if __name__ == "__main__":
     
     chunks = chunk_text_semantic(sample_text, max_chunk_size=300)
     
-    logger.info(f"Texto original: {len(sample_text)} caracteres")
-    logger.info(f"Chunks gerados: {len(chunks)}")
+    print(f"Texto original: {len(sample_text)} caracteres")
+    print(f"Chunks gerados: {len(chunks)}")
     
     for i, chunk in enumerate(chunks, 1):
-        logger.info(f"--- Chunk {i} ({len(chunk)} chars) ---")
-        logger.info(chunk)
-        logger.info("")
+        print(f"--- Chunk {i} ({len(chunk)} chars) ---")
+        print(chunk)
+        print("")
     
     quality = analyze_chunk_quality(chunks)
-    logger.info(f"Qualidade: {quality}")
+    print(f"Qualidade: {quality}")

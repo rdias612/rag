@@ -13,7 +13,7 @@ Created: 2025-12-29
 """
 import threading
 import time
-import logging
+
 from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 from collections import defaultdict
@@ -32,7 +32,7 @@ from src.config import (
     DB_STATEMENT_TIMEOUT
 )
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 
 class ConnectionPoolStats:
@@ -185,13 +185,13 @@ class AdvancedConnectionPool:
                 maxconn=max_connections,
                 **final_pool_config
             )
-            logger.info(
+            print(
                 f"AdvancedConnectionPool initialized: "
                 f"min={min_connections}, max={max_connections}, "
                 f"conn_timeout={connection_timeout}s, stmt_timeout={statement_timeout}s"
             )
         except Exception as e:
-            logger.error(f"Failed to initialize connection pool: {e}")
+            print(f"Failed to initialize connection pool: {e}")
             raise RuntimeError(f"Connection pool initialization failed: {e}")
         
         # Estatísticas
@@ -211,12 +211,12 @@ class AdvancedConnectionPool:
         try:
             self.stats.record_acquisition(success=True)
             conn = self.pool.getconn()
-            logger.debug("Connection acquired from pool")
+            print("Connection acquired from pool")
             return conn
         except Exception as e:
             self.stats.record_acquisition(success=False)
             error_type = type(e).__name__
-            logger.error(f"Failed to acquire connection: {e} ({error_type})")
+            print(f"Failed to acquire connection: {e} ({error_type})")
             self.stats.record_query_end(
                 time.time(),
                 success=False,
@@ -234,9 +234,9 @@ class AdvancedConnectionPool:
         try:
             self.pool.putconn(conn)
             self.stats.record_release()
-            logger.debug("Connection returned to pool")
+            print("Connection returned to pool")
         except Exception as e:
-            logger.error(f"Failed to return connection to pool: {e}")
+            print(f"Failed to return connection to pool: {e}")
             # Tentar fechar a conexão se falhar ao devolver
             try:
                 conn.close()
@@ -275,7 +275,7 @@ class AdvancedConnectionPool:
                     conn.rollback()
                     # Fechar conexão defeituosa
                     self.pool.putconn(conn, close=True)
-                    logger.warning("Failed connection closed and removed from pool")
+                    print("Failed connection closed and removed from pool")
                 except:
                     pass
             raise e
@@ -286,7 +286,7 @@ class AdvancedConnectionPool:
             if conn:
                 try:
                     conn.rollback()
-                    logger.debug(f"Transaction rolled back due to error: {e}")
+                    print(f"Transaction rolled back due to error: {e}")
                 except:
                     pass
             raise e
@@ -314,13 +314,13 @@ class AdvancedConnectionPool:
                     cur.execute("SELECT 1;")
                     result = cur.fetchone()
                     if result and result[0] == 1:
-                        logger.debug("Pool health check passed")
+                        print("Pool health check passed")
                         return True
                     else:
-                        logger.warning("Pool health check failed: unexpected result")
+                        print("Pool health check failed: unexpected result")
                         return False
         except Exception as e:
-            logger.error(f"Pool health check failed: {e}")
+            print(f"Pool health check failed: {e}")
             return False
     
     def get_stats(self) -> Dict[str, Any]:
@@ -347,7 +347,7 @@ class AdvancedConnectionPool:
     def reset_stats(self):
         """Reseta as estatísticas do pool."""
         self.stats.reset()
-        logger.info("Connection pool statistics reset")
+        print("Connection pool statistics reset")
     
     def close_all(self):
         """
@@ -355,7 +355,7 @@ class AdvancedConnectionPool:
         
         Deve ser chamado ao encerrar a aplicação.
         """
-        logger.info("Closing all connections in pool...")
+        print("Closing all connections in pool...")
         
         # Parar health check se estiver rodando
         self._health_check_running = False
@@ -365,9 +365,9 @@ class AdvancedConnectionPool:
         # Fechar pool
         try:
             self.pool.closeall()
-            logger.info("All connections closed successfully")
+            print("All connections closed successfully")
         except Exception as e:
-            logger.error(f"Error closing pool: {e}")
+            print(f"Error closing pool: {e}")
     
     def start_health_check(self, interval: int = 60):
         """
@@ -377,7 +377,7 @@ class AdvancedConnectionPool:
             interval: Intervalo entre health checks em segundos
         """
         if self._health_check_running:
-            logger.warning("Health check is already running")
+            print("Health check is already running")
             return
         
         self._health_check_running = True
@@ -386,11 +386,11 @@ class AdvancedConnectionPool:
             while self._health_check_running:
                 try:
                     if self.health_check():
-                        logger.debug("Health check passed")
+                        print("Health check passed")
                     else:
-                        logger.error("Health check failed!")
+                        print("Health check failed!")
                 except Exception as e:
-                    logger.error(f"Health check error: {e}")
+                    print(f"Health check error: {e}")
                 
                 # Dormir até o próximo check
                 for _ in range(interval):
@@ -404,7 +404,7 @@ class AdvancedConnectionPool:
             name="pool-health-check"
         )
         self._health_check_thread.start()
-        logger.info(f"Health check started (interval: {interval}s)")
+        print(f"Health check started (interval: {interval}s)")
 
 
 # Instância global do pool de conexões
@@ -426,7 +426,7 @@ def get_connection_pool() -> AdvancedConnectionPool:
     with _pool_lock:
         if _global_pool is None:
             if not ENABLE_CONNECTION_POOL:
-                logger.warning(
+                print(
                     "Connection pooling is disabled. "
                     "Create pool manually if needed."
                 )
@@ -457,7 +457,7 @@ def reset_global_pool():
         if _global_pool:
             _global_pool.close_all()
             _global_pool = None
-            logger.info("Global connection pool reset")
+            print("Global connection pool reset")
 
 
 @contextmanager

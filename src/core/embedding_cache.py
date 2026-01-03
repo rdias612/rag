@@ -7,7 +7,7 @@ import hashlib
 import time
 from collections import OrderedDict
 from typing import Optional
-import logging
+
 
 from src.core.metrics import (
     inc_cache_hit,
@@ -17,7 +17,7 @@ from src.core.metrics import (
     set_cache_size
 )
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 
 class EmbeddingCache:
@@ -40,7 +40,7 @@ class EmbeddingCache:
         self._misses = 0
         self._created_at = time.time()
         
-        logger.info(f"EmbeddingCache initialized with max_size={max_size}")
+        print(f"EmbeddingCache initialized with max_size={max_size}")
     
     def _normalize_key(self, text: str) -> str:
         """
@@ -73,12 +73,12 @@ class EmbeddingCache:
             self._cache.move_to_end(key)
             self._hits += 1
             inc_cache_hit()  # Prometheus metric
-            logger.debug(f"Cache HIT for key {key[:8]}...")
+            print(f"Cache HIT for key {key[:8]}...")
             return self._cache[key]
         
         self._misses += 1
         inc_cache_miss()  # Prometheus metric
-        logger.debug(f"Cache MISS for key {key[:8]}...")
+        print(f"Cache MISS for key {key[:8]}...")
         return None
     
     def set(self, text: str, embedding: list[float]) -> None:
@@ -103,12 +103,12 @@ class EmbeddingCache:
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]
             inc_cache_evict()  # Prometheus metric
-            logger.debug(f"Cache evicted oldest entry: {oldest_key[:8]}...")
+            print(f"Cache evicted oldest entry: {oldest_key[:8]}...")
         
         self._cache[key] = embedding
         inc_cache_set()  # Prometheus metric
         set_cache_size(len(self._cache))  # Prometheus gauge
-        logger.debug(f"Cache SET for key {key[:8]}...")
+        print(f"Cache SET for key {key[:8]}...")
     
     def clear(self) -> None:
         """Limpa todo o cache."""
@@ -116,7 +116,7 @@ class EmbeddingCache:
         self._hits = 0
         self._misses = 0
         set_cache_size(0)  # Prometheus gauge
-        logger.info("Cache cleared")
+        print("Cache cleared")
     
     def get_stats(self) -> dict:
         """

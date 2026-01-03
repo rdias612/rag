@@ -7,7 +7,7 @@ Endpoints:
 - POST /search - Apenas busca (sem LLM)
 - POST /chat - Chat com histórico
 """
-import logging
+
 import time
 import traceback
 import uuid
@@ -19,9 +19,7 @@ from src.core.rag import query_rag, query_rag_stream, search_only, query_rag_wit
 from src.core.rag_explainer import explainer
 from src.api.middleware.rate_limiter import limiter, LIMITS
 
-api_logger = logging.getLogger("rag.api")
-rag_logger = logging.getLogger("rag.pipeline")
-logger = logging.getLogger(__name__)
+print(__name__)
 
 query_bp = Blueprint("query", __name__)
 
@@ -55,16 +53,16 @@ def query():
     request_id = generate_request_id()
     
     # 2. Log entrada
-    api_logger.info("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s | body=%s",
+    print("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s | body=%s",
                    request_id, "/api/query", "POST", data.get("question", "")[:100], data)
     
     # 3. Validar
     try:
         req = QueryRequest(**data)
-        api_logger.info("Validation Passed | request_id=%s", request_id)
+        print("Validation Passed | request_id=%s", request_id)
     except ValidationError as e:
-        api_logger.warning("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/query", 400, time.time() - start_time)
         return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
@@ -94,16 +92,16 @@ def query():
             del result["_debug"]
         
         total_duration = time.time() - start_time
-        api_logger.info("Query Success | request_id=%s | status_code=%d | total_duration=%.3fs",
+        print("Query Success | request_id=%s | status_code=%d | total_duration=%.3fs",
                        request_id, 200, total_duration)
         
         return jsonify(result)
     
     except Exception as e:
-        api_logger.exception("Error in /api/query | request_id=%s | question=%s | collection_id=%s",
+        print("Error in /api/query | request_id=%s | question=%s | collection_id=%s",
                            request_id, req.question if 'req' in locals() else data.get("question"),
                            req.collection if 'req' in locals() else data.get("collection"))
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/query", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -118,17 +116,17 @@ def query_stream():
     request_id = generate_request_id()
 
     # Log entrada
-    api_logger.info("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s",
+    print("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s",
                    request_id, "/api/query/stream", "POST", data.get("question", "")[:100])
     
     try:
         req = StreamQueryRequest(**data)
-        api_logger.info("Validation Passed | request_id=%s", request_id)
+        print("Validation Passed | request_id=%s", request_id)
     except ValidationError as e:
-        api_logger.warning("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
+        print("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
         return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
-    api_logger.info("Stream Query Started | request_id=%s", request_id)
+    print("Stream Query Started | request_id=%s", request_id)
     
     def generate():
         try:
@@ -141,9 +139,9 @@ def query_stream():
                 request_id=request_id  # Propagar request_id
             ):
                 yield token
-            api_logger.info("Stream query completed successfully | request_id=%s", request_id)
+            print("Stream query completed successfully | request_id=%s", request_id)
         except Exception as e:
-            api_logger.exception("Stream Query | request_id=%s | question=%s",
+            print("Stream Query | request_id=%s | question=%s",
                                request_id, req.question)
             yield f"\n\n[Erro: {str(e)}]"
     
@@ -165,15 +163,15 @@ def search():
     request_id = generate_request_id()
     
     # Log entrada
-    api_logger.info("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s",
+    print("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s",
                    request_id, "/api/search", "POST", data.get("question", "")[:100])
     
     try:
         req = SearchRequest(**data)
-        api_logger.info("Validation Passed | request_id=%s", request_id)
+        print("Validation Passed | request_id=%s", request_id)
     except ValidationError as e:
-        api_logger.warning("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/search", 400, time.time() - start_time)
         return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
@@ -181,15 +179,15 @@ def search():
         results = search_only(req.question, req.top_k, request_id=request_id)
         
         total_duration = time.time() - start_time
-        api_logger.info("Search Success | request_id=%s | status_code=%d | results_count=%d | total_duration=%.3fs",
+        print("Search Success | request_id=%s | status_code=%d | results_count=%d | total_duration=%.3fs",
                        request_id, 200, len(results), total_duration)
         
         return jsonify({"results": results, "count": len(results)})
     
     except Exception as e:
-        api_logger.exception("Error in /api/search | request_id=%s | question=%s",
+        print("Error in /api/search | request_id=%s | question=%s",
                            request_id, req.question if 'req' in locals() else data.get("question"))
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/search", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -206,22 +204,22 @@ def chat():
     request_id = generate_request_id()
     
     # Log entrada
-    api_logger.info("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s | session_id=%s",
+    print("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s | session_id=%s",
                    request_id, "/api/chat", "POST", data.get("question", "")[:100], data.get("session_id"))
     
     try:
         req = ChatRequest(**data)
-        api_logger.info("Validation Passed | request_id=%s", request_id)
+        print("Validation Passed | request_id=%s", request_id)
     except ValidationError as e:
-        api_logger.warning("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Validation Failed | request_id=%s | errors=%s", request_id, e.errors())
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/chat", 400, time.time() - start_time)
         return jsonify({"error": "Dados inválidos", "details": e.errors()}), 400
     
     try:
         # Explicit log to confirm chat handler execution and question receipt
-        api_logger.info("/chat received question (len=%d) | request_id=%s", len(req.question), request_id)
-        rag_logger.info("/chat processing: session=%s question='%s' | request_id=%s",
+        print("/chat received question (len=%d) | request_id=%s", len(req.question), request_id)
+        print("/chat processing: session=%s question='%s' | request_id=%s",
                        req.session_id or 'new', req.question[:80], request_id)
         
         result = query_rag_with_history(
@@ -238,10 +236,10 @@ def chat():
         )
         
         total_duration = time.time() - start_time
-        api_logger.info("Chat Success | request_id=%s | status_code=%d | session_id=%s | total_duration=%.3fs",
+        print("Chat Success | request_id=%s | status_code=%d | session_id=%s | total_duration=%.3fs",
                        request_id, 200, req.session_id, total_duration)
         
-        api_logger.info("/chat completed successfully | request_id=%s", request_id)
+        print("/chat completed successfully | request_id=%s", request_id)
         
         return jsonify(result)
     
@@ -254,10 +252,10 @@ def chat():
         }
 
         # Log full stacktrace for easier diagnosis
-        logger.exception("Error in /chat: %s", e)
-        api_logger.exception("Error in /chat: %s", e)
-        rag_logger.error("Error in /chat: %s | %s", e, traceback.format_exc())
+        print("Error in /chat: %s", e)
+        print("Error in /chat: %s", e)
+        print("Error in /chat: %s | %s", e, traceback.format_exc())
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/chat", 500, time.time() - start_time)
         return jsonify({"error": str(e), "details": error_details}), 500

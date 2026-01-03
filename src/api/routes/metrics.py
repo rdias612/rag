@@ -10,7 +10,7 @@ Endpoints:
 - GET /metrics - Métricas Prometheus
 - GET /metrics/status - Status das métricas
 """
-import logging
+
 import time
 from flask import Blueprint, request, jsonify, Response
 
@@ -21,7 +21,7 @@ from src.core.hyde import generate_hypothetical_document
 from src.core.metrics import get_metrics, check_metrics_available
 from src.data.repositories.adaptive_retrieval_repository import adaptive_retrieval_repo
 
-api_logger = logging.getLogger("rag.api")
+print("rag.api")
 
 metrics_bp = Blueprint("metrics", __name__)
 
@@ -30,18 +30,18 @@ metrics_bp = Blueprint("metrics", __name__)
 def cache_stats():
     """Retorna estatísticas do cache de embeddings."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/cache/stats", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/cache/stats", "GET")
     
     try:
         stats = get_cache_stats()
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/cache/stats", 200, time.time() - start_time)
         return jsonify(stats)
         
     except Exception as e:
-        api_logger.exception("Error in /cache/stats: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /cache/stats: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/cache/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -50,18 +50,18 @@ def cache_stats():
 def cache_clear():
     """Limpa o cache de embeddings."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/cache/clear", "POST")
+    print("API Request | endpoint=%s | method=%s", "/api/cache/clear", "POST")
     
     try:
         clear_embedding_cache()
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/cache/clear", 200, time.time() - start_time)
         return jsonify({"message": "Cache limpo com sucesso"})
         
     except Exception as e:
-        api_logger.exception("Error in /cache/clear: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /cache/clear: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/cache/clear", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -72,10 +72,10 @@ def classify_question_endpoint():
     start_time = time.time()
     data = request.get_json()
     
-    api_logger.info("API Request | endpoint=%s | method=%s | body=%s", "/api/classify", "POST", data)
+    print("API Request | endpoint=%s | method=%s | body=%s", "/api/classify", "POST", data)
     
     if not data or "question" not in data:
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/classify", 400, time.time() - start_time)
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
@@ -84,7 +84,7 @@ def classify_question_endpoint():
         question_type = classify_question(question)
         description = get_question_type_description(question_type)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/classify", 200, time.time() - start_time)
         return jsonify({
             "question": question,
@@ -93,8 +93,8 @@ def classify_question_endpoint():
         })
         
     except Exception as e:
-        api_logger.exception("Error in /classify: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /classify: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/classify", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -105,12 +105,12 @@ def evaluate_response():
     start_time = time.time()
     data = request.get_json()
     
-    api_logger.info("API Request | endpoint=%s | method=%s | body=%s", "/api/evaluate", "POST", data)
+    print("API Request | endpoint=%s | method=%s | body=%s", "/api/evaluate", "POST", data)
     
     required = ["question", "answer", "context"]
     missing = [f for f in required if f not in data]
     if missing:
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/evaluate", 400, time.time() - start_time)
         return jsonify({"error": f"Campos obrigatórios: {', '.join(missing)}"}), 400
     
@@ -124,13 +124,13 @@ def evaluate_response():
         
         scores["summary"] = get_evaluation_summary(scores)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/evaluate", 200, time.time() - start_time)
         return jsonify(scores)
         
     except Exception as e:
-        api_logger.exception("Error in /evaluate: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /evaluate: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/evaluate", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -141,10 +141,10 @@ def test_hyde():
     start_time = time.time()
     data = request.get_json()
     
-    api_logger.info("API Request | endpoint=%s | method=%s | body=%s", "/api/hyde/test", "POST", data)
+    print("API Request | endpoint=%s | method=%s | body=%s", "/api/hyde/test", "POST", data)
     
     if not data or "question" not in data:
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/hyde/test", 400, time.time() - start_time)
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
     
@@ -152,7 +152,7 @@ def test_hyde():
         question = data["question"]
         hypothetical_doc = generate_hypothetical_document(question)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/hyde/test", 200, time.time() - start_time)
         return jsonify({
             "question": question,
@@ -160,8 +160,8 @@ def test_hyde():
         })
         
     except Exception as e:
-        api_logger.exception("Error in /hyde/test: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /hyde/test: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/hyde/test", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -177,10 +177,10 @@ def metrics():
 def metrics_status():
     """Verifica status do módulo de métricas."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/metrics/status", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/metrics/status", "GET")
     
     status = check_metrics_available()
-    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+    print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                    "/api/metrics/status", 200, time.time() - start_time)
     
     return jsonify(status)
@@ -194,19 +194,19 @@ def metrics_status():
 def adaptive_retrieval_stats():
     """Retorna estatísticas agregadas do Adaptive Retrieval."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/metrics/adaptive-retrieval/stats", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/metrics/adaptive-retrieval/stats", "GET")
     
     try:
         days = request.args.get("days", 7, type=int)
         stats = adaptive_retrieval_repo.get_stats(days=days)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/adaptive-retrieval/stats", 200, time.time() - start_time)
         return jsonify(stats)
         
     except Exception as e:
-        api_logger.exception("Error in /metrics/adaptive-retrieval/stats: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /metrics/adaptive-retrieval/stats: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/adaptive-retrieval/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -215,19 +215,19 @@ def adaptive_retrieval_stats():
 def adaptive_retrieval_recent():
     """Retorna as métricas mais recentes do Adaptive Retrieval."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/metrics/adaptive-retrieval/recent", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/metrics/adaptive-retrieval/recent", "GET")
     
     try:
         limit = request.args.get("limit", 50, type=int)
         metrics = adaptive_retrieval_repo.get_recent_metrics(limit=limit)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/adaptive-retrieval/recent", 200, time.time() - start_time)
         return jsonify({"metrics": metrics, "count": len(metrics)})
         
     except Exception as e:
-        api_logger.exception("Error in /metrics/adaptive-retrieval/recent: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /metrics/adaptive-retrieval/recent: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/adaptive-retrieval/recent", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -236,18 +236,18 @@ def adaptive_retrieval_recent():
 def adaptive_retrieval_performance():
     """Retorna métricas de performance do Adaptive Retrieval."""
     start_time = time.time()
-    api_logger.info("API Request | endpoint=%s | method=%s", "/api/metrics/adaptive-retrieval/performance", "GET")
+    print("API Request | endpoint=%s | method=%s", "/api/metrics/adaptive-retrieval/performance", "GET")
     
     try:
         days = request.args.get("days", 7, type=int)
         perf = adaptive_retrieval_repo.get_performance_metrics(days=days)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/adaptive-retrieval/performance", 200, time.time() - start_time)
         return jsonify(perf)
         
     except Exception as e:
-        api_logger.exception("Error in /metrics/adaptive-retrieval/performance: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error in /metrics/adaptive-retrieval/performance: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/adaptive-retrieval/performance", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500

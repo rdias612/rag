@@ -1,23 +1,15 @@
 """
 Aplicação Flask principal.
 """
-# CRÍTICO: Configurar logging ANTES de qualquer outro import interno
-# para garantir que todos os loggers sejam configurados corretamente
-from src.core.logging_config import setup_logging
-setup_logging(force=True)
-
 from flask import Flask, request
 from flask_cors import CORS
 import sys
-import logging
 
 from src.api.routes import api
 from src.data.database import init_database, check_connection
 from src.core.security import init_security, get_ssl_context
 from src.config import ENABLE_HTTPS, ALLOWED_ORIGINS_LIST, CORS_MAX_AGE
 from src.api.middleware.rate_limiter import init_rate_limiter
-
-api_logger = logging.getLogger("rag.api")
 
 
 def create_app() -> Flask:
@@ -27,10 +19,10 @@ def create_app() -> Flask:
     # Inicializar banco de dados (inclui migrações Alembic)
     # Isso garante que o banco esteja pronto independente de como o app é iniciado
     try:
-        api_logger.info("Inicializando banco de dados via create_app()...")
+        print("Inicializando banco de dados via create_app()...")
         init_database()
     except Exception as e:
-        api_logger.error(f"Erro ao inicializar banco de dados: {e}")
+        print(f"Erro ao inicializar banco de dados: {e}")
         # Não interrompemos aqui para permitir que o Flask mostre erros se necessário
         # ou para que o processo de boot continue se for um erro não-fatal
     
@@ -60,18 +52,16 @@ def create_app() -> Flask:
                 body = request.get_json(silent=True)
             except Exception as e:
                 body = None
-                api_logger.error("Middleware logging exception: %s", e)
-            api_logger.info(
-                "API Request %s %s | args=%s | json=%s",
-                request.method, request.path, dict(request.args), body
+                print(f"Middleware logging exception: {e}")
+            print(
+                f"API Request {request.method} {request.path} | args={dict(request.args)} | json={body}"
             )
 
     @app.after_request
     def _log_response(response):
         if request.path.startswith("/api/"):
-            api_logger.info(
-                "API Response %s %s %d | len=%d",
-                request.method, request.path, response.status_code, response.content_length or 0
+            print(
+                f"API Response {request.method} {request.path} {response.status_code} | len={response.content_length or 0}"
             )
         return response
     
@@ -101,31 +91,31 @@ def create_app() -> Flask:
 
 def main():
     """Função principal para rodar a aplicação."""
-    api_logger.info("Iniciando RAG API...")
-    
+    print("Iniciando RAG API...")
+
     # Verificar conexão com banco
-    api_logger.info("Verificando conexão com o banco de dados...")
+    print("Verificando conexão com o banco de dados...")
     if not check_connection():
-        api_logger.error("Não foi possível conectar ao banco de dados!")
-        api_logger.error("Verifique se o PostgreSQL está rodando.")
+        print("Não foi possível conectar ao banco de dados!")
+        print("Verifique se o PostgreSQL está rodando.")
         sys.exit(1)
-    
-    api_logger.info("Conexão com banco de dados OK!")
+
+    print("Conexão com banco de dados OK!")
     
     # Criar e rodar aplicação (create_app já inicializa o banco)
     app = create_app()
     
     # Determinar protocolo (HTTP ou HTTPS)
     protocol = "https" if ENABLE_HTTPS else "http"
-    api_logger.info("=" * 50)
-    api_logger.info("🎉 RAG API rodando em: %s://localhost:5000", protocol)
-    
+    print("=" * 50)
+    print(f"🎉 RAG API rodando em: {protocol}://localhost:5000")
+
     if ENABLE_HTTPS:
-        api_logger.info("🔒 HTTPS habilitado com TLS")
+        print("🔒 HTTPS habilitado com TLS")
     else:
-        api_logger.warning("⚠️  HTTPS desabilitado (use apenas em desenvolvimento)")
-    
-    api_logger.info("=" * 50)
+        print("⚠️  HTTPS desabilitado (use apenas em desenvolvimento)")
+
+    print("=" * 50)
     
     # Configurar SSL context se HTTPS estiver habilitado
     ssl_context = get_ssl_context()

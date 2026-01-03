@@ -4,17 +4,11 @@ Módulo de Query Expansion.
 Expande a query original com variações geradas pelo LLM
 para melhorar o recall da busca.
 """
-import logging
+
 from typing import Optional
 
 from src.core.llm import generate_response
 from src.core.prompts import get_active_prompt
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
-logger = logging.getLogger("rag.query_expansion")
-
 
 def expand_query(
     query: str,
@@ -32,7 +26,7 @@ def expand_query(
     Returns:
         Lista com query original + variações
     """
-    rag_logger.info("Expanding query: '%s...' with %d variations", query[:50], num_variations)
+    print("Expanding query: '%s...' with %d variations", query[:50], num_variations)
     
     try:
         # Gerar variações usando LLM
@@ -64,12 +58,12 @@ def expand_query(
         # Query original + variações
         all_queries = [query] + variations
         
-        rag_logger.info("Query expanded to %d variations", len(all_queries))
+        print("Query expanded to %d variations", len(all_queries))
         
         return all_queries
         
     except Exception as e:
-        logger.error("Error expanding query: %s", str(e))
+        print("Error expanding query: %s", str(e))
         # Fallback: retornar apenas query original
         return [query]
 
@@ -127,7 +121,7 @@ def merge_search_results(
         doc["rrf_score"] = score
         result.append(doc)
     
-    logger.debug("RRF merged %d results into %d", sum(len(r) for r in results_list), len(result))
+    print("RRF merged %d results into %d", sum(len(r) for r in results_list), len(result))
     
     return result
 

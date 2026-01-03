@@ -5,7 +5,7 @@ Suporta dois modos:
 1. LLM: Usa uma LLM (via LM Studio) com prompt para pontuar documentos.
 2. API: Usa um endpoint /rerank dedicado (Cross-Encoder real, ex: TEI, Jina, Cohere).
 """
-import logging
+
 import re
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
@@ -19,11 +19,6 @@ from src.config import (
     RERANKER_TYPE, 
     RERANKER_API_URL
 )
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
-logger = logging.getLogger("rag.reranker")
 
 class Reranker(ABC):
     @abstractmethod
@@ -78,7 +73,7 @@ class LLMReranker(Reranker):
             )
             
             if resp.status_code == 400 and use_fallback and self.model_name != self.fallback_model:
-                logger.warning("Reranker model '%s' falhou (400). Tentando fallback para '%s'...", 
+                print("Reranker model '%s' falhou (400). Tentando fallback para '%s'...", 
                              self.model_name, self.fallback_model)
                 payload["model"] = self.fallback_model
                 resp = requests.post(
@@ -86,19 +81,19 @@ class LLMReranker(Reranker):
                 )
 
             if resp.status_code != 200:
-                logger.warning("Rerank LLM erro %d: %s", resp.status_code, resp.text)
+                print("Rerank LLM erro %d: %s", resp.status_code, resp.text)
             
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
             score = self._extract_score(content)
             
-            rag_logger.info("LLM Rerank Scored | request_id=%s | model=%s | score=%s",
+            print("LLM Rerank Scored | request_id=%s | model=%s | score=%s",
                          request_id, self.model_name, score)
             
             return score
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Rerank LLM falhou: %s", exc)
-            rag_logger.exception("LLM Reranker Error | request_id=%s | model=%s | query=%s | error_type=%s | error_message=%s",
+            print("Rerank LLM falhou: %s", exc)
+            print("LLM Reranker Error | request_id=%s | model=%s | query=%s | error_type=%s | error_message=%s",
                            request_id, self.model_name, query[:50], type(exc).__name__, str(exc))
             return 0.0
 
@@ -106,10 +101,10 @@ class LLMReranker(Reranker):
         request_id = request_id or "unknown"
         
         if not chunks:
-            rag_logger.info("Reranking Skipped (No Chunks) | request_id=%s", request_id)
+            print("Reranking Skipped (No Chunks) | request_id=%s", request_id)
             return []
         
-        rag_logger.info("LLM Reranking Started | request_id=%s | chunks_count=%d | top_k=%d | model=%s",
+        print("LLM Reranking Started | request_id=%s | chunks_count=%d | top_k=%d | model=%s",
                      request_id, len(chunks), top_k, self.model_name)
 
         scored = []
@@ -122,7 +117,7 @@ class LLMReranker(Reranker):
 
         scored.sort(key=lambda x: x.get("rerank_score", 0.0), reverse=True)
         
-        rag_logger.info("LLM Reranking Complete | request_id=%s | results_returned=%d",
+        print("LLM Reranking Complete | request_id=%s | results_returned=%d",
                      request_id, len(scored[:top_k]))
         
         return scored[:top_k]
@@ -138,10 +133,10 @@ class CrossEncoderAPIReranker(Reranker):
         request_id = request_id or "unknown"
         
         if not chunks:
-            rag_logger.info("Reranking Skipped (No Chunks) | request_id=%s", request_id)
+            print("Reranking Skipped (No Chunks) | request_id=%s", request_id)
             return []
         
-        rag_logger.info("Cross-Encoder Reranking Started | request_id=%s | chunks_count=%d | top_k=%d | model=%s | api_url=%s",
+        print("Cross-Encoder Reranking Started | request_id=%s | chunks_count=%d | top_k=%d | model=%s | api_url=%s",
                      request_id, len(chunks), top_k, self.model_name, self.api_url)
         
         payload = {
@@ -167,13 +162,13 @@ class CrossEncoderAPIReranker(Reranker):
                 chunk["rerank_score"] = score
                 scored_chunks.append(chunk)
             
-            rag_logger.info("Cross-Encoder Reranking Complete | request_id=%s | results_returned=%d",
+            print("Cross-Encoder Reranking Complete | request_id=%s | results_returned=%d",
                          request_id, len(scored_chunks))
             
             return scored_chunks
         except Exception as exc:
-            logger.error("Erro no CrossEncoder API Reranker: %s", exc)
-            rag_logger.exception("Cross-Encoder Reranker Error | request_id=%s | model=%s | api_url=%s | error_type=%s | error_message=%s",
+            print("Erro no CrossEncoder API Reranker: %s", exc)
+            print("Cross-Encoder Reranker Error | request_id=%s | model=%s | api_url=%s | error_type=%s | error_message=%s",
                            request_id, self.model_name, self.api_url, type(exc).__name__, str(exc))
             # Fallback: retorna chunks originais sem reordenação
             return chunks[:top_k]
@@ -184,10 +179,10 @@ def get_reranker() -> Reranker:
     global _reranker_instance
     if _reranker_instance is None:
         if RERANKER_TYPE == "api" and RERANKER_API_URL:
-            logger.info("Usando Cross-Encoder Reranker via API: %s", RERANKER_API_URL)
+            print("Usando Cross-Encoder Reranker via API: %s", RERANKER_API_URL)
             _reranker_instance = CrossEncoderAPIReranker(RERANKER_API_URL, RERANKER_MODEL)
         else:
-            logger.info("Usando LLM-as-a-Reranker (modelo: %s)", RERANKER_MODEL)
+            print("Usando LLM-as-a-Reranker (modelo: %s)", RERANKER_MODEL)
             _reranker_instance = LLMReranker(RERANKER_MODEL)
     return _reranker_instance
 

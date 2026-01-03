@@ -4,12 +4,12 @@ Módulo de detecção de idioma e gerenciamento de modelos spaCy por idioma.
 Detecta automaticamente o idioma do texto e carrega o modelo spaCy apropriado
 para chunking mais preciso de documentos multilíngues.
 """
-import logging
+
 import spacy
 from typing import Optional
 from functools import lru_cache
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 # Flag de disponibilidade do langdetect
 LANGDETECT_AVAILABLE = False
@@ -19,9 +19,9 @@ try:
     # Seed para resultados consistentes
     DetectorFactory.seed = 42
     LANGDETECT_AVAILABLE = True
-    logger.info("langdetect disponível para detecção automática de idioma")
+    print("langdetect disponível para detecção automática de idioma")
 except ImportError:
-    logger.warning(
+    print(
         "langdetect não instalado. "
         "Usando português como fallback. "
         "Instale com: pip install langdetect"
@@ -70,14 +70,14 @@ def detect_language(text: str, sample_size: int = 1000) -> str:
         
         # Verificar se temos suporte para este idioma
         if detected in LANGUAGE_MODELS:
-            logger.debug(f"Idioma detectado: {detected}")
+            print(f"Idioma detectado: {detected}")
             return detected
         else:
-            logger.debug(f"Idioma detectado ({detected}) não suportado, usando {DEFAULT_LANGUAGE}")
+            print(f"Idioma detectado ({detected}) não suportado, usando {DEFAULT_LANGUAGE}")
             return DEFAULT_LANGUAGE
             
     except Exception as e:
-        logger.warning(f"Erro na detecção de idioma: {e}. Usando {DEFAULT_LANGUAGE}")
+        print(f"Erro na detecção de idioma: {e}. Usando {DEFAULT_LANGUAGE}")
         return DEFAULT_LANGUAGE
 
 
@@ -97,15 +97,15 @@ def _load_spacy_model(language: str):
         nlp = spacy.blank(language)
         nlp.add_pipe("sentencizer")
         
-        logger.info(f"spaCy modelo '{language}' carregado com sucesso")
+        print(f"spaCy modelo '{language}' carregado com sucesso")
         return nlp
         
     except Exception as e:
-        logger.warning(f"Erro ao carregar spaCy para '{language}': {e}")
+        print(f"Erro ao carregar spaCy para '{language}': {e}")
         
         # Fallback para português se falhar
         if language != DEFAULT_LANGUAGE:
-            logger.info(f"Usando fallback para {DEFAULT_LANGUAGE}")
+            print(f"Usando fallback para {DEFAULT_LANGUAGE}")
             return _load_spacy_model(DEFAULT_LANGUAGE)
         
         return None

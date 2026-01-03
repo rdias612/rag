@@ -9,10 +9,10 @@ Benefícios:
 - Maior precisão na busca (chunks pequenos)
 - Melhor contexto para resposta (chunks pais grandes)
 """
-import logging
+
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 
 # Configurações padrão
@@ -123,7 +123,7 @@ def create_parent_child_chunks(
             if child_start >= len(parent_content) - child_overlap:
                 break
     
-    logger.info(
+    print(
         f"Hierarchical chunking: {len(parent_chunks)} parents, "
         f"{len(child_chunks)} children"
     )

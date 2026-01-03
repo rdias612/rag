@@ -5,14 +5,14 @@ Suporta dois modos:
 - 'category': Busca rápida por categoria + priority (Mode 1)
 - 'llm_router': LLM escolhe entre múltiplos prompts (Mode 2)
 """
-import logging
+
 from typing import Optional
 from src.data.repositories import PromptRepository
 from src.core.llm import generate_response
 from src import config
 from src.core.question_classifier import get_instructions_for_type
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 # Instância do repository
 _prompt_repo = PromptRepository()
@@ -48,13 +48,13 @@ class PromptManager:
         Returns:
             Template do prompt
         """
-        logger.debug(f"Getting prompt for category='{category}', mode='{mode}'")
+        print(f"Getting prompt for category='{category}', mode='{mode}'")
         
         # 1️⃣ Buscar prompts da categoria
         prompts = _prompt_repo.find_by_category(category)
         
         if not prompts:
-            logger.warning(f"No prompts found for category '{category}', using fallback")
+            print(f"No prompts found for category '{category}', using fallback")
             return self._get_fallback(category)
         
         # 2️⃣ Filtrar por tags (se context especificar question_type)
@@ -64,7 +64,7 @@ class PromptManager:
             
             if filtered:
                 prompts = filtered
-                logger.debug(f"Filtered to {len(prompts)} prompts with tag '{question_type}'")
+                print(f"Filtered to {len(prompts)} prompts with tag '{question_type}'")
         
         # 3️⃣ Seleção baseada no modo
         if len(prompts) == 1:
@@ -81,7 +81,7 @@ class PromptManager:
     def _llm_select(self, user_query: str, candidates: list[dict]) -> str:
         """
 LLM escolhe o melhor prompt entre múltiplos candidatos."""
-        logger.info(f"LLM Router selecting from {len(candidates)} prompts")
+        print(f"LLM Router selecting from {len(candidates)} prompts")
         
         # Formatar opções
         options_text = []
@@ -115,14 +115,14 @@ Responda APENAS com o número da opção (1, 2, 3, etc). Não adicione mais nada
             
             if 0 <= choice_num < len(candidates):
                 selected = candidates[choice_num]
-                logger.info(f"LLM selected prompt: {selected['name']}")
+                print(f"LLM selected prompt: {selected['name']}")
                 return selected['template']
             else:
-                logger.warning(f"LLM returned invalid choice: {response}. Using fallback.")
+                print(f"LLM returned invalid choice: {response}. Using fallback.")
                 return candidates[0]['template']
                 
         except Exception as e:
-            logger.error(f"LLM Router failed: {e}. Using fallback (highest priority).")
+            print(f"LLM Router failed: {e}. Using fallback (highest priority).")
             return candidates[0]['template']
     
     def _get_fallback(self, category: str) -> str:
@@ -146,7 +146,7 @@ Responda APENAS com o número da opção (1, 2, 3, etc). Não adicione mais nada
         elif category == 'query_expansion':
             return getattr(config, 'QUERY_EXPANSION_PROMPT', '')
         
-        logger.error(f"No fallback found for category '{category}'")
+        print(f"No fallback found for category '{category}'")
         return ""
     
     def get_instruction_prompt(self, question_type: str) -> str:

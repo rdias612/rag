@@ -9,24 +9,21 @@ Benefícios:
 - Contexto expandido para respostas melhores
 - Usa spaCy para melhor detecção de sentenças em português
 """
-import logging
 import re
 from typing import List, Optional, Tuple
 import spacy
 
-logger = logging.getLogger(__name__)
-
 # Carregar modelo spaCy para português (mesmo usado no projeto)
 try:
     nlp = spacy.load("pt_core_news_md")
-    logger.info("spaCy model loaded successfully for Portuguese")
+    print("spaCy model loaded successfully for Portuguese")
 except OSError:
-    logger.warning("pt_core_news_md model not found, falling back to en_core_web_sm")
+    print("pt_core_news_md model not found, falling back to en_core_web_sm")
     try:
         nlp = spacy.load("en_core_web_sm")
-        logger.info("Using English spaCy model as fallback")
+        print("Using English spaCy model as fallback")
     except OSError:
-        logger.error("No spaCy model found. Sentence splitting may be inaccurate.")
+        print("No spaCy model found. Sentence splitting may be inaccurate.")
         nlp = None
 
 
@@ -48,17 +45,17 @@ def split_into_sentences(text: str) -> List[str]:
     
     if nlp is None:
         # Fallback para regex se spaCy não estiver disponível
-        logger.warning("spaCy not available, using regex fallback")
+        print("spaCy not available, using regex fallback")
         return split_into_sentences_regex(text)
     
     try:
         doc = nlp(text)
         sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
         
-        logger.debug(f"Split text into {len(sentences)} sentences using spaCy")
+        print(f"Split text into {len(sentences)} sentences using spaCy")
         return sentences
     except Exception as e:
-        logger.error(f"Error splitting sentences with spaCy: {e}")
+        print(f"Error splitting sentences with spaCy: {e}")
         return split_into_sentences_regex(text)
 
 
@@ -131,7 +128,7 @@ def create_sentence_index(
         index.append(entry)
         char_position += len(sentence)
     
-    logger.info(f"Created sentence index with {len(index)} sentences")
+    print(f"Created sentence index with {len(index)} sentences")
     
     return index
 
@@ -243,7 +240,7 @@ def expand_sentence_results(
             }
             expanded.append(expanded_result)
     
-    logger.info(f"Expanded {len(sentence_results)} sentences to {len(expanded)} windows")
+    print(f"Expanded {len(sentence_results)} sentences to {len(expanded)} windows")
     
     return expanded
 

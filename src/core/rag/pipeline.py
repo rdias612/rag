@@ -2,7 +2,7 @@
 Pipeline RAG principal - orquestrador modular.
 """
 import time
-import logging
+
 from typing import Optional, Dict, Any, List, Literal
 
 from src.config import (
@@ -34,7 +34,7 @@ from src.core.rag.services.prompt_service import PromptService
 from src.core.rag.services.response_service import ResponseService
 from src.core.rag.strategies.retrieval_strategy import RetrievalStrategy
 
-logger = logging.getLogger("rag.pipeline")
+print("rag.pipeline")
 
 
 def determine_search_strategy(question: str) -> Literal["hierarchical", "sentence"]:
@@ -131,44 +131,44 @@ class RAGPipeline:
             "top_k": top_k,
             "collection_id": collection_id
         }.items())
-        logger.info("[Query Started] | request_id=%s | %s", request_id, data_str)
+        print("[Query Started] | request_id=%s | %s", request_id, data_str)
         
         # Determinar estratégia de chunking (Sentence Window vs Hierarchical)
         if search_mode == "auto" or search_mode is None:
             # Decisão automática baseada na pergunta
             strategy = determine_search_strategy(question)
             use_sentence_window = (strategy == "sentence")
-            logger.info(f"Search mode: auto, Strategy: {strategy}, Use Sentence Window: {use_sentence_window} | request_id={request_id}")
+            print(f"Search mode: auto, Strategy: {strategy}, Use Sentence Window: {use_sentence_window} | request_id={request_id}")
             data_str = " | ".join(f"{k}={v}" for k, v in {
                 "strategy": strategy,
                 "use_sentence_window": use_sentence_window
             }.items())
-            logger.info("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
+            print("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
         elif search_mode == "hierarchical":
             use_sentence_window = False
-            logger.info(f"Search mode: hierarchical, Use Sentence Window: False | request_id={request_id}")
+            print(f"Search mode: hierarchical, Use Sentence Window: False | request_id={request_id}")
             data_str = " | ".join(f"{k}={v}" for k, v in {
                 "strategy": "hierarchical",
                 "use_sentence_window": False
             }.items())
-            logger.info("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
+            print("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
         elif search_mode == "sentence":
             use_sentence_window = True
-            logger.info(f"Search mode: sentence, Use Sentence Window: True | request_id={request_id}")
+            print(f"Search mode: sentence, Use Sentence Window: True | request_id={request_id}")
             data_str = " | ".join(f"{k}={v}" for k, v in {
                 "strategy": "sentence",
                 "use_sentence_window": True
             }.items())
-            logger.info("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
+            print("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
         else:
             # Fallback seguro
             use_sentence_window = False
-            logger.warning(f"Invalid search_mode: {search_mode}, using hierarchical | request_id={request_id}")
+            print(f"Invalid search_mode: {search_mode}, using hierarchical | request_id={request_id}")
             data_str = " | ".join(f"{k}={v}" for k, v in {
                 "strategy": "hierarchical",
                 "reason": f"Invalid search_mode: {search_mode}"
             }.items())
-            logger.info("[Strategy Fallback] | request_id=%s | %s", request_id, data_str)
+            print("[Strategy Fallback] | request_id=%s | %s", request_id, data_str)
         
         # Inicializar métricas de adaptive retrieval
         adaptive_metrics = {"applied": False, "reason": "disabled_by_config"}
@@ -176,14 +176,14 @@ class RAGPipeline:
         try:
             with LatencyTracker("rag_total"):
                 # 1. Classificar pergunta
-                logger.info("[Classification] Started | request_id=%s", request_id)
+                print("[Classification] Started | request_id=%s", request_id)
                 question_type = classify_question(question)
                 data_str = " | ".join(f"{k}={v}" for k, v in {"question_type": question_type}.items())
-                logger.info("[Classification Complete] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Classification] Completed | request_id=%s", request_id)
+                print("[Classification Complete] | request_id=%s | %s", request_id, data_str)
+                print("[Classification] Completed | request_id=%s", request_id)
                 
                 # 1.5 Aplicar Adaptive Retrieval se habilitado
-                logger.info("[Adaptive Retrieval] Started | request_id=%s", request_id)
+                print("[Adaptive Retrieval] Started | request_id=%s", request_id)
                 if ENABLE_ADAPTIVE_RETRIEVAL and enable_adaptive:
                     base_min_sim = min_similarity if min_similarity is not None else MIN_SIMILARITY_THRESHOLD
                     adaptive_result = get_adaptive_params(
@@ -205,27 +205,27 @@ class RAGPipeline:
                         "characteristics": adaptive_result["analysis"]
                     }
                     data_str = " | ".join(f"{k}={v}" for k, v in {"adaptive_params": adaptive_metrics}.items())
-                    logger.info("[Adaptive Applied] | request_id=%s | %s", request_id, data_str)
+                    print("[Adaptive Applied] | request_id=%s | %s", request_id, data_str)
                 elif enable_adaptive and not ENABLE_ADAPTIVE_RETRIEVAL:
                     adaptive_metrics = {"applied": False, "reason": "disabled_in_config"}
                     data_str = " | ".join(f"{k}={v}" for k, v in {"reason": "disabled_in_config"}.items())
-                    logger.info("[Adaptive Skipped] | request_id=%s | %s", request_id, data_str)
+                    print("[Adaptive Skipped] | request_id=%s | %s", request_id, data_str)
                 else:
                     adaptive_metrics = {"applied": False, "reason": "disabled_by_user"}
                     data_str = " | ".join(f"{k}={v}" for k, v in {"reason": "disabled_by_user"}.items())
-                    logger.info("[Adaptive Skipped] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Adaptive Retrieval] Completed | request_id=%s", request_id)
+                    print("[Adaptive Skipped] | request_id=%s | %s", request_id, data_str)
+                print("[Adaptive Retrieval] Completed | request_id=%s", request_id)
                 
                 # 2. Gerar embedding (com HyDE se habilitado)
-                logger.info("[Embedding] Started | request_id=%s", request_id)
+                print("[Embedding] Started | request_id=%s", request_id)
                 hyde_embedding = self.strategies.apply_hyde(question)
                 embedding = hyde_embedding or get_embedding(question)
                 data_str = " | ".join(f"{k}={v}" for k, v in {"dimension": len(embedding)}.items())
-                logger.info("[Embedding Generated] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Embedding] Completed | request_id=%s", request_id)
+                print("[Embedding Generated] | request_id=%s | %s", request_id, data_str)
+                print("[Embedding] Completed | request_id=%s", request_id)
                 
                 # 3. Buscar documentos (Phase 1)
-                logger.info("[Search] Started | request_id=%s", request_id)
+                print("[Search] Started | request_id=%s", request_id)
                 search_metrics = {}
                 if use_sentence_window:
                     # Usa Sentence Window Retrieval
@@ -250,11 +250,11 @@ class RAGPipeline:
                         request_id=request_id
                     )
                 data_str = " | ".join(f"{k}={v}" for k, v in {"documents_found": len(initial_docs)}.items())
-                logger.info("[Search Complete] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Search] Completed | request_id=%s", request_id)
+                print("[Search Complete] | request_id=%s | %s", request_id, data_str)
+                print("[Search] Completed | request_id=%s", request_id)
                 
                 # 4. Refinar busca (Phase 2: MMR, Re-ranking)
-                logger.info("[Reranking] Started | request_id=%s", request_id)
+                print("[Reranking] Started | request_id=%s", request_id)
                 documents, search_metrics = self.strategies.apply_phase2_pipeline(
                     question=question,
                     question_embedding=embedding,
@@ -263,18 +263,18 @@ class RAGPipeline:
                     search_metrics=search_metrics
                 )
                 data_str = " | ".join(f"{k}={v}" for k, v in {"documents_after_rerank": len(documents)}.items())
-                logger.info("[Reranking Complete] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Reranking] Completed | request_id=%s", request_id)
+                print("[Reranking Complete] | request_id=%s | %s", request_id, data_str)
+                print("[Reranking] Completed | request_id=%s", request_id)
                 
                 observe_chunks_retrieved(len(documents))
                 
                 if not documents:
                     data_str = " | ".join(f"{k}={v}" for k, v in {"question": question[:100]}.items())
-                    logger.info("[No Results Found] | request_id=%s | %s", request_id, data_str)
+                    print("[No Results Found] | request_id=%s | %s", request_id, data_str)
                     return self.responses.build_no_results_response(question, question_type, search_metrics)
                 
                 # 5. Montar e comprimir contexto
-                logger.info("[Context Building] Started | request_id=%s", request_id)
+                print("[Context Building] Started | request_id=%s", request_id)
                 raw_context = self.context.build_context(documents, request_id=request_id)
                 context_result = self.context.compress_if_needed(
                     raw_context,
@@ -286,11 +286,11 @@ class RAGPipeline:
                     "context_chars": len(raw_context),
                     "was_compressed": context_result["was_compressed"]
                 }.items())
-                logger.info("[Context Ready] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Context Building] Completed | request_id=%s", request_id)
+                print("[Context Ready] | request_id=%s | %s", request_id, data_str)
+                print("[Context Building] Completed | request_id=%s", request_id)
                 
                 # 6. Construir prompt
-                logger.info("[Prompt Building] Started | request_id=%s", request_id)
+                print("[Prompt Building] Started | request_id=%s", request_id)
                 prompt = self.prompts.build_prompt(
                     context=context_result["context"],
                     question=question,
@@ -299,15 +299,15 @@ class RAGPipeline:
                     response_style=response_style
                 )
                 data_str = " | ".join(f"{k}={v}" for k, v in {"prompt_length": len(prompt)}.items())
-                logger.info("[Prompt Built] | request_id=%s | %s", request_id, data_str)
-                logger.info("[Prompt Building] Completed | request_id=%s", request_id)
+                print("[Prompt Built] | request_id=%s | %s", request_id, data_str)
+                print("[Prompt Building] Completed | request_id=%s", request_id)
                 
                 # 7. Gerar resposta
-                logger.info("[LLM] Started | request_id=%s", request_id)
+                print("[LLM] Started | request_id=%s", request_id)
                 answer = generate_response(prompt, temperature=temperature, request_id=request_id)
                 data_str = " | ".join(f"{k}={v}" for k, v in {"answer_length": len(answer)}.items())
-                logger.info("[LLM Complete] | request_id=%s | %s", request_id, data_str)
-                logger.info("[LLM] Completed | request_id=%s", request_id)
+                print("[LLM Complete] | request_id=%s | %s", request_id, data_str)
+                print("[LLM] Completed | request_id=%s", request_id)
                 
                 # 7.5. Auto-avaliação (opcional)
                 evaluation_metrics = {}
@@ -338,11 +338,11 @@ class RAGPipeline:
                                         search_mode=search_mode,
                                         adaptive_used=adaptive_metrics.get("applied", False)
                                     )
-                                    logger.debug(f"Evaluation saved: score={evaluation_result['overall_score']:.2%}")
+                                    print(f"Evaluation saved: score={evaluation_result['overall_score']:.2%}")
                                 except Exception as e:
-                                    logger.warning(f"Failed to save evaluation: {e}")
+                                    print(f"Failed to save evaluation: {e}")
                         except Exception as e:
-                            logger.warning(f"Failed to evaluate response: {e}")
+                            print(f"Failed to evaluate response: {e}")
                 
                 # 7.6. Self-RAG - Avaliar e refinar se habilitado
                 self_rag_metrics = {}
@@ -397,14 +397,14 @@ class RAGPipeline:
                             duration_ms=int(total_duration * 1000)
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to save adaptive metric: {e}")
+                        print(f"Failed to save adaptive metric: {e}")
                 
                 # Log final
                 data_str = " | ".join(f"{k}={v}" for k, v in {
                     "total_duration": f"{total_duration:.3f}s",
                     "status": "success"
                 }.items())
-                logger.info("[Query Complete] | request_id=%s | %s", request_id, data_str)
+                print("[Query Complete] | request_id=%s | %s", request_id, data_str)
                 
                 return self.responses.format_response(
                     answer=answer,
@@ -423,7 +423,7 @@ class RAGPipeline:
                 "question": question,
                 "collection_id": collection_id
             }
-            logger.exception(
+            print(
                 "[RAG Pipeline] Error | request_id=%s | error_type=%s | error_message=%s | context=%s",
                 request_id, type(e).__name__, str(e), context
             )
@@ -448,7 +448,7 @@ class RAGPipeline:
         
         if not docs:
             data_str = " | ".join(f"{k}={v}" for k, v in {"question": question[:100]}.items())
-            logger.info("[No Results (Stream)] | request_id=%s | %s", request_id, data_str)
+            print("[No Results (Stream)] | request_id=%s | %s", request_id, data_str)
             yield "Desculpe, não encontrei informações para responder."
             return
 
@@ -456,7 +456,7 @@ class RAGPipeline:
         prompt = self.prompts.build_prompt(context, question, response_style=response_style)
         
         data_str = " | ".join(f"{k}={v}" for k, v in {"question": question[:100]}.items())
-        logger.info("[Stream Query Started] | request_id=%s | %s", request_id, data_str)
+        print("[Stream Query Started] | request_id=%s | %s", request_id, data_str)
         
         return generate_response(prompt, temperature=temperature, stream=True, request_id=request_id)
 
@@ -470,7 +470,7 @@ class RAGPipeline:
         request_id = kwargs.get("request_id", "unknown")
         
         data_str = " | ".join(f"{k}={v}" for k, v in {"session_id": session_id}.items())
-        logger.info("[History Retrieved] | request_id=%s | %s", request_id, data_str)
+        print("[History Retrieved] | request_id=%s | %s", request_id, data_str)
         
         history_text = conversation_manager.get_history_as_text(session_id)
         
@@ -485,7 +485,7 @@ class RAGPipeline:
             "session_id": session_id,
             "messages_count": 2
         }.items())
-        logger.info("[History Saved] | request_id=%s | %s", request_id, data_str)
+        print("[History Saved] | request_id=%s | %s", request_id, data_str)
         
         return result
 
@@ -503,7 +503,7 @@ class RAGPipeline:
             "question": question[:100],
             "top_k": top_k
         }.items())
-        logger.info("[Search Only Started] | request_id=%s | %s", request_id, data_str)
+        print("[Search Only Started] | request_id=%s | %s", request_id, data_str)
         
         embedding = get_embedding(question)
         results = self.search.search(
@@ -516,7 +516,7 @@ class RAGPipeline:
         )
         
         data_str = " | ".join(f"{k}={v}" for k, v in {"results_count": len(results)}.items())
-        logger.info("[Search Only Complete] | request_id=%s | %s", request_id, data_str)
+        print("[Search Only Complete] | request_id=%s | %s", request_id, data_str)
         
         return results
 

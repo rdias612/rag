@@ -1,5 +1,5 @@
 """Blueprint para métricas de qualidade de respostas RAG."""
-import logging
+
 import time
 from flask import Blueprint, jsonify, request
 
@@ -8,7 +8,7 @@ from src.core.evaluation import evaluate_rag_response
 from src.api.middleware.rate_limiter import limiter, LIMITS
 from src.config import ENABLE_AUTO_EVALUATION
 
-api_logger = logging.getLogger("rag.api")
+print("rag.api")
 
 quality_bp = Blueprint("quality_metrics", __name__)
 
@@ -31,13 +31,13 @@ def get_quality_stats():
     try:
         stats = evaluation_repo.get_stats(days=days)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/stats", 200, time.time() - start_time)
         return jsonify(stats)
         
     except Exception as e:
-        api_logger.exception("Error getting quality stats: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error getting quality stats: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -62,13 +62,13 @@ def get_recent_evaluations():
     try:
         evaluations = evaluation_repo.get_recent_evaluations(limit, min_score)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/recent", 200, time.time() - start_time)
         return jsonify({"evaluations": evaluations})
         
     except Exception as e:
-        api_logger.exception("Error getting recent evaluations: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error getting recent evaluations: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/recent", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -93,13 +93,13 @@ def get_quality_trends():
     try:
         trends = evaluation_repo.get_trends(days, group_by)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/trends", 200, time.time() - start_time)
         return jsonify({"trends": trends})
         
     except Exception as e:
-        api_logger.exception("Error getting quality trends: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error getting quality trends: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/trends", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -124,13 +124,13 @@ def get_top_worst():
     try:
         top_worst = evaluation_repo.get_top_worst_queries(limit, days)
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/top-worst", 200, time.time() - start_time)
         return jsonify(top_worst)
         
     except Exception as e:
-        api_logger.exception("Error getting top/worst queries: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error getting top/worst queries: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/top-worst", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
@@ -157,7 +157,7 @@ def evaluate_response_endpoint():
     required_fields = ['question', 'answer', 'context']
     for field in required_fields:
         if field not in data:
-            api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+            print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                            "/api/metrics/quality/evaluate", 400, time.time() - start_time)
             return jsonify({"error": f"Missing required field: {field}"}), 400
     
@@ -181,12 +181,12 @@ def evaluate_response_endpoint():
                 chunks_retrieved=len(data.get('chunks', []))
             )
         
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/evaluate", 200, time.time() - start_time)
         return jsonify(result)
         
     except Exception as e:
-        api_logger.exception("Error evaluating response: %s", e)
-        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+        print("Error evaluating response: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
                        "/api/metrics/quality/evaluate", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500

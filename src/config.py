@@ -197,16 +197,6 @@ class Settings(BaseSettings):
     RATE_LIMIT_INGEST: str = "20 per minute"       # Ingestão de docs
     RATE_LIMIT_HEALTH: str = "120 per minute"      # Health checks
 
-    # =========================================================================
-    # Logging Configuration
-    # =========================================================================
-    LOG_LEVEL: str = "DEBUG"
-    LOG_FILE: str = "server.log"
-    LOG_MAX_BYTES: int = 10485760  # 10MB
-    LOG_BACKUP_COUNT: int = 3
-    LOG_FORMAT: str = "%(asctime)s %(levelname)s %(name)s %(message)s"
-    LOG_DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S"
-
     model_config = SettingsConfigDict(
         # Prioridade: .env.{APP_ENV} > .env
         env_file=(".env", f".env.{os.getenv('APP_ENV', 'dev')}"),
@@ -332,16 +322,6 @@ ADAPTIVE_TOP_K_MIN = settings.ADAPTIVE_TOP_K_MIN
 ADAPTIVE_TOP_K_MAX = settings.ADAPTIVE_TOP_K_MAX
 ADAPTIVE_MIN_SIM_MIN = settings.ADAPTIVE_MIN_SIM_MIN
 ADAPTIVE_MIN_SIM_MAX = settings.ADAPTIVE_MIN_SIM_MAX
-
-# =============================================================================
-# Logging Configuration
-# =============================================================================
-LOG_LEVEL = settings.LOG_LEVEL
-LOG_FILE = settings.LOG_FILE
-LOG_MAX_BYTES = settings.LOG_MAX_BYTES
-LOG_BACKUP_COUNT = settings.LOG_BACKUP_COUNT
-LOG_FORMAT = settings.LOG_FORMAT
-LOG_DATE_FORMAT = settings.LOG_DATE_FORMAT
 
 # =============================================================================
 # Prompts (Mantidos como constantes por não precisarem de override via env)

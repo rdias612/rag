@@ -1,7 +1,6 @@
 """
 Estratégias de recuperação de documentos (Phase 2 e Phase 3).
 """
-import logging
 from typing import List, Dict, Any, Tuple
 from src.config import (
     ENABLE_RERANKING,
@@ -14,9 +13,6 @@ from src.config import (
 from src.core.mmr import mmr_filter
 from src.core.reranker import rerank_chunks
 from src.core.hyde import generate_hyde_embedding
-
-logger = logging.getLogger("rag.pipeline")
-
 
 class RetrievalStrategy:
     """Encapsula lógica avançada de recuperação (Phase 2/3)."""

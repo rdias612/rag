@@ -1,7 +1,7 @@
 """
 Serviço de montagem e compressão de contexto.
 """
-import logging
+
 from typing import List, Dict, Any
 from src.core.context_compression import compress_context
 from src.config import (
@@ -9,10 +9,6 @@ from src.config import (
     CONTEXT_COMPRESSION_THRESHOLD,
     CONTEXT_COMPRESSION_METHOD
 )
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
 
 class ContextService:
     """Gerencia montagem e otimização de contexto."""
@@ -36,7 +32,7 @@ class ContextService:
         """
         request_id = request_id or "unknown"
         
-        rag_logger.info("Context Building Started | request_id=%s | documents_count=%d | max_chars=%d",
+        print("Context Building Started | request_id=%s | documents_count=%d | max_chars=%d",
                        request_id, len(documents), max_chars)
         
         context_parts = []
@@ -57,7 +53,7 @@ class ContextService:
         
         final_context = "\n\n---\n\n".join(context_parts)
         
-        rag_logger.info("Context Built | request_id=%s | documents_included=%d | context_chars=%d",
+        print("Context Built | request_id=%s | documents_included=%d | context_chars=%d",
                        request_id, len(context_parts), len(final_context))
         
         return final_context
@@ -88,11 +84,11 @@ class ContextService:
         # Estimar tokens (~4 chars por token)
         original_tokens = len(context) // 4
         
-        rag_logger.info("Compression Check | request_id=%s | original_tokens=%d | compression_enabled=%s | threshold=%d",
+        print("Compression Check | request_id=%s | original_tokens=%d | compression_enabled=%s | threshold=%d",
                        request_id, original_tokens, should_compress, self._threshold)
         
         if not should_compress or original_tokens < self._threshold:
-            rag_logger.info("Compression Skipped | request_id=%s | reason=%s",
+            print("Compression Skipped | request_id=%s | reason=%s",
                            request_id, "disabled" if not should_compress else "below_threshold")
             
             return {
@@ -103,7 +99,7 @@ class ContextService:
                 "compression_ratio": 1.0
             }
         
-        rag_logger.info("Compression Started | request_id=%s | method=%s | original_tokens=%d",
+        print("Compression Started | request_id=%s | method=%s | original_tokens=%d",
                        request_id, self._method, original_tokens)
         
         compressed = compress_context(
@@ -114,7 +110,7 @@ class ContextService:
         
         final_tokens = len(compressed) // 4
         
-        rag_logger.info("Compression Complete | request_id=%s | method=%s | original_tokens=%d | final_tokens=%d | compression_ratio=%s",
+        print("Compression Complete | request_id=%s | method=%s | original_tokens=%d | final_tokens=%d | compression_ratio=%s",
                        request_id, self._method, original_tokens, final_tokens,
                        f"{(final_tokens/original_tokens if original_tokens > 0 else 1.0):.2f}")
         

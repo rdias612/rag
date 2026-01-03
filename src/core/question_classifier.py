@@ -6,9 +6,9 @@ e otimizar a qualidade das respostas.
 """
 import re
 from typing import Optional
-import logging
 
-logger = logging.getLogger(__name__)
+
+print(__name__)
 
 # Tentar carregar repository de instruções de tipos de pergunta (few-shot)
 try:
@@ -92,10 +92,10 @@ def classify_question(question: str) -> str:
     for question_type, patterns in QUESTION_PATTERNS.items():
         for pattern in patterns:
             if re.search(pattern, question_lower):
-                logger.debug(f"Question classified as '{question_type}': {question[:50]}...")
+                print(f"Question classified as '{question_type}': {question[:50]}...")
                 return question_type
     
-    logger.debug(f"Question classified as 'general': {question[:50]}...")
+    print(f"Question classified as 'general': {question[:50]}...")
     return "general"
 
 
@@ -192,13 +192,13 @@ def get_instructions_for_type(question_type: str) -> str:
         if _QUESTION_INSTRUCTION_REPO_AVAILABLE and _question_type_instruction_repo:
             db_instructions = _question_type_instruction_repo.find_by_question_type(question_type)
             if db_instructions:
-                logger.debug(f"Using DB instructions (few-shot) for type '{question_type}'")
+                print(f"Using DB instructions (few-shot) for type '{question_type}'")
                 return db_instructions
     except Exception as e:
-        logger.warning(f"Failed to fetch instructions from DB: {e}")
+        print(f"Failed to fetch instructions from DB: {e}")
     
     # 2. Fallback para instruções hardcoded
-    logger.debug(f"Using fallback instructions for type '{question_type}'")
+    print(f"Using fallback instructions for type '{question_type}'")
     return QUESTION_TYPE_INSTRUCTIONS.get(question_type, QUESTION_TYPE_INSTRUCTIONS["general"])
 
 

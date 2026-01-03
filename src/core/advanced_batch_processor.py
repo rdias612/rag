@@ -8,7 +8,7 @@ Author: Sistema RAG
 Created: 2025-12-29
 """
 import asyncio
-import logging
+
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from typing import List, Optional, Callable, Any
 from functools import partial
@@ -21,12 +21,6 @@ from src.config import (
     USE_ASYNC_BATCH_PROCESSING
 )
 from src.core.embeddings import get_embeddings_batch
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
-logger = logging.getLogger("rag.batch_processor")
-
 
 class AdvancedBatchEmbeddingProcessor:
     """
@@ -74,7 +68,7 @@ class AdvancedBatchEmbeddingProcessor:
             "total_time_seconds": 0.0
         }
         
-        rag_logger.info(
+        print(
             "AdvancedBatchEmbeddingProcessor initialized: batch_size=%d, max_workers=%d, timeout=%ds",
             batch_size, max_workers, timeout
         )
@@ -119,25 +113,19 @@ class AdvancedBatchEmbeddingProcessor:
         start_time = time.time()
         
         try:
-            rag_logger.debug("Processing batch %d with %d texts", batch_index, len(texts))
+            print("Processing batch %d with %d texts", batch_index, len(texts))
             
             # Reusa a implementação existente de batch processing
             embeddings = get_embeddings_batch(texts, batch_size=len(texts))
             
             duration = time.time() - start_time
-            rag_logger.debug(
-                "Batch %d completed in %.2fs (%d embeddings)",
-                batch_index, duration, len(embeddings)
-            )
+            print("Batch %d completed in %.2fs (%d embeddings)",batch_index, duration, len(embeddings))
             
             return embeddings
             
         except Exception as e:
             duration = time.time() - start_time
-            rag_logger.exception(
-                "Error processing batch %d after %.2fs: error_type=%s | error_message=%s",
-                batch_index, duration, type(e).__name__, str(e)
-            )
+            print("Error processing batch %d after %.2fs: error_type=%s | error_message=%s",batch_index, duration, type(e).__name__, str(e))
             raise
     
     async def process_batch_parallel(
@@ -168,10 +156,7 @@ class AdvancedBatchEmbeddingProcessor:
         total_texts = len(texts)
         total_batches = (total_texts + self.batch_size - 1) // self.batch_size
         
-        rag_logger.info(
-            "Processing %d texts in %d batches with %d workers",
-            total_texts, total_batches, self.max_workers
-        )
+        print("Processing %d texts in %d batches with %d workers", total_texts, total_batches, self.max_workers)
         
         start_time = time.time()
         
@@ -186,8 +171,7 @@ class AdvancedBatchEmbeddingProcessor:
                 embeddings = self._process_with_executor(batches, progress_callback)
             
         except Exception as e:
-            rag_logger.exception("Parallel processing failed: error_type=%s | error_message=%s",
-                              type(e).__name__, str(e))
+            print("Parallel processing failed: error_type=%s | error_message=%s", type(e).__name__, str(e))
             raise RuntimeError(f"Parallel processing failed: {e}")
         
         # Concatenar resultados mantendo ordem
@@ -202,10 +186,7 @@ class AdvancedBatchEmbeddingProcessor:
         # Calcular throughput
         throughput = total_texts / duration if duration > 0 else 0
         
-        rag_logger.info(
-            "Parallel processing completed: %d texts in %.2fs (%.2f texts/s)",
-            total_texts, duration, throughput
-        )
+        print("Parallel processing completed: %d texts in %.2fs (%.2f texts/s)",total_texts, duration, throughput)
         
         return flattened_embeddings
     
@@ -244,7 +225,7 @@ class AdvancedBatchEmbeddingProcessor:
         errors = [r for r in results if isinstance(r, Exception)]
         if errors:
             self.stats["total_errors"] += len(errors)
-            rag_logger.warning("%d batches failed out of %d", len(errors), len(batches))
+            print("%d batches failed out of %d", len(errors), len(batches))
             # Re-raise primeiro erro se todos falharem
             if len(errors) == len(batches):
                 raise errors[0]
@@ -299,7 +280,7 @@ class AdvancedBatchEmbeddingProcessor:
                     progress_callback(completed, len(batches))
                     
             except Exception as e:
-                rag_logger.exception(
+                print(
                     "Batch %d failed: error_type=%s | error_message=%s",
                     batch_index, type(e).__name__, str(e)
                 )
@@ -384,7 +365,7 @@ class AdvancedBatchEmbeddingProcessor:
         Args:
             wait: Se True, espera que todos os workers completem
         """
-        rag_logger.info("Shutting down AdvancedBatchEmbeddingProcessor (wait=%s)", wait)
+        print("Shutting down AdvancedBatchEmbeddingProcessor (wait=%s)", wait)
         self.executor.shutdown(wait=wait)
 
 # Instância global do processador avançado

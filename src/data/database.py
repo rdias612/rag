@@ -11,7 +11,7 @@ Use src.data.repositories em seu lugar:
 Este módulo será removido em uma versão futura.
 """
 import json
-import logging
+
 import time
 import warnings
 import os
@@ -39,9 +39,6 @@ from src.config import (
 )
 from src.core.connection_pool import get_db_connection as get_pooled_connection
 
-# Standard logger for database operations
-db_logger = logging.getLogger("rag.database")
-
 # Importar funções de criptografia
 try:
     from src.core.encryption import (
@@ -54,7 +51,7 @@ try:
     ENCRYPTION_AVAILABLE = True
 except ImportError:
     ENCRYPTION_AVAILABLE = False
-    logging.getLogger("rag.database").warning("Encryption module not available, encryption disabled")
+    print("Encryption module not available, encryption disabled")
 
 
 def deprecated(replacement: str):
@@ -88,7 +85,7 @@ def get_connection():
     """
     if ENABLE_CONNECTION_POOL:
         # Usar pool de conexões avançado
-        db_logger.debug("Using connection pool...")
+        print("Using connection pool...")
         with get_pooled_connection() as conn:
             yield conn
     else:
@@ -98,19 +95,19 @@ def get_connection():
             'connect_timeout': 10,  # 10 segundos para conectar
             'options': '-c statement_timeout=30000'  # 30 segundos max por query
         }
-        db_logger.debug("Opening database connection (direct)...")
+        print("Opening database connection (direct)...")
         conn = psycopg2.connect(**config_with_timeout)
-        db_logger.debug("Database connection opened successfully")
+        print("Database connection opened successfully")
         try:
             yield conn
             conn.commit()
         except Exception as e:
             conn.rollback()
-            db_logger.error("Database transaction error | error=%s", e, exc_info=True)
+            print("Database transaction error | error=%s", e, exc_info=True)
             raise e
         finally:
             conn.close()
-        db_logger.debug("Database connection closed")
+        print("Database connection closed")
 
 
 # Alias para backward compatibility
@@ -119,7 +116,7 @@ get_db_connection = get_connection
 
 def run_migrations():
     """Executa as migrações do Alembic programaticamente."""
-    db_logger.info("Iniciando migrações automáticas do banco de dados...")
+    print("Iniciando migrações automáticas do banco de dados...")
     try:
         # Caminho para o arquivo alembic.ini (na raiz do projeto)
         # src/data/database.py -> src/data -> src -> raiz
@@ -127,7 +124,7 @@ def run_migrations():
         ini_path = os.path.join(base_dir, "alembic.ini")
         
         if not os.path.exists(ini_path):
-            db_logger.error("Arquivo alembic.ini não encontrado em: %s", ini_path)
+            print("Arquivo alembic.ini não encontrado em: %s", ini_path)
             return False
             
         alembic_cfg = Config(ini_path)
@@ -139,10 +136,10 @@ def run_migrations():
         
         # Executar upgrade para a versão mais recente
         command.upgrade(alembic_cfg, "head")
-        db_logger.info("Migrações concluídas com sucesso!")
+        print("Migrações concluídas com sucesso!")
         return True
     except Exception as e:
-        db_logger.error("Erro ao executar migrações: %s", e, exc_info=True)
+        print("Erro ao executar migrações: %s", e, exc_info=True)
         return False
 
 
@@ -150,7 +147,7 @@ def init_database():
     """
     Verifica a conexão e executa as migrações do Alembic.
     """
-    db_logger.info("Inicializando banco de dados (Alembic)...")
+    print("Inicializando banco de dados (Alembic)...")
     
     # 1. Executar migrações automáticas
     run_migrations()
@@ -177,12 +174,12 @@ def init_database():
             "Esquema não encontrado mesmo após migrações. "
             "Verifique os logs do Alembic."
         )
-        db_logger.error(msg)
+        print(msg)
         raise RuntimeError(msg)
 
     duration = time.time() - start_time
-    db_logger.info("Database ready check completed in %.2fs", duration)
-    db_logger.info("Banco de dados pronto (schema gerenciado pelo Alembic)")
+    print("Database ready check completed in %.2fs", duration)
+    print("Banco de dados pronto (schema gerenciado pelo Alembic)")
 
 
 @deprecated("DocumentRepository.create")
@@ -201,7 +198,7 @@ def insert_document(content: str, metadata: dict, embedding: list[float], collec
     """
     start_time = time.time()
     query = "INSERT INTO documentos (content, metadata, embedding, collection_id) VALUES (%s, %s, %s, %s) RETURNING id"
-    db_logger.debug("DB INSERT | query=%s | params_count=%d", query[:500], 4)
+    print("DB INSERT | query=%s | params_count=%d", query[:500], 4)
     
     # Criptografar conteúdo e metadados se habilitado
     if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION:
@@ -231,7 +228,7 @@ def insert_document(content: str, metadata: dict, embedding: list[float], collec
             doc_id = cur.fetchone()[0]
     
     duration = time.time() - start_time
-    db_logger.debug("DB INSERT Result | affected_rows=%d | duration=%.3fs", 1, duration)
+    print("DB INSERT Result | affected_rows=%d | duration=%.3fs", 1, duration)
     
     return doc_id
 
@@ -248,7 +245,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
         Número de documentos inseridos
     """
     start_time = time.time()
-    db_logger.debug("DB INSERT BATCH | documents_count=%d", len(documents))
+    print("DB INSERT BATCH | documents_count=%d", len(documents))
     
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -275,7 +272,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
                 
                 if is_invalid:
                     file_info = doc.get("metadata", {}).get("source_path", "unknown")
-                    db_logger.warning("SKIPPING CHUNK due to invalid embedding for %s: %s", file_info, error_detail)
+                    print("SKIPPING CHUNK due to invalid embedding for %s: %s", file_info, error_detail)
                     continue
 
                 # Criptografar conteúdo e metadados se habilitado
@@ -300,7 +297,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
                 ))
             
             if not values:
-                db_logger.warning("No documents were inserted in this batch (all were invalid)")
+                print("No documents were inserted in this batch (all were invalid)")
                 return 0
 
             # Inserção em batch usando executemany
@@ -314,7 +311,7 @@ def insert_documents_batch(documents: list[dict]) -> int:
             inserted_count = len(values)
     
     duration = time.time() - start_time
-    db_logger.debug("DB INSERT BATCH Result | affected_rows=%d | duration=%.3fs", inserted_count, duration)
+    print("DB INSERT BATCH Result | affected_rows=%d | duration=%.3fs", inserted_count, duration)
     
     return inserted_count
 
@@ -347,7 +344,7 @@ def search_similar(
         min_similarity = MIN_SIMILARITY_THRESHOLD
     
     # Log do embedding usado na busca
-    db_logger.info("DB Vector Search | embedding_dim=%d | embedding_sample=%s | top_k=%d",
+    print("DB Vector Search | embedding_dim=%d | embedding_sample=%s | top_k=%d",
                    len(query_embedding), str(query_embedding[:10]), top_k)
     
     with get_connection() as conn:
@@ -395,14 +392,14 @@ def search_similar(
                 try:
                     row_dict["content"] = decrypt_data(row_dict["content"])
                 except Exception as e:
-                    db_logger.warning("Failed to decrypt content for doc %s: %s", row_dict.get('id'), e)
+                    print("Failed to decrypt content for doc %s: %s", row_dict.get('id'), e)
             
             # Descriptografar metadados
             if ENCRYPT_METADATA and row_dict.get("metadata"):
                 try:
                     row_dict["metadata"] = decrypt_metadata(row_dict["metadata"])
                 except Exception as e:
-                    db_logger.warning("Failed to decrypt metadata for doc %s: %s", row_dict.get('id'), e)
+                    print("Failed to decrypt metadata for doc %s: %s", row_dict.get('id'), e)
                     row_dict["metadata"] = json.loads(row_dict["metadata"]) if row_dict["metadata"] else {}
         
         results_list.append(row_dict)
@@ -414,13 +411,13 @@ def search_similar(
         filtered_count = original_count - len(results_list)
         
         if filtered_count > 0:
-            db_logger.info(
+            print(
                 "Filtered %d/%d results below similarity threshold %.2f",
                 filtered_count, original_count, min_similarity
             )
     
     # Log dos resultados da busca
-    db_logger.info("DB Search Results | results_count=%d | duration=%.3fs", len(results_list), duration)
+    print("DB Search Results | results_count=%d | duration=%.3fs", len(results_list), duration)
     
     return results_list
 
@@ -432,19 +429,19 @@ def get_document_count() -> int:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM documentos;")
             count = cur.fetchone()[0]
-            db_logger.debug("Document count: %d", count)
+            print("Document count: %d", count)
             return count
 
 
 @deprecated("DocumentRepository.list_collections")
 def list_collections() -> list[str]:
     """Retorna a lista de collection_id distintos existentes."""
-    db_logger.debug("list_collections: Starting...")
+    print("list_collections: Starting...")
     try:
         with get_connection() as conn:
-            db_logger.debug("list_collections: Got connection, creating cursor...")
+            print("list_collections: Got connection, creating cursor...")
             with conn.cursor() as cur:
-                db_logger.debug("list_collections: Executing query...")
+                print("list_collections: Executing query...")
                 cur.execute(
                     """
                     SELECT DISTINCT collection_id
@@ -453,20 +450,20 @@ def list_collections() -> list[str]:
                     ORDER BY collection_id;
                     """
                 )
-                db_logger.debug("list_collections: Query executed, fetching results...")
+                print("list_collections: Query executed, fetching results...")
                 rows = cur.fetchall()
                 result = [row[0] for row in rows]
-                db_logger.debug("list_collections: Returning %d collections", len(result))
+                print("list_collections: Returning %d collections", len(result))
                 return result
     except Exception as e:
-        db_logger.error("list_collections: Error - %s", e, exc_info=True)
+        print("list_collections: Error - %s", e, exc_info=True)
         raise
 
 
 @deprecated("DocumentRepository.clear_all")
 def clear_documents():
     """Remove todos os documentos do banco. Use com cuidado!"""
-    db_logger.warning("Clearing all documents from database!")
+    print("Clearing all documents from database!")
     start_time = time.time()
     
     with get_connection() as conn:
@@ -474,8 +471,8 @@ def clear_documents():
             cur.execute("TRUNCATE TABLE documentos RESTART IDENTITY;")
     
     duration = time.time() - start_time
-    db_logger.debug("DB TRUNCATE Result | affected_rows=0 | duration=%.3fs", duration)
-    db_logger.warning("Todos os documentos foram removidos!")
+    print("DB TRUNCATE Result | affected_rows=0 | duration=%.3fs", duration)
+    print("Todos os documentos foram removidos!")
 
 
 def check_connection() -> bool:
@@ -484,10 +481,10 @@ def check_connection() -> bool:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1;")
-                db_logger.info("Database connection successful")
+                print("Database connection successful")
                 return True
     except Exception as e:
-        db_logger.error("Database connection failed: %s", e, exc_info=True)
+        print("Database connection failed: %s", e, exc_info=True)
         return False
 
 
@@ -498,7 +495,7 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
     """
     start_time = time.time()
     query = "INSERT INTO feedback (session_id, message_index, rating, comment, metadata) VALUES (%s, %s, %s, %s, %s)"
-    db_logger.debug("DB INSERT FEEDBACK | query=%s | params_count=%d", query[:500], 5)
+    print("DB INSERT FEEDBACK | query=%s | params_count=%d", query[:500], 5)
     
     try:
         # Criptografar comentário se habilitado
@@ -507,7 +504,7 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
             try:
                 encrypted_comment = encrypt_data(comment)
             except Exception as e:
-                db_logger.warning("Failed to encrypt comment: %s", e)
+                print("Failed to encrypt comment: %s", e)
         
         # Criptografar metadados se habilitado
         encrypted_metadata = metadata
@@ -515,7 +512,7 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
             try:
                 encrypted_metadata = encrypt_metadata(metadata)
             except Exception as e:
-                db_logger.warning("Failed to encrypt feedback metadata: %s", e)
+                print("Failed to encrypt feedback metadata: %s", e)
                 encrypted_metadata = json.dumps(metadata) if metadata else None
         else:
             encrypted_metadata = json.dumps(metadata) if metadata else None
@@ -531,10 +528,10 @@ def insert_feedback(session_id: str, message_index: int, rating: int, comment: O
                 )
         
         duration = time.time() - start_time
-        db_logger.debug("DB INSERT FEEDBACK Result | affected_rows=%d | duration=%.3fs", 1, duration)
+        print("DB INSERT FEEDBACK Result | affected_rows=%d | duration=%.3fs", 1, duration)
         return True
     except Exception as e:
-        db_logger.error("Error inserting feedback: %s", e, exc_info=True)
+        print("Error inserting feedback: %s", e, exc_info=True)
         return False
 
 
@@ -614,7 +611,7 @@ def register_ingested_document(
             doc_id = cur.fetchone()[0]
     
     duration = time.time() - start_time
-    db_logger.info("Registered ingested document: %s (ID: %d) in %.2fs", file_path, doc_id, duration)
+    print("Registered ingested document: %s (ID: %d) in %.2fs", file_path, doc_id, duration)
     
     return doc_id
 
@@ -645,7 +642,7 @@ def remove_document_chunks_by_source(source_path: str) -> int:
             deleted = cur.rowcount
     
     duration = time.time() - start_time
-    db_logger.info("Removed %d chunks from %s in %.2fs", deleted, source_path, duration)
+    print("Removed %d chunks from %s in %.2fs", deleted, source_path, duration)
     
     return deleted
 
@@ -732,7 +729,7 @@ def clear_all_documents() -> dict:
             control_deleted = cur.rowcount
     
     duration = time.time() - start_time
-    db_logger.info("Cleared all documents: %d chunks, %d control records in %.2fs",
+    print("Cleared all documents: %d chunks, %d control records in %.2fs",
                    chunks_deleted, control_deleted, duration)
     
     return {
@@ -766,11 +763,11 @@ def get_prompt(name: str, use_cache: bool = True) -> Optional[str]:
     # Verificar cache
     if use_cache and name in PROMPT_CACHE:
         if current_time - PROMPT_CACHE_LAST_UPDATE < PROMPT_CACHE_TTL:
-            db_logger.debug("Prompt '%s' retrieved from cache", name)
+            print("Prompt '%s' retrieved from cache", name)
             return PROMPT_CACHE[name]
 
     # Buscar no banco
-    db_logger.debug("Fetching prompt '%s' from database...", name)
+    print("Fetching prompt '%s' from database...", name)
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -786,10 +783,10 @@ def get_prompt(name: str, use_cache: bool = True) -> Optional[str]:
                     PROMPT_CACHE_LAST_UPDATE = current_time
                     return template
                 else:
-                    db_logger.warning("Prompt '%s' not found in database", name)
+                    print("Prompt '%s' not found in database", name)
                     return None
     except Exception as e:
-        db_logger.error("Error fetching prompt '%s': %s", name, e, exc_info=True)
+        print("Error fetching prompt '%s': %s", name, e, exc_info=True)
         return None
 
 
@@ -824,11 +821,11 @@ def update_prompt(name: str, template: str) -> bool:
                     # Invalidar cache
                     if name in PROMPT_CACHE:
                         del PROMPT_CACHE[name]
-                    db_logger.info("Prompt '%s' updated successfully", name)
+                    print("Prompt '%s' updated successfully", name)
                     return True
                 return False
     except Exception as e:
-        db_logger.error("Error updating prompt '%s': %s", name, e, exc_info=True)
+        print("Error updating prompt '%s': %s", name, e, exc_info=True)
         return False
 
 
@@ -846,7 +843,7 @@ def list_prompts() -> list[dict]:
                 """)
                 return [dict(row) for row in cur.fetchall()]
     except Exception as e:
-        db_logger.error("Error listing prompts: %s", e, exc_info=True)
+        print("Error listing prompts: %s", e, exc_info=True)
         return []
 
 
@@ -866,7 +863,7 @@ def get_prompt_by_id(prompt_id: int) -> Optional[dict]:
                 row = cur.fetchone()
                 return dict(row) if row else None
     except Exception as e:
-        db_logger.error("Error fetching prompt %d: %s", prompt_id, e, exc_info=True)
+        print("Error fetching prompt %d: %s", prompt_id, e, exc_info=True)
         return None
 
 
@@ -891,7 +888,7 @@ def get_prompts_by_category(category: str, include_inactive: bool = False) -> li
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
     except Exception as e:
-        db_logger.error("Error fetching prompts for category %s: %s", category, e, exc_info=True)
+        print("Error fetching prompts for category %s: %s", category, e, exc_info=True)
         return []
 
 
@@ -908,7 +905,7 @@ def count_active_prompts_in_category(category: str) -> int:
                 """, (category,))
                 return cur.fetchone()[0]
     except Exception as e:
-        db_logger.error("Error counting prompts in category %s: %s", category, e, exc_info=True)
+        print("Error counting prompts in category %s: %s", category, e, exc_info=True)
         return 0
 
 
@@ -950,11 +947,11 @@ def create_prompt(
                 global PROMPT_CACHE
                 PROMPT_CACHE.clear()
                 
-                db_logger.info("Created prompt '%s' (ID: %d) in category '%s'", name, prompt_id, category)
+                print("Created prompt '%s' (ID: %d) in category '%s'", name, prompt_id, category)
                 return True, prompt_id, ""
                 
     except Exception as e:
-        db_logger.error("Error creating prompt: %s", e, exc_info=True)
+        print("Error creating prompt: %s", e, exc_info=True)
         return False, 0, str(e)
 
 
@@ -1029,11 +1026,11 @@ def update_prompt_full(
                 if prompt['name'] in PROMPT_CACHE:
                     del PROMPT_CACHE[prompt['name']]
                 
-                db_logger.info("Updated prompt ID %d ('%s')", prompt_id, prompt['name'])
+                print("Updated prompt ID %d ('%s')", prompt_id, prompt['name'])
                 return True, ""
                 
     except Exception as e:
-        db_logger.error("Error updating prompt %d: %s", prompt_id, e, exc_info=True)
+        print("Error updating prompt %d: %s", prompt_id, e, exc_info=True)
         return False, str(e)
 
 
@@ -1103,11 +1100,11 @@ def delete_prompt_safe(prompt_id: int) -> tuple[bool, str]:
                 if prompt['name'] in PROMPT_CACHE:
                     del PROMPT_CACHE[prompt['name']]
                 
-                db_logger.info("Deleted prompt ID %d ('%s')", prompt_id, prompt['name'])
+                print("Deleted prompt ID %d ('%s')", prompt_id, prompt['name'])
                 return True, ""
                 
     except Exception as e:
-        db_logger.error("Error deleting prompt %d: %s", prompt_id, e, exc_info=True)
+        print("Error deleting prompt %d: %s", prompt_id, e, exc_info=True)
         return False, str(e)
 
 
@@ -1147,10 +1144,10 @@ def get_parent_content(source_path: str, parent_index: int) -> Optional[str]:
         try:
             content = decrypt_data(content)
         except Exception as e:
-            db_logger.warning("Failed to decrypt parent content: %s", e)
+            print("Failed to decrypt parent content: %s", e)
             
     duration = time.time() - start_time
     if content:
-        db_logger.debug("Retrieved parent content for %s index %d in %.4fs", source_path, parent_index, duration)
+        print("Retrieved parent content for %s index %d in %.4fs", source_path, parent_index, duration)
     
     return content

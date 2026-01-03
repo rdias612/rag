@@ -2,11 +2,8 @@
 Rota para receber logs do frontend.
 """
 import json
-import logging
+
 from flask import request, jsonify
-
-webserver_logger = logging.getLogger("rag.webserver")
-
 
 def init_logs_routes(bp):
     """Inicializa as rotas de logs."""
@@ -69,5 +66,5 @@ def init_logs_routes(bp):
             return jsonify({"status": "ok", "logs_received": len(logs)}), 200
             
         except Exception as e:
-            webserver_logger.exception("Error processing logs: %s", e)
+            print("Error processing logs: %s", e)
             return jsonify({"error": str(e)}), 500

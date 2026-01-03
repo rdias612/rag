@@ -9,7 +9,7 @@ Métricas:
 - Answer Relevancy: resposta é relevante à pergunta?
 - Context Precision: chunks recuperados são relevantes?
 """
-import logging
+
 import re
 import math
 from typing import Optional
@@ -17,7 +17,7 @@ from typing import Optional
 from src.core.llm import generate_response
 from src.core.embeddings import get_embedding
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 
 def calculate_faithfulness(answer: str, context: str) -> float:
@@ -60,7 +60,7 @@ Score:"""
             return score
         return 0.5  # Fallback
     except Exception as e:
-        logger.error(f"Faithfulness calculation failed: {e}")
+        print(f"Faithfulness calculation failed: {e}")
         return 0.5
 
 
@@ -101,7 +101,7 @@ Score:"""
             return score
         return 0.5
     except Exception as e:
-        logger.error(f"Answer relevancy calculation failed: {e}")
+        print(f"Answer relevancy calculation failed: {e}")
         return 0.5
 
 
@@ -140,7 +140,7 @@ def calculate_context_precision(question: str, chunks: list[dict]) -> float:
         return 0.5
         
     except Exception as e:
-        logger.error(f"Context precision calculation failed: {e}")
+        print(f"Context precision calculation failed: {e}")
         return 0.5
 
 
@@ -172,7 +172,7 @@ def evaluate_rag_response(
     Returns:
         Dict com scores de cada métrica
     """
-    logger.info("Evaluating RAG response with RAGAS-inspired metrics...")
+    print("Evaluating RAG response with RAGAS-inspired metrics...")
     
     # Calcular métricas
     faithfulness = calculate_faithfulness(answer, context)
@@ -192,7 +192,7 @@ def evaluate_rag_response(
     if precision is not None:
         result["context_precision"] = round(precision, 3)
     
-    logger.info(f"RAGAS Evaluation: {result}")
+    print(f"RAGAS Evaluation: {result}")
     
     return result
 

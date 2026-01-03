@@ -4,7 +4,7 @@ Módulo de Busca Híbrida (Vetorial + BM25/Full-Text Search).
 Combina busca semântica (pgvector) com busca por palavras-chave
 (PostgreSQL Full-Text Search) para obter resultados mais completos.
 """
-import logging
+
 import time
 from typing import Optional
 
@@ -18,10 +18,6 @@ from src.config import (
     HYBRID_SEARCH_ALPHA
 )
 
-# Standard logger for search operations
-search_logger = logging.getLogger("rag.search")
-
-
 def get_connection():
     """Cria conexão com o banco de dados."""
     return psycopg2.connect(**DATABASE_CONFIG)
@@ -32,7 +28,7 @@ def init_fulltext_search():
     Inicializa as estruturas necessárias para Full-Text Search.
     Adiciona coluna tsvector e índice GIN para busca por texto.
     """
-    search_logger.info("Initializing Full-Text Search structures...")
+    print("Initializing Full-Text Search structures...")
     start_time = time.time()
     
     conn = get_connection()
@@ -94,12 +90,12 @@ def init_fulltext_search():
             conn.commit()
             
         duration = time.time() - start_time
-        search_logger.info("Full-Text Search initialized in %.2fs", duration)
-        search_logger.info("Full-Text Search inicializado com sucesso!")
+        print("Full-Text Search initialized in %.2fs", duration)
+        print("Full-Text Search inicializado com sucesso!")
         
     except Exception as e:
         conn.rollback()
-        search_logger.error("Error initializing Full-Text Search: %s", e, exc_info=True)
+        print("Error initializing Full-Text Search: %s", e, exc_info=True)
         raise
     finally:
         conn.close()
@@ -121,7 +117,7 @@ def search_fulltext(
         Lista de documentos com content, metadata e rank
     """
     start_time = time.time()
-    search_logger.debug("Full-text search: '%s...' (top_k=%d)", query[:50], top_k)
+    print("Full-text search: '%s...' (top_k=%d)", query[:50], top_k)
     
     conn = get_connection()
     try:
@@ -159,7 +155,7 @@ def search_fulltext(
     duration = time.time() - start_time
     results_list = [dict(row) for row in results]
     
-    search_logger.debug("Full-text search returned %d results in %.3fs", len(results_list), duration)
+    print("Full-text search returned %d results in %.3fs", len(results_list), duration)
     
     return results_list
 
@@ -199,7 +195,7 @@ def search_hybrid(
     if min_similarity is None:
         min_similarity = MIN_SIMILARITY_THRESHOLD
     
-    search_logger.info("Hybrid Search Started | request_id=%s | alpha=%.2f | top_k=%d | collection_id=%s",
+    print("Hybrid Search Started | request_id=%s | alpha=%.2f | top_k=%d | collection_id=%s",
                     request_id or "unknown", alpha, top_k, collection_id or "default")
     
     # Buscar mais resultados inicialmente para ter margem de fusão
@@ -233,7 +229,7 @@ def search_hybrid(
             
             vector_results = cur.fetchall()
             
-            search_logger.info("Vector Search Results | request_id=%s | results=%d",
+            print("Vector Search Results | request_id=%s | results=%d",
                           request_id or "unknown", len(vector_results))
             
             # 2. Busca Full-Text
@@ -263,7 +259,7 @@ def search_hybrid(
             
             fts_results = cur.fetchall()
             
-            search_logger.info("FTS Search Results | request_id=%s | results=%d",
+            print("FTS Search Results | request_id=%s | results=%d",
                           request_id or "unknown", len(fts_results))
             
     finally:
@@ -339,7 +335,7 @@ def search_hybrid(
     
     duration = time.time() - start_time
     
-    search_logger.info("Hybrid Search Complete | request_id=%s | vector_results=%d | fts_results=%d | final_results=%d | total_duration=%.3fs",
+    print("Hybrid Search Complete | request_id=%s | vector_results=%d | fts_results=%d | final_results=%d | total_duration=%.3fs",
                     request_id or "unknown", len(vector_results), len(fts_results), len(final_results), duration)
     
     return final_results
@@ -384,7 +380,7 @@ def update_existing_documents_fts():
     Atualiza o search_vector para todos os documentos existentes.
     Útil após adicionar a funcionalidade de FTS.
     """
-    search_logger.info("Updating search_vector for all existing documents...")
+    print("Updating search_vector for all existing documents...")
     start_time = time.time()
     
     conn = get_connection()
@@ -399,13 +395,13 @@ def update_existing_documents_fts():
             conn.commit()
             
         duration = time.time() - start_time
-        search_logger.info("Updated %d documents in %.2fs", updated, duration)
-        search_logger.info("%d documentos atualizados com Full-Text Search!", updated)
+        print("Updated %d documents in %.2fs", updated, duration)
+        print("%d documentos atualizados com Full-Text Search!", updated)
         return updated
         
     except Exception as e:
         conn.rollback()
-        search_logger.error("Error updating documents: %s", e, exc_info=True)
+        print("Error updating documents: %s", e, exc_info=True)
         raise
     finally:
         conn.close()

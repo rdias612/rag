@@ -7,16 +7,12 @@ do pacote cryptography.
 import os
 import base64
 import json
-import logging
+
 from typing import Any, Optional
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from src.config import get_env
-
-
-security_logger = logging.getLogger("rag.security")
-
 
 class EncryptionManager:
     """
@@ -49,7 +45,7 @@ class EncryptionManager:
         
         self.cipher = Fernet(encryption_key)
         self._key = encryption_key
-        security_logger.info("EncryptionManager initialized successfully")
+        print("EncryptionManager initialized successfully")
     
     @staticmethod
     def _load_key_from_env() -> Optional[bytes]:
@@ -67,7 +63,7 @@ class EncryptionManager:
         try:
             return base64.urlsafe_b64decode(key_str.encode())
         except Exception as e:
-            security_logger.warning("Failed to decode encryption key from env: %s", str(e))
+            print("Failed to decode encryption key from env: %s", str(e))
             # Tentar usar como string direta
             try:
                 return key_str.encode()
@@ -129,7 +125,7 @@ class EncryptionManager:
             encrypted = self.cipher.encrypt(data.encode('utf-8'))
             return encrypted.decode('utf-8')
         except Exception as e:
-            security_logger.error("Encryption failed: %s", str(e))
+            print("Encryption failed: %s", str(e))
             raise
     
     def decrypt(self, encrypted_data: str) -> str:
@@ -152,10 +148,10 @@ class EncryptionManager:
             decrypted = self.cipher.decrypt(encrypted_data.encode('utf-8'))
             return decrypted.decode('utf-8')
         except InvalidToken as e:
-            security_logger.error("Decryption failed: Invalid token (wrong key or corrupted data)")
+            print("Decryption failed: Invalid token (wrong key or corrupted data)")
             raise
         except Exception as e:
-            security_logger.error("Decryption failed: %s", str(e))
+            print("Decryption failed: %s", str(e))
             raise
     
     def encrypt_dict(self, data: dict) -> str:
@@ -253,13 +249,13 @@ def get_encryption_manager() -> EncryptionManager:
             if encryption_key:
                 _encryption_manager = EncryptionManager(encryption_key.encode())
             else:
-                security_logger.warning(
+                print(
                     "ENCRYPTION_KEY not set, encryption will be disabled. "
                     "To enable encryption, set ENCRYPTION_KEY environment variable."
                 )
                 _encryption_manager = None
         else:
-            security_logger.info("Encryption is disabled (ENABLE_ENCRYPTION=false)")
+            print("Encryption is disabled (ENABLE_ENCRYPTION=false)")
             _encryption_manager = None
     
     return _encryption_manager
@@ -282,7 +278,7 @@ def encrypt_data(data: str) -> Optional[str]:
     try:
         return manager.encrypt(data)
     except Exception as e:
-        security_logger.error("Failed to encrypt data: %s", str(e))
+        print("Failed to encrypt data: %s", str(e))
         return data
 
 
@@ -306,7 +302,7 @@ def decrypt_data(encrypted_data: str) -> Optional[str]:
         # Dados não criptografados, retornar como está
         return encrypted_data
     except Exception as e:
-        security_logger.error("Failed to decrypt data: %s", str(e))
+        print("Failed to decrypt data: %s", str(e))
         return encrypted_data
 
 
@@ -327,7 +323,7 @@ def encrypt_metadata(metadata: dict) -> str:
     try:
         return manager.encrypt_dict(metadata)
     except Exception as e:
-        security_logger.error("Failed to encrypt metadata: %s", str(e))
+        print("Failed to encrypt metadata: %s", str(e))
         return json.dumps(metadata)
 
 
@@ -354,7 +350,7 @@ def decrypt_metadata(encrypted_metadata: str) -> dict:
         except:
             return {}
     except Exception as e:
-        security_logger.error("Failed to decrypt metadata: %s", str(e))
+        print("Failed to decrypt metadata: %s", str(e))
         return {}
 
 

@@ -5,10 +5,10 @@ Reordena chunks para maximizar diversidade enquanto
 mantém relevância, evitando redundância no contexto.
 """
 import math
-import logging
+
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+print(__name__)
 
 
 def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
@@ -74,7 +74,7 @@ def mmr_filter(
     has_embeddings = all(embedding_key in c for c in chunks)
     
     if not has_embeddings:
-        logger.warning("Chunks sem embeddings, usando similaridade existente como aproximação")
+        print("Chunks sem embeddings, usando similaridade existente como aproximação")
         return _mmr_without_embeddings(chunks, k, lambda_param, similarity_key)
     
     selected = []
@@ -125,7 +125,7 @@ def mmr_filter(
             del chunk[embedding_key]
         result.append(chunk)
     
-    logger.info(f"MMR: {len(chunks)} chunks -> {len(result)} diversos (λ={lambda_param})")
+    print(f"MMR: {len(chunks)} chunks -> {len(result)} diversos (λ={lambda_param})")
     
     return result
 

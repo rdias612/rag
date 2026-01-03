@@ -1,14 +1,10 @@
 """
 Repository para operações com instruções de tipos de perguntas (few-shot).
 """
-import logging
 import time
 from typing import Optional
 
 from src.data.repositories.base import BaseRepository
-
-# Standard logger for repository operations
-repo_logger = logging.getLogger("rag.repositories")
 
 # Cache em memória para instruções
 INSTRUCTION_CACHE = {}
@@ -44,7 +40,7 @@ class QuestionTypeInstructionRepository(BaseRepository):
                 return None
                 
         except Exception as e:
-            repo_logger.error("Error fetching instruction by ID %d: %s", id, e, exc_info=True)
+            print(f"Error fetching instruction by ID {id}: {e}")
             return None
     
     def find_by_question_type(self, question_type: str, use_cache: bool = True) -> Optional[str]:
@@ -80,14 +76,14 @@ class QuestionTypeInstructionRepository(BaseRepository):
                     template = row[0]
                     INSTRUCTION_CACHE[question_type] = template
                     INSTRUCTION_CACHE_LAST_UPDATE = current_time
-                    repo_logger.debug("Found instruction for type '%s' in DB", question_type)
+                    print(f"Found instruction for type '{question_type}' in DB")
                     return template
                 
-                repo_logger.debug("No instruction found for type '%s'", question_type)
+                print(f"No instruction found for type '{question_type}'")
                 return None
                 
         except Exception as e:
-            repo_logger.error("Error fetching instruction for type '%s': %s", question_type, e, exc_info=True)
+            print(f"Error fetching instruction for type '{question_type}': {e}")
             return None
     
     def create(self, entity: dict) -> int:
@@ -122,11 +118,11 @@ class QuestionTypeInstructionRepository(BaseRepository):
                 """, (question_type, template, description))
                 instruction_id = cur.fetchone()[0]
             
-            repo_logger.info("Created instruction '%s' with ID %d", question_type, instruction_id)
+            print(f"Created instruction '{question_type}' with ID {instruction_id}")
             return instruction_id
             
         except Exception as e:
-            repo_logger.error("Error creating instruction: %s", e, exc_info=True)
+            print(f"Error creating instruction: {e}")
             raise
     
     def create_instruction(self, question_type: str, template: str, description: str = None) -> tuple[bool, int, str]:
@@ -154,11 +150,11 @@ class QuestionTypeInstructionRepository(BaseRepository):
                 """, (question_type, template, description))
                 instruction_id = cur.fetchone()[0]
             
-            repo_logger.info("Created instruction '%s' with ID %d", question_type, instruction_id)
+            print(f"Created instruction '{question_type}' with ID {instruction_id}")
             return True, instruction_id, ""
             
         except Exception as e:
-            repo_logger.error("Error creating instruction: %s", e, exc_info=True)
+            print(f"Error creating instruction: {e}")
             return False, 0, str(e)
     
     def update(self, question_type: str, template: str = None, description: str = None, 
@@ -216,11 +212,11 @@ class QuestionTypeInstructionRepository(BaseRepository):
             if question_type in INSTRUCTION_CACHE:
                 del INSTRUCTION_CACHE[question_type]
             
-            repo_logger.info("Updated instruction '%s'", question_type)
+            print(f"Updated instruction '{question_type}'")
             return True, ""
             
         except Exception as e:
-            repo_logger.error("Error updating instruction '%s': %s", question_type, e, exc_info=True)
+            print(f"Error updating instruction '{question_type}': {e}")
             return False, str(e)
     
     def list_all(self) -> list[dict]:

@@ -2,7 +2,6 @@
 Repository para operações com documentos (chunks).
 """
 import json
-import logging
 import time
 from typing import Optional
 
@@ -14,9 +13,6 @@ from src.config import (
     ENCRYPT_DOCUMENT_CONTENT,
     ENCRYPT_METADATA
 )
-
-# Standard logger for repository operations
-repo_logger = logging.getLogger("rag.repositories")
 
 # Importar funções de criptografia
 try:
@@ -65,13 +61,13 @@ class DocumentRepository(BaseRepository):
             doc_id = cur.fetchone()[0]
         
         duration = time.time() - start_time
-        repo_logger.debug("DB INSERT Result | affected_rows=%d | duration=%.3fs", 1, duration)
+        print(f"DB INSERT Result | affected_rows=1 | duration={duration:.3f}s")
         return doc_id
     
     def create_batch(self, documents: list[dict]) -> int:
         """Insere múltiplos documentos em batch."""
         start_time = time.time()
-        repo_logger.debug("DB INSERT BATCH | documents_count=%d", len(documents))
+        print("DB INSERT BATCH | documents_count=%d", len(documents))
         
         with self._get_cursor() as cur:
             values = []
@@ -112,7 +108,7 @@ class DocumentRepository(BaseRepository):
             inserted_count = len(values)
         
         duration = time.time() - start_time
-        repo_logger.debug("DB INSERT BATCH Result | affected_rows=%d | duration=%.3fs", inserted_count, duration)
+        print(f"DB INSERT BATCH Result | affected_rows={inserted_count} | duration={duration:.3f}s")
         return inserted_count
     
     def find_similar(self, query_embedding: list[float], top_k: int = TOP_K_RESULTS,
@@ -126,7 +122,7 @@ class DocumentRepository(BaseRepository):
         if min_similarity is None:
             min_similarity = MIN_SIMILARITY_THRESHOLD
         
-        repo_logger.info("DB Vector Search | embedding_dim=%d | embedding_sample=%s | top_k=%d",
+        print("DB Vector Search | embedding_dim=%d | embedding_sample=%s | top_k=%d",
                         len(query_embedding), str(query_embedding[:10]), top_k)
         
         with self._get_cursor(dict_cursor=True) as cur:
@@ -193,7 +189,7 @@ class DocumentRepository(BaseRepository):
         if min_similarity > 0:
             results_list = [r for r in results_list if r["similarity"] >= min_similarity]
         
-        repo_logger.info("DB Search Results | results_count=%d | duration=%.3fs", len(results_list), duration)
+        print("DB Search Results | results_count=%d | duration=%.3fs", len(results_list), duration)
         return results_list
     
     def find_by_id(self, id: int) -> Optional[dict]:
@@ -227,7 +223,7 @@ class DocumentRepository(BaseRepository):
             deleted = cur.rowcount
         
         duration = time.time() - start_time
-        repo_logger.info("Removed %d chunks from %s in %.2fs", deleted, source_path, duration)
+        print(f"Removed {deleted} chunks from {source_path} in {duration:.2f}s")
         return deleted
     
     def list_collections(self) -> list[str]:

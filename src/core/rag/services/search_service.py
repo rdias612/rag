@@ -1,16 +1,12 @@
 """
 Serviço de busca de documentos.
 """
-import logging
+
 from typing import Optional, List, Dict, Any
 from src.data.hybrid_search import search_hybrid
 from src.data.sentence_window import expand_sentence_results
 from src.data.repositories.document_repository import DocumentRepository
 from src.config import ENABLE_HYBRID_SEARCH, HYBRID_SEARCH_ALPHA, TOP_K_RESULTS, SENTENCE_WINDOW_SIZE
-
-
-logger = logging.getLogger("rag.search")
-
 
 class SearchService:
     """Encapsula lógica de busca vetorial e híbrida."""
@@ -53,13 +49,13 @@ class SearchService:
         should_use_hybrid = use_hybrid if use_hybrid is not None else self._use_hybrid
         alpha = hybrid_alpha if hybrid_alpha is not None else self._hybrid_alpha
         
-        logger.info("Search Started | request_id=%s | search_type=%s | top_k=%d | alpha=%s | chunking_type=%s | collection_id=%s",
+        print("Search Started | request_id=%s | search_type=%s | top_k=%d | alpha=%s | chunking_type=%s | collection_id=%s",
                    request_id, "hybrid" if should_use_hybrid else "vector", top_k,
                    alpha if should_use_hybrid else None, chunking_type, collection_id)
         
         try:
             if should_use_hybrid:
-                logger.info("Hybrid Search | request_id=%s", request_id)
+                print("Hybrid Search | request_id=%s", request_id)
                 results = search_hybrid(
                     query=question,
                     query_embedding=query_embedding,
@@ -68,11 +64,11 @@ class SearchService:
                     collection_id=collection_id,
                     request_id=request_id
                 )
-                logger.info("Hybrid Search Complete | request_id=%s | results=%d",
+                print("Hybrid Search Complete | request_id=%s | results=%d",
                            request_id, len(results))
                 return results
             else:
-                logger.info("Vector Search | request_id=%s", request_id)
+                print("Vector Search | request_id=%s", request_id)
                 if chunking_type:
                     # Busca otimizada usando tabela documentos_ingeridos
                     results = self._doc_repo.find_similar_by_chunking_type(
@@ -82,7 +78,7 @@ class SearchService:
                         min_similarity=min_similarity,
                         collection_id=collection_id
                     )
-                    logger.info("Vector Search Complete (Chunking Type) | request_id=%s | chunking_type=%s | results=%d",
+                    print("Vector Search Complete (Chunking Type) | request_id=%s | chunking_type=%s | results=%d",
                                request_id, chunking_type, len(results))
                 else:
                     # Busca normal sem filtro de chunking_type
@@ -92,11 +88,11 @@ class SearchService:
                         min_similarity=min_similarity,
                         collection_id=collection_id
                     )
-                    logger.info("Vector Search Complete | request_id=%s | results=%d",
+                    print("Vector Search Complete | request_id=%s | results=%d",
                                request_id, len(results))
                 return results
         except Exception as e:
-            logger.exception("Search Service Error | request_id=%s | question=%s | search_type=%s | top_k=%d | error_type=%s | error_message=%s",
+            print("Search Service Error | request_id=%s | question=%s | search_type=%s | top_k=%d | error_type=%s | error_message=%s",
                            request_id, question[:100], "hybrid" if should_use_hybrid else "vector", top_k,
                            type(e).__name__, str(e))
             raise
@@ -146,28 +142,28 @@ class SearchService:
         """
         request_id = request_id or "unknown"
         
-        logger.info("Sentence Window Search Started | request_id=%s | top_k=%d | window_size=%d | collection_id=%s",
+        print("Sentence Window Search Started | request_id=%s | top_k=%d | window_size=%d | collection_id=%s",
                    request_id, top_k, window_size, collection_id)
         
         try:
             # 1. Buscar sentenças individuais usando DocumentRepository
-            logger.info("Sentence Search | request_id=%s", request_id)
+            print("Sentence Search | request_id=%s", request_id)
             sentence_results = self._doc_repo.find_similar(
                 query_embedding=query_embedding,
                 top_k=top_k * 2,  # Buscar mais para expandir
                 collection_id=collection_id,
                 chunking_type="sentence"  # Filtra apenas sentences
             )
-            logger.info("Sentence Search Complete | request_id=%s | sentences_found=%d",
+            print("Sentence Search Complete | request_id=%s | sentences_found=%d",
                        request_id, len(sentence_results))
             
             if not sentence_results:
-                logger.info("No Sentences Found | request_id=%s | question=%s",
+                print("No Sentences Found | request_id=%s | question=%s",
                            request_id, question[:100])
                 return []
             
             # 2. Agrupar por documento
-            logger.info("Grouping by Document | request_id=%s", request_id)
+            print("Grouping by Document | request_id=%s", request_id)
             sentences_by_doc = {}
             for result in sentence_results:
                 source_path = result.get("metadata", {}).get("source_path")
@@ -176,11 +172,11 @@ class SearchService:
                         sentences_by_doc[source_path] = []
                     sentences_by_doc[source_path].append(result)
             
-            logger.info("Documents Grouped | request_id=%s | unique_documents=%d",
+            print("Documents Grouped | request_id=%s | unique_documents=%d",
                        request_id, len(sentences_by_doc))
             
             # 3. Para cada documento, expandir janelas
-            logger.info("Window Expansion | request_id=%s", request_id)
+            print("Window Expansion | request_id=%s", request_id)
             expanded_results = []
             for source_path, sentences in sentences_by_doc.items():
                 # Buscar todas as sentenças do documento
@@ -196,20 +192,20 @@ class SearchService:
                 
                 expanded_results.extend(windows)
             
-            logger.info("Window Expansion Complete | request_id=%s | windows_created=%d",
+            print("Window Expansion Complete | request_id=%s | windows_created=%d",
                        request_id, len(expanded_results))
             
             # 4. Ordenar por similaridade e limitar
             expanded_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
             final_results = expanded_results[:top_k]
             
-            logger.info("Sentence Window Search Complete | request_id=%s | final_results=%d",
+            print("Sentence Window Search Complete | request_id=%s | final_results=%d",
                        request_id, len(final_results))
             
             return final_results
         
         except Exception as e:
-            logger.exception("Sentence Window Search Error | request_id=%s | question=%s | top_k=%d | window_size=%d | error_type=%s | error_message=%s",
+            print("Sentence Window Search Error | request_id=%s | question=%s | top_k=%d | window_size=%d | error_type=%s | error_message=%s",
                            request_id, question, top_k, window_size, type(e).__name__, str(e))
             raise
     

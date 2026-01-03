@@ -7,16 +7,10 @@ e reduzindo custos de tokens.
 """
 import time
 import re
-import logging
+
 from typing import Optional
 
 from src.core.llm import generate_response
-
-
-rag_logger = logging.getLogger("rag.pipeline")
-
-logger = logging.getLogger("rag.context_compression")
-
 
 # Template para compressão de contexto
 COMPRESSION_PROMPT_TEMPLATE = """Você é um assistente especializado em resumir textos mantendo as informações mais relevantes.
@@ -74,7 +68,7 @@ def compress_context(
     original_size = len(context)
     start_time = time.time()
     
-    rag_logger.info("Compressing context: %d chars -> target %d chars", original_size, target_size)
+    print("Compressing context: %d chars -> target %d chars", original_size, target_size)
     
     # Montar prompt de compressão
     prompt = COMPRESSION_PROMPT_TEMPLATE.format(
@@ -94,7 +88,7 @@ def compress_context(
     compressed_size = len(compressed)
     compression_ratio = (1 - compressed_size / original_size) * 100
     
-    rag_logger.info(
+    print(
         "Context compressed: %d -> %d chars (%.1f%% reduction) in %.2fs",
         original_size, compressed_size, compression_ratio, compression_time
     )
@@ -130,8 +124,7 @@ def smart_compress(
     original_size = len(context)
     
     if not should_compress(context, compression_threshold):
-        rag_logger.debug("Context size (%d) below threshold (%d), skipping compression",
-                      original_size, compression_threshold)
+        print("Context size (%d) below threshold (%d), skipping compression", original_size, compression_threshold)
         return {
             "context": context,
             "was_compressed": False,
@@ -214,9 +207,6 @@ def extract_key_sentences(
     
     result = ' '.join(s[2] for s in top_sentences)
     
-    rag_logger.debug(
-        "Key sentence extraction: %d sentences -> %d (%d chars -> %d chars)",
-        len(sentences), len(top_sentences), len(context), len(result)
-    )
+    print("Key sentence extraction: %d sentences -> %d (%d chars -> %d chars)", len(sentences), len(top_sentences), len(context), len(result))
     
     return result
