@@ -11,7 +11,6 @@ import logging
 import time
 import traceback
 import uuid
-from pathlib import Path
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from pydantic import ValidationError
 
@@ -118,18 +117,6 @@ def query_stream():
     # Gerar request_id
     request_id = generate_request_id()
 
-    # Teste extra: log no root e gravação direta no arquivo para verificar escrita
-    logging.getLogger().info("[CHAT ROOT] request_id=%s", request_id)
-    try:
-        log_path = Path(__file__).resolve().parents[3] / "logs" / "server.log"
-        with log_path.open("a", encoding="utf-8") as f:
-            f.write(f"[DIRECT CHAT] req={request_id} q={data.get('question','')[:80]}\n")
-    except Exception as e:
-        print(f"[CHAT] direct file write failed: {e}", flush=True)
-
-    # Log via root para testar propagação
-    logging.getLogger().info("CHAT root log | request_id=%s", request_id)
-    
     # Log entrada
     api_logger.info("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s",
                    request_id, "/api/query/stream", "POST", data.get("question", "")[:100])
