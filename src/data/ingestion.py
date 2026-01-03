@@ -18,6 +18,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Generator, Callable, Optional, Literal
 
+# Standard logger for ingestion operations
+logger = logging.getLogger("rag.ingestion")
+
 # Suprimir avisos do pydub sobre ffmpeg (comum em Windows sem ffmpeg instalado)
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub")
 
@@ -41,10 +44,6 @@ from src.config import (
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 from src.data.hierarchical_chunking import create_parent_child_chunks
 from src.data.sentence_window import create_sentence_index
-from src.core.logger import (
-    ingestion_logger as logger, 
-    log_execution_time
-)
 
 # =============================================================================
 # Formatos suportados e Proibidos (MarkItDown requer API key para estes)
@@ -77,27 +76,27 @@ def extract_text_with_markitdown(file_path: Path) -> list[dict]:
     
     # Proteção contra formatos que requerem API Key (imagem/áudio)
     if ext in FORBIDDEN_EXTENSIONS:
-        logger.error(f"Formato {ext} não suportado sem chave de API: {file_path.name}")
+        logger.error("Formato %s não suportado sem chave de API: %s", ext, file_path.name)
         raise ValueError(
             f"O formato {ext} requer uma chave de API para processamento (Multimodal) "
             "e não está habilitado no momento."
         )
 
     try:
-        logger.info(f"Convertendo {file_path.name} para Markdown")
+        logger.info("Convertendo %s para Markdown", file_path.name)
         start_time = datetime.now()
         result = md_converter.convert(str(file_path))
         text = result.text_content
         duration = (datetime.now() - start_time).total_seconds()
         
         if not text or not text.strip():
-            logger.warning(f"MarkItDown retornou texto vazio para {file_path.name}")
+            logger.warning("MarkItDown retornou texto vazio para %s", file_path.name)
             return []
             
-        logger.debug(f"Extração concluída para {file_path.name} em {duration:.2f}s. Tamanho: {len(text)} caracteres.")
+        logger.debug("Extração concluída para %s em %.2fs. Tamanho: %d caracteres.", file_path.name, duration, len(text))
         return [{"text": text.strip(), "page": 1}]
     except Exception as e:
-        logger.error(f"Erro ao converter {file_path.name} com MarkItDown: {e}")
+        logger.error("Erro ao converter %s com MarkItDown: %s", file_path.name, e, exc_info=True)
         raise e
 
 
@@ -251,7 +250,7 @@ def process_document_sentence_window(file_path: Path) -> list[dict]:
         chunk["metadata"]["chunk_index"] = chunk["metadata"]["sentence_index"]
         chunk["metadata"]["page"] = 1
     
-    logger.info(f"Created {len(sentence_chunks)} sentence chunks for {file_path.name}")
+    logger.info("Created %d sentence chunks for %s", len(sentence_chunks), file_path.name)
     
     return sentence_chunks
 
@@ -276,7 +275,7 @@ def process_document_with_chunking_type(
     elif chunking_type == "sentence":
         return process_document_sentence_window(file_path)
     else:
-        logger.warning(f"Unknown chunking type: {chunking_type}, using hierarchical")
+        logger.warning("Unknown chunking type: %s, using hierarchical", chunking_type)
         return _process_document_hierarchical(file_path)
 
 
@@ -301,7 +300,7 @@ def _process_document_hierarchical(file_path: Path) -> list[dict]:
     }
     
     # Gerar chunks hierárquicos
-    logger.debug(f"Iniciando chunking hierárquico para {file_path.name}")
+    logger.debug("Iniciando chunking hierárquico para %s", file_path.name)
     start_chunking = datetime.now()
     parent_chunks, child_chunks = create_parent_child_chunks(
         full_text,
@@ -311,7 +310,7 @@ def _process_document_hierarchical(file_path: Path) -> list[dict]:
         child_overlap=CHILD_CHUNK_OVERLAP
     )
     duration_chunking = (datetime.now() - start_chunking).total_seconds()
-    logger.debug(f"Chunking concluído: {len(parent_chunks)} pais, {len(child_chunks)} filhos em {duration_chunking:.2f}s")
+    logger.debug("Chunking concluído: %d pais, %d filhos em %.2fs", len(parent_chunks), len(child_chunks), duration_chunking)
     
     # 1. Processar Chunks Pais
     for i, p in enumerate(parent_chunks):
@@ -405,12 +404,12 @@ def process_all_documents(
     
     logger.info(f"Encontrados {len(document_files)} documentos")
     for ext, count in sorted(files_by_type.items()):
-        logger.info(f"   - {ext}: {count} arquivo(s)")
-    logger.info(f"Modo de chunking: {chunking_mode}")
-    logger.info(f"Iniciando processamento: {len(document_files)} documentos, modo={chunking_mode}")
+        logger.info("   - %s: %d arquivo(s)", ext, count)
+    logger.info("Modo de chunking: %s", chunking_mode)
+    logger.info("Iniciando processamento: %d documentos, modo=%s", len(document_files), chunking_mode)
     
     if USE_SEMANTIC_CHUNKING:
-        logger.info(f"   - max_chunk={CHUNK_SIZE}, min_chunk={MIN_CHUNK_SIZE}, overlap_sentences={CHUNK_OVERLAP_SENTENCES}")
+        logger.info("   - max_chunk=%d, min_chunk=%d, overlap_sentences=%d", CHUNK_SIZE, MIN_CHUNK_SIZE, CHUNK_OVERLAP_SENTENCES)
     
     total_chunks = 0
     
@@ -428,7 +427,7 @@ def process_all_documents(
         except ValueError:
             collection_id = "default"
             
-        logger.info(f"[{i}/{len(document_files)}] Processando: {doc_path.name} (Coleção: {collection_id})")
+        logger.info("[%d/%d] Processando: %s (Coleção: %s)", i, len(document_files), doc_path.name, collection_id)
         
         try:
             chunks = process_document_with_chunking_type(
@@ -436,20 +435,20 @@ def process_all_documents(
                 chunking_type if chunking_type else "hierarchical"
             )
             total_chunks += len(chunks)
-            logger.info(f"   Gerados {len(chunks)} chunks ({chunking_type or 'hierarchical'})")
-            logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks (Coleção: {collection_id})")
+            logger.info("   Gerados %d chunks (%s)", len(chunks), chunking_type or 'hierarchical')
+            logger.info("Processado %s: %d chunks (Coleção: %s)", doc_path.name, len(chunks), collection_id)
             
             for chunk in chunks:
                 # Adicionar collection_id ao chunk
                 chunk["collection_id"] = collection_id
                 yield chunk
-                
-        except Exception as e:
-            logger.error(f"Erro ao processar {doc_path.name}: {e}")
-            continue
-    
-    logger.info(f"Total: {total_chunks} chunks gerados de {len(document_files)} arquivos")
-    logger.info(f"Processamento concluído: {total_chunks} chunks de {len(document_files)} arquivos")
+                    
+            except Exception as e:
+                logger.error("Erro ao processar %s: %s", doc_path.name, e, exc_info=True)
+                continue
+        
+        logger.info("Total: %d chunks gerados de %d arquivos", total_chunks, len(document_files))
+        logger.info("Processamento concluído: %d chunks de %d arquivos", total_chunks, len(document_files))
 
 
 def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
@@ -515,8 +514,8 @@ def process_document_advanced(
     
     if should_use_advanced and len(texts) >= 32:  # Mínimo de 32 textos para valer a pena
         logger.info(
-            f"Using advanced batch processor for {file_path.name} "
-            f"({len(texts)} texts)"
+            "Using advanced batch processor for %s (%d texts)",
+            file_path.name, len(texts)
         )
         
         processor = get_advanced_processor()
@@ -526,8 +525,8 @@ def process_document_advanced(
         # Usar processamento padrão
         mode = "standard" if not should_use_advanced else "small document (<32 chunks)"
         logger.info(
-            f"Using standard batch processor for {file_path.name} "
-            f"({len(texts)} texts, mode={mode})"
+            "Using standard batch processor for %s (%d texts, mode=%s)",
+            file_path.name, len(texts), mode
         )
         embeddings = get_embeddings_batch(texts)
     

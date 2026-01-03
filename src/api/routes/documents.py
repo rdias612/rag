@@ -15,6 +15,7 @@ Endpoints:
 - POST /documents/reprocess - Reprocessa base de conhecimento
 """
 import hashlib
+import logging
 import threading
 import time
 import uuid
@@ -25,15 +26,6 @@ from flask import Blueprint, request, jsonify
 
 from src.config import DOCUMENTS_DIR
 from src.core.embeddings import get_embeddings_batch
-from src.core.logger import (
-    api_logger, 
-    ingestion_logger, 
-    log_api_request, 
-    log_api_response, 
-    log_api_input,
-    log_ingestion_start,
-    log_ingestion_complete
-)
 from src.api.middleware.rate_limiter import limiter, LIMITS
 from src.data.repositories import DocumentRepository, IngestionRepository
 from src.data.ingestion import (
@@ -43,6 +35,9 @@ from src.data.ingestion import (
     get_document_stats,
     get_all_documents
 )
+
+api_logger = logging.getLogger("rag.api")
+ingestion_logger = logging.getLogger("rag.ingestion")
 
 # Instâncias dos repositories
 _doc_repo = DocumentRepository()
@@ -84,7 +79,7 @@ def _calculate_file_hash(file_path: Path) -> str:
 def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str):
     """Processa um documento em background."""
     start_time = time.time()
-    log_ingestion_start(str(file_path), "upload")
+    ingestion_logger.info("Ingestion started | file=%s | type=upload", str(file_path))
     
     try:
         with _ingestion_lock:
@@ -101,7 +96,7 @@ def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str)
             with _ingestion_lock:
                 _ingestion_jobs[job_id]["status"] = "failed"
                 _ingestion_jobs[job_id]["error"] = "Nenhum texto extraído do documento"
-            ingestion_logger.warning(f"Job {job_id[:8]} failed: No text extracted from {original_filename}")
+            ingestion_logger.warning("Job %s failed: No text extracted from %s", job_id[:8], original_filename)
             return
         
         texts = [chunk["content"] for chunk in chunks]
@@ -127,10 +122,10 @@ def _process_ingestion_job(job_id: str, file_path: Path, original_filename: str)
             _ingestion_jobs[job_id]["message"] = f"Sucesso! {inserted} chunks indexados."
             _ingestion_jobs[job_id]["completed_at"] = datetime.now().isoformat()
         
-        log_ingestion_complete(str(file_path), inserted, duration)
+        ingestion_logger.info("Ingestion complete | file=%s | chunks=%d | duration=%.3fs", str(file_path), inserted, duration)
         
     except Exception as e:
-        ingestion_logger.error(f"Ingestion job {job_id[:8]}... failed: {e}", exc_info=True)
+        ingestion_logger.exception("Ingestion job %s... failed: %s", job_id[:8], e)
         with _ingestion_lock:
             _ingestion_jobs[job_id]["status"] = "failed"
             _ingestion_jobs[job_id]["error"] = str(e)
@@ -171,7 +166,7 @@ def _scan_documents():
                     "size": file_size
                 })
         except Exception as e:
-            api_logger.warning(f"Could not scan {doc_path}: {e}")
+            api_logger.warning("Could not scan %s: %s", doc_path, e)
             
     return pending
 
@@ -198,7 +193,7 @@ def _run_bulk_ingestion(
     if clear_database:
         doc_cleared = _doc_repo.clear_all()
         ing_cleared = _ingestion_repo.clear_all()
-        api_logger.info(f"Database cleared: {doc_cleared} chunks, {ing_cleared} records")
+        api_logger.info("Database cleared: %d chunks, %d records", doc_cleared, ing_cleared)
     
     try:
         all_document_files = get_all_documents(DOCUMENTS_DIR)
@@ -273,18 +268,18 @@ def _run_bulk_ingestion(
                 except ValueError:
                     collection_id = "default"
                 
-                api_logger.info(f"[{i}/{total_files}] Iniciando: {file_name}")
+                api_logger.info("[%d/%d] Iniciando: %s", i, total_files, file_name)
                 
                 # Determinar chunking type
                 chunking_type = "hierarchical"
                 if files_with_chunking and file_path_str in chunking_map:
                     chunking_type = chunking_map[file_path_str]
-                    api_logger.info(f"  → Using chunking type: {chunking_type}")
+                    api_logger.info("  → Using chunking type: %s", chunking_type)
                 
                 chunks = process_document_with_chunking_type(doc_path, chunking_type)
                 
                 if not chunks:
-                    api_logger.warning(f"  [!] Nenhum texto extraído de {file_name}")
+                    api_logger.warning("  [!] Nenhum texto extraído de %s", file_name)
                     docs_failed += 1
                     _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, 0, "error", chunking_type)
                     with _bulk_ingestion_lock:
@@ -315,7 +310,7 @@ def _run_bulk_ingestion(
                 _ingestion_repo.create(file_path_str, file_hash, file_size, collection_id, inserted, "success", chunking_type)
                 
                 docs_processed += 1
-                api_logger.info(f"  [V] Concluído: {file_name} ({inserted} chunks)")
+                api_logger.info("  [V] Concluído: %s (%d chunks)", file_name, inserted)
                 
                 with _bulk_ingestion_lock:
                     _bulk_ingestion_status["results"].append({
@@ -327,7 +322,7 @@ def _run_bulk_ingestion(
                     
             except Exception as e:
                 docs_failed += 1
-                api_logger.error(f"  [X] ERRO ao processar {file_name}: {e}", exc_info=True)
+                api_logger.exception("  [X] ERRO ao processar %s: %s", file_name, e)
                 with _bulk_ingestion_lock:
                     _bulk_ingestion_status["results"].append({
                         "file": file_name,
@@ -341,7 +336,7 @@ def _run_bulk_ingestion(
             _bulk_ingestion_status["message"] = f"Concluído: {docs_processed} processados, {docs_skipped} ignorados, {docs_failed} erros"
             
     except Exception as e:
-        api_logger.error(f"Bulk ingestion failed: {e}")
+        api_logger.exception("Bulk ingestion failed: %s", e)
         with _bulk_ingestion_lock:
             _bulk_ingestion_status["running"] = False
             _bulk_ingestion_status["message"] = f"Erro: {str(e)}"
@@ -355,23 +350,26 @@ def _run_bulk_ingestion(
 def ingest_document():
     """Upload e ingestão de um documento."""
     start_time = time.time()
-    log_api_request("/api/ingest", "POST")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/ingest", "POST")
     
     if "file" not in request.files:
-        log_api_response("/api/ingest", 400, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/ingest", 400, time.time() - start_time)
         return jsonify({"error": "Nenhum arquivo enviado. Use 'file' no form-data."}), 400
     
     file = request.files["file"]
     
     if file.filename == "":
-        log_api_response("/api/ingest", 400, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/ingest", 400, time.time() - start_time)
         return jsonify({"error": "Nome do arquivo vazio"}), 400
     
     filename = file.filename
     ext = Path(filename).suffix.lower()
     
     if ext not in SUPPORTED_EXTENSIONS:
-        log_api_response("/api/ingest", 400, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/ingest", 400, time.time() - start_time)
         return jsonify({
             "error": f"Formato não suportado: {ext}",
             "supported_formats": list(SUPPORTED_EXTENSIONS)
@@ -407,8 +405,9 @@ def ingest_document():
         thread.daemon = True
         thread.start()
         
-        api_logger.info(f"Ingestion job started: {job_id[:8]}... for {filename}")
-        log_api_response("/api/ingest", 202, time.time() - start_time)
+        api_logger.info("Ingestion job started: %s... for %s", job_id[:8], filename)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/ingest", 202, time.time() - start_time)
         
         return jsonify({
             "job_id": job_id,
@@ -418,8 +417,9 @@ def ingest_document():
         }), 202
         
     except Exception as e:
-        api_logger.error(f"Error starting ingestion: {e}")
-        log_api_response("/api/ingest", 500, time.time() - start_time)
+        api_logger.exception("Error starting ingestion: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/ingest", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -427,16 +427,18 @@ def ingest_document():
 def get_ingestion_status(job_id: str):
     """Verifica o status de um job de ingestão."""
     start_time = time.time()
-    log_api_request(f"/api/ingest/status/{job_id[:8]}...", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", f"/api/ingest/status/{job_id[:8]}...", "GET")
     
     with _ingestion_lock:
         job = _ingestion_jobs.get(job_id)
     
     if job is None:
-        log_api_response(f"/api/ingest/status/{job_id[:8]}...", 404, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/ingest/status/{job_id[:8]}...", 404, time.time() - start_time)
         return jsonify({"error": "Job não encontrado"}), 404
     
-    log_api_response(f"/api/ingest/status/{job_id[:8]}...", 200, time.time() - start_time)
+    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                   f"/api/ingest/status/{job_id[:8]}...", 200, time.time() - start_time)
     return jsonify(job)
 
 
@@ -444,7 +446,7 @@ def get_ingestion_status(job_id: str):
 def list_ingestion_jobs():
     """Lista todos os jobs de ingestão."""
     start_time = time.time()
-    log_api_request("/api/ingest/jobs", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/ingest/jobs", "GET")
     
     status_filter = request.args.get("status")
     
@@ -456,7 +458,8 @@ def list_ingestion_jobs():
     
     jobs.sort(key=lambda x: x["created_at"], reverse=True)
     
-    log_api_response("/api/ingest/jobs", 200, time.time() - start_time)
+    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                   "/api/ingest/jobs", 200, time.time() - start_time)
     
     return jsonify({
         "jobs": jobs,
@@ -468,9 +471,10 @@ def list_ingestion_jobs():
 def get_supported_formats():
     """Retorna os formatos de arquivo suportados para ingestão."""
     start_time = time.time()
-    log_api_request("/api/ingest/formats", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/ingest/formats", "GET")
     
-    log_api_response("/api/ingest/formats", 200, time.time() - start_time)
+    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                   "/api/ingest/formats", 200, time.time() - start_time)
     
     return jsonify({
         "formats": sorted(list(SUPPORTED_EXTENSIONS)),
@@ -492,7 +496,7 @@ def get_supported_formats():
 def documents_stats():
     """Retorna estatísticas dos documentos no diretório de ingestão."""
     start_time = time.time()
-    log_api_request("/api/documents/stats", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/stats", "GET")
     
     try:
         if DOCUMENTS_DIR.exists():
@@ -514,12 +518,14 @@ def documents_stats():
             "documents_dir": str(DOCUMENTS_DIR)
         }
         
-        log_api_response("/api/documents/stats", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/stats", 200, time.time() - start_time)
         return jsonify(result)
         
     except Exception as e:
-        api_logger.error(f"Error in /documents/stats: {e}")
-        log_api_response("/api/documents/stats", 500, time.time() - start_time)
+        api_logger.exception("Error in /documents/stats: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -527,7 +533,7 @@ def documents_stats():
 def get_ingested_documents():
     """Lista todos os documentos já ingeridos."""
     start_time = time.time()
-    log_api_request("/api/documents/ingested", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/ingested", "GET")
     
     try:
         collection_filter = request.args.get("collection")
@@ -540,15 +546,17 @@ def get_ingested_documents():
             if hasattr(doc.get("updated_at"), "isoformat"):
                 doc["updated_at"] = doc["updated_at"].isoformat()
         
-        log_api_response("/api/documents/ingested", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/ingested", 200, time.time() - start_time)
         return jsonify({
             "documents": documents,
             "count": len(documents)
         })
         
     except Exception as e:
-        api_logger.error(f"Error in /documents/ingested: {e}")
-        log_api_response("/api/documents/ingested", 500, time.time() - start_time)
+        api_logger.exception("Error in /documents/ingested: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/ingested", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -556,7 +564,7 @@ def get_ingested_documents():
 def get_directory_documents():
     """Lista todos os documentos no diretório com seu status de ingestão."""
     start_time = time.time()
-    log_api_request("/api/documents/directory", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/directory", "GET")
     
     try:
         document_files = get_all_documents(DOCUMENTS_DIR)
@@ -590,7 +598,7 @@ def get_directory_documents():
                     else:
                         status = "outdated"
                 except Exception as e:
-                    api_logger.warning(f"Could not calculate hash for {file_name}: {e}")
+                    api_logger.warning("Could not calculate hash for %s: %s", file_name, e)
                     status = "error"
                 
                 collection_id = existing.get("collection_id", "default")
@@ -616,15 +624,17 @@ def get_directory_documents():
                 "ingested_at": ingested_at
             })
             
-        log_api_response("/api/documents/directory", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/directory", 200, time.time() - start_time)
         return jsonify({
             "documents": results,
             "count": len(results)
         })
         
     except Exception as e:
-        api_logger.error(f"Error in /documents/directory: {e}")
-        log_api_response("/api/documents/directory", 500, time.time() - start_time)
+        api_logger.exception("Error in /documents/directory: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/directory", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -633,10 +643,11 @@ def delete_ingested_document():
     """Deleta um documento e todos os seus chunks do banco."""
     start_time = time.time()
     data = request.get_json() or {}
-    log_api_input("/api/documents/delete", "POST", data)
+    api_logger.info("API Request | endpoint=%s | method=%s | body=%s", "/api/documents/delete", "POST", data)
     
     if "file_path" not in data:
-        log_api_response("/api/documents/delete", 400, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/delete", 400, time.time() - start_time)
         return jsonify({"error": "Campo 'file_path' é obrigatório"}), 400
     
     file_path = data["file_path"]
@@ -644,14 +655,16 @@ def delete_ingested_document():
     try:
         existing = _ingestion_repo.find_by_path(file_path)
         if not existing:
-            log_api_response("/api/documents/delete", 404, time.time() - start_time)
+            api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           "/api/documents/delete", 404, time.time() - start_time)
             return jsonify({"error": "Documento não encontrado"}), 404
         
         chunks_removed = _doc_repo.delete_by_source(file_path)
         _ingestion_repo.delete_by_path(file_path)
         
-        api_logger.info(f"Document deleted: {file_path}, {chunks_removed} chunks removed")
-        log_api_response("/api/documents/delete", 200, time.time() - start_time)
+        api_logger.info("Document deleted: %s, %d chunks removed", file_path, chunks_removed)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/delete", 200, time.time() - start_time)
         
         return jsonify({
             "message": "Documento removido com sucesso",
@@ -660,8 +673,9 @@ def delete_ingested_document():
         })
         
     except Exception as e:
-        api_logger.error(f"Error deleting document: {e}")
-        log_api_response("/api/documents/delete", 500, time.time() - start_time)
+        api_logger.exception("Error deleting document: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/delete", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -669,20 +683,22 @@ def delete_ingested_document():
 def scan_pending_documents():
     """Retorna lista de documentos que precisam de atualização."""
     start_time = time.time()
-    log_api_request("/api/documents/scan", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/scan", "GET")
     
     try:
         pending = _scan_documents()
         duration = time.time() - start_time
-        log_api_response("/api/documents/scan", 200, duration)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/scan", 200, duration)
         
         return jsonify({
             "pending": pending,
             "count": len(pending)
         }), 200
     except Exception as e:
-        api_logger.error(f"Error scanning documents: {e}")
-        log_api_response("/api/documents/scan", 500, time.time() - start_time)
+        api_logger.exception("Error scanning documents: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/scan", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -695,7 +711,7 @@ def scan_with_selection():
     Usado pelo frontend para mostrar modal onde usuário escolhe tipo de chunking.
     """
     start_time = time.time()
-    log_api_request("/api/documents/scan-with-selection", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/scan-with-selection", "GET")
     
     try:
         pending = _scan_documents()
@@ -713,15 +729,17 @@ def scan_with_selection():
         ]
         
         duration = time.time() - start_time
-        log_api_response("/api/documents/scan-with-selection", 200, duration)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/scan-with-selection", 200, duration)
         
         return jsonify({
             "pending": pending_with_chunking,
             "count": len(pending_with_chunking)
         }), 200
     except Exception as e:
-        api_logger.error(f"Error scanning documents with selection: {e}")
-        log_api_response("/api/documents/scan-with-selection", 500, time.time() - start_time)
+        api_logger.exception("Error scanning documents with selection: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/scan-with-selection", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -734,7 +752,7 @@ def scan_all_documents():
     de limpar a base de conhecimento e reiniciar a ingestão.
     """
     start_time = time.time()
-    log_api_request("/api/documents/scan-all", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/scan-all", "GET")
     
     try:
         all_document_files = get_all_documents(DOCUMENTS_DIR)
@@ -752,18 +770,20 @@ def scan_all_documents():
                     "chunkingType": "hierarchical"  # Default
                 })
             except Exception as e:
-                api_logger.warning(f"Could not scan {doc_path}: {e}")
-        
+                api_logger.warning("Could not scan %s: %s", doc_path, e)
+    
         duration = time.time() - start_time
-        log_api_response("/api/documents/scan-all", 200, duration)
+    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                   "/api/documents/scan-all", 200, duration)
         
         return jsonify({
             "pending": all_with_chunking,
             "count": len(all_with_chunking)
-        }), 200
+        })
     except Exception as e:
-        api_logger.error(f"Error scanning all documents: {e}")
-        log_api_response("/api/documents/scan-all", 500, time.time() - start_time)
+        api_logger.exception("Error scanning all documents: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/scan-all", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -789,7 +809,7 @@ def start_bulk_ingestion():
     
     start_time = time.time()
     data = request.get_json() or {}
-    log_api_input("/api/documents/ingest-all", "POST", data)
+    api_logger.info("API Request | endpoint=%s | method=%s | body=%s", "/api/documents/ingest-all", "POST", data)
     
     force = data.get("force", False)
     files_with_chunking = data.get("files", None)
@@ -813,7 +833,8 @@ def start_bulk_ingestion():
         
     with _bulk_ingestion_lock:
         if _bulk_ingestion_status["running"]:
-            log_api_response("/api/documents/ingest-all", 409, time.time() - start_time)
+            api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           "/api/documents/ingest-all", 409, time.time() - start_time)
             return jsonify({"error": "Ingestão já está em andamento"}), 409
         
         _bulk_ingestion_status["running"] = True
@@ -827,8 +848,9 @@ def start_bulk_ingestion():
     thread.daemon = True
     thread.start()
     
-    api_logger.info(f"Bulk ingestion started: {total_to_process} files to process (force={force})")
-    log_api_response("/api/documents/ingest-all", 202, time.time() - start_time)
+    api_logger.info("Bulk ingestion started: %d files to process (force=%s)", total_to_process, force)
+    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                   "/api/documents/ingest-all", 202, time.time() - start_time)
     
     return jsonify({
         "message": "Ingestão iniciada",
@@ -861,11 +883,12 @@ def reprocess_knowledge_base():
     global _bulk_ingestion_status
     
     start_time = time.time()
-    log_api_request("/api/documents/reprocess", "POST")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/documents/reprocess", "POST")
     
     with _bulk_ingestion_lock:
         if _bulk_ingestion_status["running"]:
-            log_api_response("/api/documents/reprocess", 409, time.time() - start_time)
+            api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           "/api/documents/reprocess", 409, time.time() - start_time)
             return jsonify({"error": "Ingestão já está em andamento"}), 409
     
     data = request.get_json() or {}
@@ -894,8 +917,9 @@ def reprocess_knowledge_base():
         thread.start()
         
         total_files = len(get_all_documents(DOCUMENTS_DIR))
-        api_logger.info(f"Reprocessing started: cleared {cleared}, processing {total_files} files")
-        log_api_response("/api/documents/reprocess", 202, time.time() - start_time)
+        api_logger.info("Reprocessing started: cleared %s, processing %d files", cleared, total_files)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/reprocess", 202, time.time() - start_time)
         
         return jsonify({
             "message": "Reprocessamento iniciado",
@@ -904,6 +928,7 @@ def reprocess_knowledge_base():
         }), 202
         
     except Exception as e:
-        api_logger.error(f"Error starting reprocess: {e}")
-        log_api_response("/api/documents/reprocess", 500, time.time() - start_time)
+        api_logger.exception("Error starting reprocess: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/reprocess", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500

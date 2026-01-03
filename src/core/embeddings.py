@@ -3,22 +3,16 @@ Módulo de geração de embeddings via LM Studio API (Nomic Embed v1.5).
 """
 import time
 import re
+import logging
 import requests
 from typing import Union
 
 from src.config import LM_STUDIO_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSION
-from src.core.logger import (
-    embedding_logger,
-    log_embedding_request,
-    log_embedding_response,
-    log_embedding_batch_request,
-    log_embedding_batch_response,
-    log_step,
-    log_error
-)
-
 from src.config import EMBEDDING_CACHE_ENABLED
 from src.core.embedding_cache import embedding_cache
+
+
+embedding_logger = logging.getLogger("rag.embeddings")
 
 
 def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> list[float]:
@@ -38,16 +32,14 @@ def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> 
     if use_cache and EMBEDDING_CACHE_ENABLED:
         cached = embedding_cache.get(text)
         if cached is not None:
-            log_step(embedding_logger, "Embedding from Cache",
-                      request_id=request_id,
-                      text_length=len(text))
+            embedding_logger.info("Embedding from Cache | request_id=%s | text_len=%d",
+                                 request_id, len(text))
             return cached
     
     start_time = time.time()
     
-    log_step(embedding_logger, "Embedding Generation Started",
-              request_id=request_id,
-              text_length=len(text))
+    embedding_logger.info("Embedding Generation Started | request_id=%s | text_len=%d",
+                         request_id, len(text))
     
     # Limpeza robusta do texto para evitar erros no modelo/LM Studio
     # 1. Remover caracteres não imprimíveis e de controle (exceto \n, \r, \t)
@@ -58,7 +50,7 @@ def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> 
     
     # 3. Validar tamanho mínimo do texto (chunks muito pequenos causam problemas)
     if len(text) < 10:
-        embedding_logger.warning(f"Texto muito pequeno ({len(text)} chars) após limpeza. Retornando None.")
+        embedding_logger.warning("Texto muito pequeno (%d chars) após limpeza. Retornando None.", len(text))
         return None
     
     # 4. Validar conteúdo do texto (evitar chunks só com caracteres especiais)
@@ -67,7 +59,7 @@ def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> 
         return None
 
     # Log do texto enviado para embedding
-    log_embedding_request(text, EMBEDDING_MODEL)
+    embedding_logger.info("Embedding Request | model=%s | text_len=%d", EMBEDDING_MODEL, len(text))
     
     response = requests.post(
         f"{LM_STUDIO_BASE_URL}/embeddings",
@@ -116,9 +108,8 @@ def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> 
         # Logar o texto que causou problema para análise
         text_sample = text[:150] + "..." if len(text) > 150 else text
         embedding_logger.warning(
-            f"Embedding inválido retornado para '{text_sample}'. "
-            f"Texto: {len(text)} chars, Embedding: {len(embedding) if embedding else 0} dims. "
-            f"Erro: {error_reason}. Tentando retry único..."
+            "Embedding inválido retornado para '%s'. Texto: %d chars, Embedding: %d dims. Erro: %s. Tentando retry único...",
+            text_sample, len(text), len(embedding) if embedding else 0, error_reason
         )
         
         # Um pequeno sleep antes de tentar de novo
@@ -168,26 +159,21 @@ def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> 
             # Log mais detalhado para debug
             text_sample = text[:150] + "..." if len(text) > 150 else text
             embedding_logger.error(
-                f"ERRO: Embedding inválido após retry. "
-                f"Texto: '{text_sample}' ({len(text)} chars). "
-                f"Erro: {error_reason}"
+                "ERRO: Embedding inválido após retry. Texto: '%s' (%d chars). Erro: %s",
+                text_sample, len(text), error_reason
             )
             raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) após retry para o texto: '{text[:50]}...'")
 
     # Log do embedding gerado
-    log_embedding_response(embedding, duration)
+    embedding_logger.info("Embedding Response | dim=%d | duration=%.3fs", len(embedding), duration)
     
-    log_step(embedding_logger, "Embedding Generated",
-              request_id=request_id,
-              dimension=len(embedding),
-              duration=f"{duration:.3f}s",
-              was_cached=False)
+    embedding_logger.info("Embedding Generated | request_id=%s | dimension=%d | duration=%s | was_cached=%s",
+                         request_id, len(embedding), f"{duration:.3f}s", False)
     
     # Armazenar no cache (se habilitado)
     if use_cache and EMBEDDING_CACHE_ENABLED:
         embedding_cache.set(text, embedding)
-        log_step(embedding_logger, "Embedding Cached",
-                  request_id=request_id)
+        embedding_logger.info("Embedding Cached | request_id=%s", request_id)
     
     return embedding
 
@@ -209,11 +195,8 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
     request_id = request_id or "unknown"
     
     doc_info = f" [{document_name}]" if document_name else ""
-    log_step(embedding_logger, "Batch Embedding Started",
-              request_id=request_id,
-              document_name=document_name or "unknown",
-              texts_count=len(texts),
-              batch_size=batch_size)
+    embedding_logger.info("Batch Embedding Started | request_id=%s | document_name=%s | texts_count=%d | batch_size=%d",
+                         request_id, document_name or "unknown", len(texts), batch_size)
     
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
@@ -223,7 +206,7 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
         
         batch_start = time.time()
         
-        log_embedding_batch_request(len(batch), EMBEDDING_MODEL)
+        embedding_logger.info("Embedding Batch Request | model=%s | texts_count=%d", EMBEDDING_MODEL, len(batch))
         
         response = requests.post(
             f"{LM_STUDIO_BASE_URL}/embeddings",
@@ -281,9 +264,8 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
                 text_sample = problematic_text[:100] + "..." if len(problematic_text) > 100 else problematic_text
                 
                 embedding_logger.warning(
-                    f"Embedding inválido no batch (index {orig_idx}). "
-                    f"Texto: '{text_sample}' ({len(problematic_text)} chars). "
-                    f"Erro: {error_reason}. Tentando recuperação individual..."
+                    "Embedding inválido no batch (index %d). Texto: '%s' (%d chars). Erro: %s. Tentando recuperação individual...",
+                    orig_idx, text_sample, len(problematic_text), error_reason
                 )
                 
                 try:
@@ -293,7 +275,7 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
                     recovered_emb = get_embedding(problematic_text, use_cache=False)
                     
                     # Log de sucesso na recuperação
-                    embedding_logger.info(f"Sucesso ao recuperar embedding individual para index {orig_idx}")
+                    embedding_logger.info("Sucesso ao recuperar embedding individual para index %d", orig_idx)
                     validated_embeddings.append(recovered_emb)
                 except Exception as e:
                     # Se falhar mesmo individualmente, colocamos None e o banco lidará com isso
@@ -301,23 +283,21 @@ def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: 
                     
                     # Log mais informativo e menos assustador, pois o sistema irá ignorar este trecho
                     embedding_logger.warning(
-                        f"CHUNK IGNORADO (Falha persistente no modelo) no index {orig_idx}: '{text_sample}'. "
-                        f"Motivo: {str(e)}"
+                        "CHUNK IGNORADO (Falha persistente no modelo) no index %d: '%s'. Motivo: %s",
+                        orig_idx, text_sample, str(e)
                     )
 
         all_embeddings.extend(validated_embeddings)
         
         batch_duration = time.time() - batch_start
-        log_embedding_batch_response(len(batch), batch_duration, EMBEDDING_DIMENSION)
+        embedding_logger.info("Embedding Batch Response | count=%d | duration=%.3fs | dim=%d",
+                             len(batch), batch_duration, EMBEDDING_DIMENSION)
         
-        embedding_logger.info(f"Embeddings progress{doc_info}: {min(i + batch_size, len(texts))}/{len(texts)} chunks")
+        embedding_logger.info("Embeddings progress%s: %d/%d chunks", doc_info, min(i + batch_size, len(texts)), len(texts))
     
     total_duration = time.time() - total_start
-    log_step(embedding_logger, "Batch Embedding Complete",
-              request_id=request_id,
-              document_name=document_name or "unknown",
-              total_embeddings=len(all_embeddings),
-              total_duration=f"{total_duration:.2f}s")
+    embedding_logger.info("Batch Embedding Complete | request_id=%s | document_name=%s | total_embeddings=%d | total_duration=%s",
+                         request_id, document_name or "unknown", len(all_embeddings), f"{total_duration:.2f}s")
     
     return all_embeddings
 
@@ -327,8 +307,8 @@ def check_embedding_service() -> bool:
     try:
         # Testar com um texto simples
         embedding = get_embedding("teste")
-        embedding_logger.info(f"Embedding service available. Dimension: {len(embedding)}")
+        embedding_logger.info("Embedding service available. Dimension: %d", len(embedding))
         return len(embedding) > 0
     except Exception as e:
-        embedding_logger.error(f"Embedding service error: {e}")
+        embedding_logger.error("Embedding service error: %s", str(e))
         return False

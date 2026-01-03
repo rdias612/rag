@@ -1,12 +1,14 @@
 """
 Repository para controle de ingestão de documentos.
 """
+import logging
 import time
 from typing import Optional, List
-from datetime import datetime
 
 from src.data.repositories.base import BaseRepository
-from src.core.logger import db_logger, log_db_query, log_db_result
+
+# Standard logger for repository operations
+repo_logger = logging.getLogger("rag.repositories")
 
 
 class IngestionRepository(BaseRepository):
@@ -34,7 +36,7 @@ class IngestionRepository(BaseRepository):
             )
             row = cur.fetchone()
             return dict(row) if row else None
-
+    
     def find_by_id(self, id: int) -> Optional[dict]:
         """
         Busca um registro de ingestão pelo ID.
@@ -77,7 +79,7 @@ class IngestionRepository(BaseRepository):
             ID do registro criado
         """
         start_time = time.time()
-        log_db_query("INSERT", "documentos_ingeridos", file_path)
+        repo_logger.debug("DB INSERT | table=documentos_ingeridos | file_path=%s", file_path)
         
         with self._get_cursor() as cur:
             cur.execute(
@@ -92,8 +94,8 @@ class IngestionRepository(BaseRepository):
             doc_id = cur.fetchone()[0]
         
         duration = time.time() - start_time
-        log_db_result("INSERT", 1, duration)
-        db_logger.info(f"Registered ingested document: {file_path} (ID: {doc_id}) in {duration:.2f}s")
+        repo_logger.debug("DB INSERT Result | affected_rows=%d | duration=%.3fs", 1, duration)
+        repo_logger.info("Registered ingested document: %s (ID: %d) in %.2fs", file_path, doc_id, duration)
         
         return doc_id
     
@@ -116,7 +118,7 @@ class IngestionRepository(BaseRepository):
             True se atualizado, False se não encontrado
         """
         start_time = time.time()
-        log_db_query("UPDATE", "documentos_ingeridos", file_path)
+        repo_logger.debug("DB UPDATE | table=documentos_ingeridos | file_path=%s", file_path)
         
         with self._get_cursor() as cur:
             cur.execute(
@@ -137,8 +139,8 @@ class IngestionRepository(BaseRepository):
         
         duration = time.time() - start_time
         if updated:
-            log_db_result("UPDATE", 1, duration)
-            db_logger.info(f"Updated ingested document: {file_path} in {duration:.2f}s")
+            repo_logger.debug("DB UPDATE Result | affected_rows=%d | duration=%.3fs", 1, duration)
+            repo_logger.info("Updated ingested document: %s in %.2fs", file_path, duration)
         
         return updated
     
@@ -321,7 +323,7 @@ class IngestionRepository(BaseRepository):
         
         duration = time.time() - start_time
         if deleted:
-            db_logger.info(f"Deleted ingestion record for {file_path} in {duration:.2f}s")
+            repo_logger.info("Deleted ingestion record for %s in %.2fs", file_path, duration)
         
         return deleted
     
@@ -339,7 +341,7 @@ class IngestionRepository(BaseRepository):
             deleted = cur.rowcount
         
         duration = time.time() - start_time
-        db_logger.info(f"Cleared all ingestion records ({deleted} records) in {duration:.2f}s")
+        repo_logger.info("Cleared all ingestion records (%d records) in %.2fs", deleted, duration)
         
         return deleted
     

@@ -4,11 +4,14 @@ Módulo de rotas da API.
 Esse módulo exporta um Blueprint único que agrega todos os sub-blueprints
 por domínio, mantendo compatibilidade retroativa com o código existente.
 """
+import logging
+
 from flask import Blueprint
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from src.core.conversation import conversation_manager
-from src.core.logger import api_logger
+
+api_logger = logging.getLogger("rag.api")
 
 # Criar blueprint principal (mantém compatibilidade com routes.py original)
 api = Blueprint("api", __name__)
@@ -48,9 +51,9 @@ def _run_session_cleanup():
     try:
         count = conversation_manager.cleanup_expired_sessions()
         if count > 0:
-            api_logger.debug(f"Background cleanup: {count} sessions removed")
+            api_logger.debug("Background cleanup: %d sessions removed", count)
     except Exception as e:
-        api_logger.error(f"Error in background session cleanup: {e}")
+        api_logger.error("Error in background session cleanup: %s", e, exc_info=True)
 
 
 # Adicionar job para rodar a cada 10 minutos

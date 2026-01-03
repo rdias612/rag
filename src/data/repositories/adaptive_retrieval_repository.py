@@ -1,14 +1,17 @@
 """
 Repository para Adaptive Retrieval Metrics.
-
+ 
 Gerencia persistência e consulta de métricas de adaptive retrieval.
 """
+import json
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-import json
-from src.data.repositories.base import BaseRepository
-from src.core.logger import logger
 
+from src.data.repositories.base import BaseRepository
+
+# Standard logger for repository operations
+repo_logger = logging.getLogger("rag.repositories")
 
 class AdaptiveRetrievalRepository(BaseRepository):
     """Repository para métricas de adaptive retrieval."""
@@ -25,7 +28,7 @@ class AdaptiveRetrievalRepository(BaseRepository):
                 row = cur.fetchone()
                 return dict(row) if row else None
         except Exception as e:
-            logger.error(f"Error finding adaptive metric by id: {e}")
+            repo_logger.error("Error finding adaptive metric by id: %s", e, exc_info=True)
             raise
 
     def save_metric(
@@ -86,10 +89,10 @@ class AdaptiveRetrievalRepository(BaseRepository):
                 ))
                 result = cur.fetchone()
                 metric_id = result[0] if result else None
-                logger.info(f"Adaptive metric saved: ID={metric_id}, complexity={complexity_score}")
+                repo_logger.info("Adaptive metric saved: ID=%d, complexity=%d", metric_id, complexity_score)
                 return metric_id
         except Exception as e:
-            logger.error(f"Error saving adaptive retrieval metric: {e}")
+            repo_logger.error("Error saving adaptive retrieval metric: %s", e, exc_info=True)
             raise
     
     def get_stats(self, days: int = 7) -> Dict[str, Any]:
@@ -174,7 +177,7 @@ class AdaptiveRetrievalRepository(BaseRepository):
                     "days": days
                 }
         except Exception as e:
-            logger.error(f"Error getting adaptive retrieval stats: {e}")
+            repo_logger.error("Error getting adaptive retrieval stats: %s", e, exc_info=True)
             raise
     
     def get_recent_metrics(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -219,7 +222,7 @@ class AdaptiveRetrievalRepository(BaseRepository):
                 
                 return results
         except Exception as e:
-            logger.error(f"Error getting recent adaptive metrics: {e}")
+            repo_logger.error("Error getting recent adaptive metrics: %s", e, exc_info=True)
             raise
     
     def get_performance_metrics(self, days: int = 7) -> Dict[str, Any]:
@@ -264,7 +267,7 @@ class AdaptiveRetrievalRepository(BaseRepository):
                     "days": days
                 }
         except Exception as e:
-            logger.error(f"Error getting adaptive retrieval performance metrics: {e}")
+            repo_logger.error("Error getting adaptive retrieval performance metrics: %s", e, exc_info=True)
             raise
 
     def cleanup_old_metrics(self, days: int = 30) -> int:
@@ -286,10 +289,10 @@ class AdaptiveRetrievalRepository(BaseRepository):
                 """, (days,))
                 deleted_ids = [row[0] for row in cur.fetchall()]
                 deleted_count = len(deleted_ids)
-                logger.info(f"Cleaned up {deleted_count} old adaptive metrics (older than {days} days)")
+                repo_logger.info("Cleaned up %d old adaptive metrics (older than %d days)", deleted_count, days)
                 return deleted_count
         except Exception as e:
-            logger.error(f"Error cleaning up adaptive metrics: {e}")
+            repo_logger.error("Error cleaning up adaptive metrics: %s", e, exc_info=True)
             raise
 
 

@@ -5,12 +5,14 @@ Permite manter contexto entre perguntas de follow-up.
 """
 import uuid
 import time
+import logging
 import threading
 from datetime import datetime, timedelta
 from typing import Optional
 from dataclasses import dataclass, field
 
-from src.core.logger import rag_logger
+
+rag_logger = logging.getLogger("rag.pipeline")
 
 
 @dataclass
@@ -121,8 +123,8 @@ class ConversationManager:
         self._max_sessions = max_sessions
         
         rag_logger.info(
-            f"ConversationManager initialized: timeout={session_timeout_minutes}min, "
-            f"max_sessions={max_sessions}"
+            "ConversationManager initialized: timeout=%dmin, max_sessions=%d",
+            session_timeout_minutes, max_sessions
         )
     
     def create_session(self) -> str:
@@ -144,7 +146,7 @@ class ConversationManager:
             
             self._sessions[session_id] = Conversation(session_id=session_id)
         
-        rag_logger.info(f"New conversation session created: {session_id[:8]}...")
+        rag_logger.info("New conversation session created: %s...", session_id[:8])
         return session_id
     
     def get_session(self, session_id: str) -> Optional[Conversation]:
@@ -166,7 +168,7 @@ class ConversationManager:
             # Verificar se expirou
             if time.time() - session.last_activity > self._session_timeout:
                 del self._sessions[session_id]
-                rag_logger.info(f"Session expired: {session_id[:8]}...")
+                rag_logger.info("Session expired: %s...", session_id[:8])
                 return None
             
             return session
@@ -224,7 +226,7 @@ class ConversationManager:
             return False
         
         session.add_message(role, content)
-        rag_logger.debug(f"Message added to session {session_id[:8]}...: {role}")
+        rag_logger.debug("Message added to session %s...: %s", session_id[:8], role)
         return True
     
     def delete_session(self, session_id: str) -> bool:
@@ -240,7 +242,7 @@ class ConversationManager:
         with self._lock:
             if session_id in self._sessions:
                 del self._sessions[session_id]
-                rag_logger.info(f"Session deleted: {session_id[:8]}...")
+                rag_logger.info("Session deleted: %s...", session_id[:8])
                 return True
             return False
     
@@ -281,7 +283,7 @@ class ConversationManager:
                 del self._sessions[sid]
             
             if expired:
-                rag_logger.info(f"Cleaned up {len(expired)} expired sessions")
+                rag_logger.info("Cleaned up %d expired sessions", len(expired))
             
             return len(expired)
     
@@ -295,7 +297,7 @@ class ConversationManager:
             key=lambda sid: self._sessions[sid].last_activity
         )
         del self._sessions[oldest_id]
-        rag_logger.info(f"Removed oldest session to free space: {oldest_id[:8]}...")
+        rag_logger.info("Removed oldest session to free space: %s...", oldest_id[:8])
 
 
 # Instância global do gerenciador de conversas

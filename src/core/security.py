@@ -7,6 +7,7 @@ Implementa:
 - Proteção contra ataques comuns
 """
 import ssl
+import logging
 from flask import Flask, request, redirect
 from functools import wraps
 from src.config import (
@@ -16,7 +17,9 @@ from src.config import (
     SSL_CERT_PATH,
     SSL_KEY_PATH
 )
-from src.core.logger import security_logger
+
+
+security_logger = logging.getLogger("rag.security")
 
 
 class SecurityMiddleware:
@@ -130,7 +133,7 @@ class SecurityMiddleware:
                 if not request.is_secure:
                     # Redirecionar para HTTPS mantendo o path e query string
                     url = request.url.replace('http://', 'https://', 1)
-                    security_logger.info(f"Redirecting HTTP to HTTPS: {url}")
+                    security_logger.info("Redirecting HTTP to HTTPS: %s", url)
                     return redirect(url, code=301)
                 
                 # Verificar protocolo SSL (se disponível)
@@ -138,7 +141,8 @@ class SecurityMiddleware:
                     ssl_version = request.ssl.get('ssl_version', '')
                     if ssl_version and SSL_PROTOCOL not in ssl_version:
                         security_logger.warning(
-                            f"SSL protocol mismatch. Expected: {SSL_PROTOCOL}, Got: {ssl_version}"
+                            "SSL protocol mismatch. Expected: %s, Got: %s",
+                            SSL_PROTOCOL, ssl_version
                         )
 
 
@@ -162,7 +166,7 @@ def require_https(f):
     def decorated_function(*args, **kwargs):
         if not request.is_secure:
             security_logger.warning(
-                f"HTTPS required but insecure request to {request.path}"
+                "HTTPS required but insecure request to %s", request.path
             )
             return {
                 "error": "HTTPS is required for this endpoint",
@@ -200,7 +204,7 @@ def get_ssl_context():
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             context.maximum_version = ssl.TLSVersion.TLSv1_3
         else:
-            security_logger.warning(f"Unknown SSL protocol: {SSL_PROTOCOL}, using default")
+            security_logger.warning("Unknown SSL protocol: %s, using default", SSL_PROTOCOL)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
         
         # Configurar cifras
@@ -223,8 +227,8 @@ def get_ssl_context():
         context.verify_mode = ssl.CERT_NONE  # O servidor não verifica clientes por padrão
         
         security_logger.info(
-            f"SSL context configured with protocol: {SSL_PROTOCOL}, "
-            f"ciphers: {SSL_CIPHERS}"
+            "SSL context configured with protocol: %s, ciphers: %s",
+            SSL_PROTOCOL, SSL_CIPHERS
         )
         
         return context
@@ -233,7 +237,7 @@ def get_ssl_context():
         security_logger.error("SSL module not available")
         return None
     except Exception as e:
-        security_logger.error(f"Failed to create SSL context: {e}")
+        security_logger.error("Failed to create SSL context: %s", str(e))
         return None
 
 

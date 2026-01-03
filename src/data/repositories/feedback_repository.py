@@ -2,11 +2,14 @@
 Repository para operações de feedback.
 """
 import json
+import logging
 from typing import Optional
 
 from src.data.repositories.base import BaseRepository
-from src.core.logger import db_logger
 from src.config import ENABLE_ENCRYPTION, ENCRYPT_FEEDBACK_COMMENTS, ENCRYPT_METADATA
+
+# Standard logger for repository operations
+repo_logger = logging.getLogger("rag.repositories")
 
 # Importar funções de criptografia
 try:
@@ -28,7 +31,7 @@ class FeedbackRepository(BaseRepository):
                 try:
                     encrypted_comment = encrypt_data(comment)
                 except Exception as e:
-                    db_logger.warning(f"Failed to encrypt comment: {e}")
+                    repo_logger.warning("Failed to encrypt comment: %s", e)
             
             encrypted_metadata = None
             if metadata:
@@ -48,7 +51,7 @@ class FeedbackRepository(BaseRepository):
             
             return True
         except Exception as e:
-            db_logger.error(f"Error inserting feedback: {e}")
+            repo_logger.error("Error inserting feedback: %s", e, exc_info=True)
             return False
     
     def find_by_id(self, id: int) -> Optional[dict]:

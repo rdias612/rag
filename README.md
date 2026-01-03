@@ -893,11 +893,56 @@ isort src/
 
 ### Logs
 
-Logs estruturados em formato JSON:
-- **DEBUG**: Detalhes de execução
-- **INFO**: Eventos importantes
+O sistema utiliza o módulo padrão de logging do Python configurado via `dictConfig`.
+
+**Formato de Log:**
+```
+2026-01-03 12:30:45 INFO flask.app Iniciando processamento do pedido 9988
+2026-01-03 12:30:45 ERROR rag.llm Erro fatal ao processar requisição LLM
+Traceback (most recent call last):
+  File "src/core/llm.py", line 80, in generate_response
+    response.raise_for_status()
+requests.exceptions.HTTPError: 502 Server Error
+```
+
+**Níveis de Log:**
+- **DEBUG**: Detalhes de execução (queries SQL, embedding vectors)
+- **INFO**: Eventos importantes (API requests, LLM calls, document ingestion)
 - **WARNING**: Situações anormais não-críticas
 - **ERROR**: Erros que requerem atenção
+
+**Arquivos de Log:**
+- `logs/flask_app.log`: Log principal com rotação automática (10MB, 3 backups)
+
+**Configuração:**
+```python
+# src/config.py
+LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_FILE: str = "logs/flask_app.log"
+LOG_MAX_BYTES: int = 10485760  # 10MB
+LOG_BACKUP_COUNT: int = 3
+```
+
+**Uso no Código:**
+```python
+import logging
+
+# Obter logger para o módulo
+logger = logging.getLogger(__name__)
+
+# Log de informação
+logger.info("Mensagem informativa")
+
+# Log com variáveis (lazy formatting)
+order_id = 9988
+logger.info("Iniciando processamento do pedido %s", order_id)
+
+# Log de erro com stacktrace
+try:
+    resultado = 1 / 0
+except Exception:
+    logger.exception("Erro fatal ao processar pagamento do pedido %s", order_id)
+```
 
 ---
 
@@ -913,17 +958,6 @@ Logs estruturados em formato JSON:
 | Re-ranking | < 200ms | ~100ms |
 | LLM generation | < 2s | ~1.5s |
 | Query total | < 3s | ~1.8s |
-
-### Otimizações Implementadas
-
-- ✅ Cache de embeddings (LRU)
-- ✅ Batch processing de embeddings
-- ✅ Pool de conexões PostgreSQL
-- ✅ Re-ranking eficiente
-- ✅ Compressão de contexto
-- ✅ Background processing
-- ✅ Query expansion seletiva
-- ✅ Adaptive Retrieval dinâmico
 
 ---
 
@@ -993,5 +1027,7 @@ Projeto para estudo de técnicas avançadas de RAG.
 
 ---
 
-**Última atualização**: Dezembro 2025
-**Versão**: 2.1
+**Última atualização**: Janeiro 2026
+**Versão**: 3.0
+
+---

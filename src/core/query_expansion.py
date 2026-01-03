@@ -8,10 +8,12 @@ import logging
 from typing import Optional
 
 from src.core.llm import generate_response
-from src.core.logger import rag_logger
 from src.core.prompts import get_active_prompt
 
-logger = logging.getLogger(__name__)
+
+rag_logger = logging.getLogger("rag.pipeline")
+
+logger = logging.getLogger("rag.query_expansion")
 
 
 def expand_query(
@@ -30,7 +32,7 @@ def expand_query(
     Returns:
         Lista com query original + variações
     """
-    rag_logger.info(f"Expanding query: '{query[:50]}...' with {num_variations} variations")
+    rag_logger.info("Expanding query: '%s...' with %d variations", query[:50], num_variations)
     
     try:
         # Gerar variações usando LLM
@@ -50,7 +52,7 @@ def expand_query(
             if line and len(line) > 3:
                 # Remove "1.", "1)", "- " etc
                 if line[0].isdigit() and (line[1] in ".)" or (line[1].isdigit() and line[2] in ".)")):
-                    line = line.split(" ", 1)[-1] if " " in line else line
+                    line = line.split(" ",1)[-1] if " " in line else line
                 elif line.startswith("- "):
                     line = line[2:]
                 if line:
@@ -62,12 +64,12 @@ def expand_query(
         # Query original + variações
         all_queries = [query] + variations
         
-        rag_logger.info(f"Query expanded to {len(all_queries)} variations")
+        rag_logger.info("Query expanded to %d variations", len(all_queries))
         
         return all_queries
         
     except Exception as e:
-        logger.error(f"Error expanding query: {e}")
+        logger.error("Error expanding query: %s", str(e))
         # Fallback: retornar apenas query original
         return [query]
 
@@ -125,10 +127,9 @@ def merge_search_results(
         doc["rrf_score"] = score
         result.append(doc)
     
-    logger.debug(f"RRF merged {sum(len(r) for r in results_list)} results into {len(result)}")
+    logger.debug("RRF merged %d results into %d", sum(len(r) for r in results_list), len(result))
     
     return result
-
 
 def check_query_expansion_available() -> dict:
     """Verifica status do módulo."""

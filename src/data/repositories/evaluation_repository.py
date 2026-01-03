@@ -1,9 +1,12 @@
 """Repository para gerenciamento de avaliações RAG."""
+import logging
+import time
 from typing import List, Dict, Any, Optional
 
 from src.data.repositories.base import BaseRepository
-from src.core.logger import db_logger
-import time
+
+# Standard logger for repository operations
+repo_logger = logging.getLogger("rag.repositories")
 
 
 class EvaluationRepository(BaseRepository):
@@ -99,10 +102,10 @@ class EvaluationRepository(BaseRepository):
                 doc_id = cur.fetchone()[0]
             
             duration = time.time() - start_time
-            db_logger.debug(f"Evaluation saved in {duration:.2f}s: score={scores.get('overall_score', 0):.2%}")
+            repo_logger.debug("Evaluation saved in %.2fs: score=%.2f%%", duration, scores.get('overall_score', 0) * 100)
             return doc_id
         except Exception as e:
-            db_logger.error(f"Failed to save evaluation: {e}")
+            repo_logger.error("Failed to save evaluation: %s", e, exc_info=True)
             return None
     
     def get_stats(
@@ -281,7 +284,7 @@ class EvaluationRepository(BaseRepository):
         
         duration = time.time() - start_time
         if count > 0:
-            db_logger.info(f"Deleted {count} old evaluations (>{days} days) in {duration:.2f}s")
+            repo_logger.info("Deleted %d old evaluations (>%d days) in %.2fs", count, days, duration)
         
         return count
     

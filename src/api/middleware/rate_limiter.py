@@ -1,6 +1,7 @@
 """
 Configuração de Rate Limiting para a API.
 """
+import logging
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -14,8 +15,9 @@ from src.config import (
     RATE_LIMIT_INGEST,
     RATE_LIMIT_HEALTH
 )
-from src.core.logger import security_logger, api_logger, log_with_data
-import logging
+
+api_logger = logging.getLogger("rag.api")
+security_logger = logging.getLogger("rag.security")
 
 
 def get_client_identifier():
@@ -40,10 +42,8 @@ limiter = Limiter(
 
 def handle_rate_limit_exceeded(e):
     """Handler para quando limite é excedido."""
-    log_with_data(security_logger, logging.WARNING, "rate_limit_exceeded", {
-        "client": get_client_identifier(),
-        "limit": str(e.description)
-    })
+    security_logger.warning("rate_limit_exceeded | client=%s | limit=%s",
+                        get_client_identifier(), str(e.description))
     return jsonify({
         "error": "Rate limit exceeded",
         "message": str(e.description),
@@ -56,10 +56,8 @@ def init_rate_limiter(app: Flask):
     limiter.init_app(app)
     app.register_error_handler(429, handle_rate_limit_exceeded)
     
-    log_with_data(api_logger, logging.INFO, "rate_limiter_initialized", {
-        "enabled": RATE_LIMIT_ENABLED,
-        "storage": RATE_LIMIT_STORAGE
-    })
+    api_logger.info("rate_limiter_initialized | enabled=%s | storage=%s",
+                  RATE_LIMIT_ENABLED, RATE_LIMIT_STORAGE)
 
 
 # Exportar limites configurados

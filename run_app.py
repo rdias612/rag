@@ -46,7 +46,7 @@ def kill_process_on_port(port: int) -> bool:
                                 capture_output=True
                             )
                             pids_killed.add(pid)
-                            print(f"   ✓ Processo {pid} na porta {port} encerrado")
+                            print(f"   Processo {pid} na porta {port} encerrado")
                         except:
                             pass
         
@@ -58,34 +58,34 @@ def kill_process_on_port(port: int) -> bool:
 
 def cleanup_ports():
     """Limpa as portas antes de iniciar."""
-    print("🔍 Verificando portas...")
+    print("Verificando portas...")
     
     killed_backend = kill_process_on_port(BACKEND_PORT)
     killed_frontend = kill_process_on_port(FRONTEND_PORT)
     
     if killed_backend or killed_frontend:
-        print("   ⏳ Aguardando liberação das portas...")
+        print("   Aguardando liberação das portas...")
         time.sleep(2)
     else:
-        print("   ✓ Portas livres")
+        print("   Portas livres")
 
 
 def install_dependencies():
     """Instala as dependências do projeto."""
-    print("📦 Verificando dependências...")
+    print("Verificando dependências...")
     try:
         subprocess.run(
             [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
             check=True,
             capture_output=True
         )
-        print("   ✓ Dependências verificadas/instaladas")
+        print("   Dependências verificadas/instaladas")
     except Exception as e:
-        print(f"   ⚠ Erro ao verificar dependências: {e}")
+        print(f"   Erro ao verificar dependências: {e}")
 
 
 def run_app():
-    print("🚀 Iniciando RAG System (Backend + Frontend)...\n")
+    print("Iniciando RAG System (Backend + Frontend)...\n")
     
     # Instalar dependências
     install_dependencies()
@@ -104,7 +104,7 @@ def run_app():
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
     
     # 1. Iniciar Backend (Flask)
-    print(f"📡 Iniciando Backend na porta {BACKEND_PORT}...")
+    print(f"Iniciando Backend na porta {BACKEND_PORT}...")
     backend_process = subprocess.Popen(
         [sys.executable, "-c", 
          f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug={DEBUG}, use_reloader={USE_RELOADER}, threaded={THREADED})"],
@@ -118,7 +118,7 @@ def run_app():
     )
 
     # 2. Iniciar Frontend (Vite)
-    print(f"🎨 Iniciando Frontend na porta {FRONTEND_PORT}...")
+    print(f"Iniciando Frontend na porta {FRONTEND_PORT}...")
     frontend_process = subprocess.Popen(
         ["npm.cmd" if os.name == 'nt' else "npm", "run", "dev"],
         cwd=frontend_dir,
@@ -141,7 +141,7 @@ def run_app():
     threading.Thread(target=stream_logs, args=(frontend_process, "FRONTEND"), daemon=True).start()
 
     def cleanup():
-        print("\n\n🛑 Encerrando sistema...")
+        print("\n\nEncerrando sistema...")
         
         if os.name == 'nt':
             try:
@@ -164,7 +164,7 @@ def run_app():
             except:
                 pass
         
-        print("✅ Sistema encerrado.")
+        print("Sistema encerrado.")
 
     def signal_handler(sig, frame):
         cleanup()
@@ -177,15 +177,15 @@ def run_app():
     # Aguardar um pouco para os processos iniciarem
     time.sleep(5)
 
-    print(f"\n✅ Sistema rodando!")
-    print(f"👉 Backend:  http://localhost:{BACKEND_PORT}")
-    print(f"👉 Frontend: http://localhost:{FRONTEND_PORT}")
+    print(f"\nSistema rodando!")
+    print(f"Backend:  http://localhost:{BACKEND_PORT}")
+    print(f"Frontend: http://localhost:{FRONTEND_PORT}")
     print("\nPressione Ctrl+C para encerrar.\n")
 
     try:
         while True:
             if backend_process.poll() is not None:
-                print("❌ Backend parou inesperadamente.")
+                print("Backend parou inesperadamente.")
                 # Tentar ler o erro final
                 stderr_output = backend_process.stdout.read()
                 if stderr_output:
@@ -193,7 +193,7 @@ def run_app():
                 cleanup()
                 break
             if frontend_process.poll() is not None:
-                print("❌ Frontend parou inesperadamente.")
+                print("Frontend parou inesperadamente.")
                 cleanup()
                 break
             time.sleep(1)

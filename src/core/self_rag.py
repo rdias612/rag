@@ -9,9 +9,9 @@ import time
 from typing import Optional, Tuple
 
 from src.core.llm import generate_response
-from src.core.logger import rag_logger
 
-logger = logging.getLogger(__name__)
+
+rag_logger = logging.getLogger("rag.pipeline")
 
 
 # Prompt para avaliar completude da resposta
@@ -112,12 +112,13 @@ def evaluate_response(
         
         result["evaluation_time_ms"] = round((time.time() - start_time) * 1000, 2)
         
-        rag_logger.info(f"Self-RAG evaluation: score={result['score']}, complete={result['is_complete']}")
+        rag_logger.info("Self-RAG evaluation: score=%d, complete=%s",
+                     result['score'], result['is_complete'])
         
         return result
         
     except Exception as e:
-        logger.error(f"Self-RAG evaluation failed: {e}")
+        rag_logger.error("Self-RAG evaluation failed: %s", str(e))
         return {
             "score": 70,
             "is_complete": True,
@@ -159,9 +160,8 @@ def refine_response(
         return refined.strip()
         
     except Exception as e:
-        logger.error(f"Self-RAG refinement failed: {e}")
+        rag_logger.error("Self-RAG refinement failed: %s", str(e))
         return previous_answer
-
 
 def self_rag_pipeline(
     question: str,
@@ -235,13 +235,12 @@ def self_rag_pipeline(
                     metrics["was_refined"] = True
                     
             except Exception as e:
-                logger.error(f"Self-RAG search/refine failed: {e}")
+                rag_logger.error("Self-RAG search/refine failed: %s", str(e))
                 break
     
     metrics["total_time_ms"] = round((time.time() - start_time) * 1000, 2)
     
     return current_answer, metrics
-
 
 def check_self_rag_available() -> dict:
     """Verifica status do módulo."""

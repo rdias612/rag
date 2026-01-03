@@ -2,8 +2,10 @@
 Rota para receber logs do frontend.
 """
 import json
+import logging
 from flask import request, jsonify
-from src.core.logger import webserver_logger, flush_loggers
+
+webserver_logger = logging.getLogger("rag.webserver")
 
 
 def init_logs_routes(bp):
@@ -62,13 +64,10 @@ def init_logs_routes(bp):
                 }
                 
                 log_func = level_map.get(level, webserver_logger.info)
-                log_func(f"{timestamp} {level} {component} {log_message}")
-            
-            # Flush imediato para garantir que os logs sejam escritos
-            flush_loggers(webserver_logger)
+                log_func("%s %s %s %s", timestamp, level, component, log_message)
             
             return jsonify({"status": "ok", "logs_received": len(logs)}), 200
             
         except Exception as e:
-            webserver_logger.error(f"Error processing logs: {e}")
+            webserver_logger.exception("Error processing logs: %s", e)
             return jsonify({"error": str(e)}), 500

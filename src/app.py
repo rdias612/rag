@@ -4,14 +4,18 @@ Aplicação Flask principal.
 from flask import Flask, request
 from flask_cors import CORS
 import sys
+import logging
 
 from src.api.routes import api
 from src.data.database import init_database, check_connection
-from src.core.logger import api_logger
 from src.core.security import init_security, get_ssl_context
 from src.config import ENABLE_HTTPS, ALLOWED_ORIGINS_LIST, CORS_MAX_AGE
 from src.api.middleware.rate_limiter import init_rate_limiter
-from src.core.logger import api_logger, flush_loggers
+from src.core.logging_config import setup_logging
+
+# Configurar logging ANTES de criar o Flask
+setup_logging()
+api_logger = logging.getLogger("rag.api")
 
 
 def create_app() -> Flask:
@@ -52,20 +56,22 @@ def create_app() -> Flask:
         if request.path.startswith("/api/"):
             try:
                 body = request.get_json(silent=True)
-            except Exception:
+            except Exception as e:
                 body = None
+                # Log exception for debugging
+                api_logger.error("Middleware logging exception: %s", e)
             api_logger.info(
-                f"API Request {request.method} {request.path} | args={dict(request.args)} | json={body}"
+                "API Request %s %s | args=%s | json=%s",
+                request.method, request.path, dict(request.args), body
             )
-            flush_loggers(api_logger)
 
     @app.after_request
     def _log_response(response):
         if request.path.startswith("/api/"):
             api_logger.info(
-                f"API Response {request.method} {request.path} {response.status_code} | len={response.content_length}"
+                "API Response %s %s %d | len=%d",
+                request.method, request.path, response.status_code, response.content_length
             )
-            flush_loggers(api_logger)
         return response
     
     # Inicializar middleware de segurança (headers de segurança e HTTPS)
@@ -111,7 +117,7 @@ def main():
     # Determinar protocolo (HTTP ou HTTPS)
     protocol = "https" if ENABLE_HTTPS else "http"
     api_logger.info("=" * 50)
-    api_logger.info(f"🎉 RAG API rodando em: {protocol}://localhost:5000")
+    api_logger.info("🎉 RAG API rodando em: %s://localhost:5000", protocol)
     
     if ENABLE_HTTPS:
         api_logger.info("🔒 HTTPS habilitado com TLS")

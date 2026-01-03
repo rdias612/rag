@@ -10,15 +10,17 @@ from typing import Optional
 
 from src.core.llm import generate_response
 from src.core.embeddings import get_embedding
-from src.core.logger import rag_logger
 from src.core.prompts import get_active_prompt
 
-logger = logging.getLogger(__name__)
+
+rag_logger = logging.getLogger("rag.pipeline")
+
+logger = logging.getLogger("rag.hyde")
 
 
 # Prompt para gerar documento hipotético
 HYDE_PROMPT = """Como um redator técnico sênior, escreva um parágrafo detalhado que seria a resposta técnica ideal para a pergunta abaixo. 
-Não use frases como "Eu acho que" ou "Este documento descreve". Escreva como se fosse o próprio conteúdo original de um manual ou documentação técnica oficial.
+Não use frases como "Eu acho que" ou "Este documento descreve". Escreva como se fosse o próprio conteúdo original de um manual ou documentação técnica oficial. 
 
 Pergunta: "{question}"
 
@@ -66,12 +68,13 @@ def generate_hypothetical_document(
         )
         
         duration = time.time() - start_time
-        rag_logger.info(f"HyDE: Generated hypothetical doc ({len(hypothetical_doc)} chars) in {duration:.2f}s")
+        rag_logger.info("HyDE: Generated hypothetical doc (%d chars) in %.2fs",
+                     len(hypothetical_doc), duration)
         
         return hypothetical_doc.strip()
         
     except Exception as e:
-        logger.error(f"HyDE generation failed: {e}")
+        logger.error("HyDE generation failed: %s", str(e))
         # Fallback: retornar a própria pergunta
         return question
 
@@ -98,15 +101,13 @@ def get_hyde_embedding(
     
     return embedding, hypothetical_doc
 
-
 def generate_hyde_embedding(
     question: str,
     temperature: float = 0.3
 ) -> list[float]:
-    """Convenience wrapper that returns only the HyDE embedding."""
+    """Convenience wrapper that returns only HyDE embedding."""
     embedding, _ = get_hyde_embedding(question, temperature)
     return embedding
-
 
 def hyde_enhanced_query(
     question: str,
@@ -144,10 +145,9 @@ def hyde_enhanced_query(
         "hyde_time_ms": round(duration * 1000, 2)
     }
     
-    rag_logger.info(f"HyDE: Combined embedding with weight {hyde_weight} in {duration:.2f}s")
+    rag_logger.info("HyDE: Combined embedding with weight %s in %.2fs", hyde_weight, duration)
     
     return combined_embedding, metrics
-
 
 def check_hyde_available() -> dict:
     """Verifica status do módulo HyDE."""

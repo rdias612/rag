@@ -7,13 +7,15 @@ Endpoints:
 - GET /admin/pool-stats - Stats do connection pool
 - POST /admin/pool-stats/reset - Reset pool stats
 """
+import logging
 import time
 from flask import Blueprint, jsonify
 
-from src.core.logger import api_logger, log_api_request, log_api_response
 from src.core.advanced_batch_processor import get_advanced_processor
 from src.core.connection_pool import get_connection_pool
 from src.config import ENABLE_ADVANCED_BATCH_PROCESSING, ENABLE_CONNECTION_POOL
+
+api_logger = logging.getLogger("rag.api")
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -22,13 +24,14 @@ admin_bp = Blueprint("admin", __name__)
 def get_advanced_batch_processor_stats():
     """Retorna estatísticas do processador avançado de embeddings."""
     start_time = time.time()
-    log_api_request("/api/embeddings/advanced-stats", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/embeddings/advanced-stats", "GET")
     
     try:
         processor = get_advanced_processor()
         stats = processor.get_stats()
         
-        log_api_response("/api/embeddings/advanced-stats", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/embeddings/advanced-stats", 200, time.time() - start_time)
         
         return jsonify({
             "stats": stats,
@@ -36,8 +39,9 @@ def get_advanced_batch_processor_stats():
         })
         
     except Exception as e:
-        api_logger.error(f"Error in /api/embeddings/advanced-stats: {e}")
-        log_api_response("/api/embeddings/advanced-stats", 500, time.time() - start_time)
+        api_logger.exception("Error in /api/embeddings/advanced-stats: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/embeddings/advanced-stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -45,19 +49,21 @@ def get_advanced_batch_processor_stats():
 def reset_advanced_batch_processor_stats():
     """Reseta as estatísticas do processador avançado."""
     start_time = time.time()
-    log_api_request("/api/embeddings/advanced-stats/reset", "POST")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/embeddings/advanced-stats/reset", "POST")
     
     try:
         processor = get_advanced_processor()
         processor.reset_stats()
         
-        log_api_response("/api/embeddings/advanced-stats/reset", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/embeddings/advanced-stats/reset", 200, time.time() - start_time)
         
         return jsonify({"message": "Estatísticas resetadas com sucesso"})
         
     except Exception as e:
-        api_logger.error(f"Error in /api/embeddings/advanced-stats/reset: {e}")
-        log_api_response("/api/embeddings/advanced-stats/reset", 500, time.time() - start_time)
+        api_logger.exception("Error in /api/embeddings/advanced-stats/reset: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/embeddings/advanced-stats/reset", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -65,14 +71,15 @@ def reset_advanced_batch_processor_stats():
 def get_connection_pool_stats():
     """Retorna estatísticas do pool de conexões."""
     start_time = time.time()
-    log_api_request("/api/admin/pool-stats", "GET")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/admin/pool-stats", "GET")
     
     try:
         pool = get_connection_pool()
         healthy = pool.health_check()
         stats = pool.get_stats()
         
-        log_api_response("/api/admin/pool-stats", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/admin/pool-stats", 200, time.time() - start_time)
         
         return jsonify({
             "healthy": healthy,
@@ -81,8 +88,9 @@ def get_connection_pool_stats():
         })
         
     except Exception as e:
-        api_logger.error(f"Error in /api/admin/pool-stats: {e}")
-        log_api_response("/api/admin/pool-stats", 500, time.time() - start_time)
+        api_logger.exception("Error in /api/admin/pool-stats: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/admin/pool-stats", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
 
 
@@ -90,17 +98,19 @@ def get_connection_pool_stats():
 def reset_connection_pool_stats():
     """Reseta as estatísticas do pool de conexões."""
     start_time = time.time()
-    log_api_request("/api/admin/pool-stats/reset", "POST")
+    api_logger.info("API Request | endpoint=%s | method=%s", "/api/admin/pool-stats/reset", "POST")
     
     try:
         pool = get_connection_pool()
         pool.reset_stats()
         
-        log_api_response("/api/admin/pool-stats/reset", 200, time.time() - start_time)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/admin/pool-stats/reset", 200, time.time() - start_time)
         
         return jsonify({"message": "Estatísticas do pool resetadas com sucesso"})
         
     except Exception as e:
-        api_logger.error(f"Error in /api/admin/pool-stats/reset: {e}")
-        log_api_response("/api/admin/pool-stats/reset", 500, time.time() - start_time)
+        api_logger.exception("Error in /api/admin/pool-stats/reset: %s", e)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/admin/pool-stats/reset", 500, time.time() - start_time)
         return jsonify({"error": str(e)}), 500
