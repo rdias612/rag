@@ -442,13 +442,12 @@ def process_all_documents(
                 # Adicionar collection_id ao chunk
                 chunk["collection_id"] = collection_id
                 yield chunk
-                    
-            except Exception as e:
-                logger.error("Erro ao processar %s: %s", doc_path.name, e, exc_info=True)
-                continue
-        
-        logger.info("Total: %d chunks gerados de %d arquivos", total_chunks, len(document_files))
-        logger.info("Processamento concluído: %d chunks de %d arquivos", total_chunks, len(document_files))
+        except Exception as e:
+            logger.error("Erro ao processar %s: %s", doc_path.name, e, exc_info=True)
+            continue
+    
+    logger.info("Total: %d chunks gerados de %d arquivos", total_chunks, len(document_files))
+    logger.info("Processamento concluído: %d chunks de %d arquivos", total_chunks, len(document_files))
 
 
 def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:

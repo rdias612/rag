@@ -1,6 +1,11 @@
 """
 Aplicação Flask principal.
 """
+# CRÍTICO: Configurar logging ANTES de qualquer outro import interno
+# para garantir que todos os loggers sejam configurados corretamente
+from src.core.logging_config import setup_logging
+setup_logging(force=True)
+
 from flask import Flask, request
 from flask_cors import CORS
 import sys
@@ -11,10 +16,7 @@ from src.data.database import init_database, check_connection
 from src.core.security import init_security, get_ssl_context
 from src.config import ENABLE_HTTPS, ALLOWED_ORIGINS_LIST, CORS_MAX_AGE
 from src.api.middleware.rate_limiter import init_rate_limiter
-from src.core.logging_config import setup_logging
 
-# Configurar logging ANTES de criar o Flask
-setup_logging()
 api_logger = logging.getLogger("rag.api")
 
 
@@ -58,7 +60,6 @@ def create_app() -> Flask:
                 body = request.get_json(silent=True)
             except Exception as e:
                 body = None
-                # Log exception for debugging
                 api_logger.error("Middleware logging exception: %s", e)
             api_logger.info(
                 "API Request %s %s | args=%s | json=%s",
@@ -70,7 +71,7 @@ def create_app() -> Flask:
         if request.path.startswith("/api/"):
             api_logger.info(
                 "API Response %s %s %d | len=%d",
-                request.method, request.path, response.status_code, response.content_length
+                request.method, request.path, response.status_code, response.content_length or 0
             )
         return response
     

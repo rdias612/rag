@@ -103,17 +103,18 @@ def run_app():
     if os.name == 'nt':
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
     
-    # 1. Iniciar Backend (Flask)
+    # 1. Iniciar Backend (Flask) usando script dedicado
     print(f"Iniciando Backend na porta {BACKEND_PORT}...")
+    backend_env = os.environ.copy()
+    backend_env["PORT"] = str(BACKEND_PORT)
+    backend_env["DEBUG"] = str(DEBUG).lower()
+    backend_env["USE_RELOADER"] = str(USE_RELOADER).lower()
+    backend_env["THREADED"] = str(THREADED).lower()
+    
     backend_process = subprocess.Popen(
-        [sys.executable, "-c", 
-         f"from src.app import create_app; app = create_app(); app.run(host='0.0.0.0', port={BACKEND_PORT}, debug={DEBUG}, use_reloader={USE_RELOADER}, threaded={THREADED})"],
+        [sys.executable, "-u", os.path.join(root_dir, "scripts", "run_server.py")],
         cwd=root_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        universal_newlines=True,
+        env=backend_env,
         creationflags=creationflags
     )
 
@@ -122,23 +123,11 @@ def run_app():
     frontend_process = subprocess.Popen(
         ["npm.cmd" if os.name == 'nt' else "npm", "run", "dev"],
         cwd=frontend_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        universal_newlines=True,
         creationflags=creationflags
     )
 
-    # Funções para ler e imprimir logs
-    def stream_logs(process, name):
-        for line in iter(process.stdout.readline, ''):
-            if line:
-                print(f"[{name}] {line.strip()}")
-
-    import threading
-    threading.Thread(target=stream_logs, args=(backend_process, "BACKEND"), daemon=True).start()
-    threading.Thread(target=stream_logs, args=(frontend_process, "FRONTEND"), daemon=True).start()
+    # Aguardar um pouco para os processos iniciarem
+    time.sleep(5)
 
     def cleanup():
         print("\n\nEncerrando sistema...")
@@ -174,9 +163,6 @@ def run_app():
     if os.name == 'nt':
         signal.signal(signal.SIGBREAK, signal_handler)
 
-    # Aguardar um pouco para os processos iniciarem
-    time.sleep(5)
-
     print(f"\nSistema rodando!")
     print(f"Backend:  http://localhost:{BACKEND_PORT}")
     print(f"Frontend: http://localhost:{FRONTEND_PORT}")
@@ -186,10 +172,6 @@ def run_app():
         while True:
             if backend_process.poll() is not None:
                 print("Backend parou inesperadamente.")
-                # Tentar ler o erro final
-                stderr_output = backend_process.stdout.read()
-                if stderr_output:
-                    print(f"Erro do Backend:\n{stderr_output}")
                 cleanup()
                 break
             if frontend_process.poll() is not None:

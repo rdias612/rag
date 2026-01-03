@@ -200,7 +200,7 @@ class Settings(BaseSettings):
     # =========================================================================
     # Logging Configuration
     # =========================================================================
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "DEBUG"
     LOG_FILE: str = "server.log"
     LOG_MAX_BYTES: int = 10485760  # 10MB
     LOG_BACKUP_COUNT: int = 3

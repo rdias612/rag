@@ -773,13 +773,14 @@ def scan_all_documents():
                 api_logger.warning("Could not scan %s: %s", doc_path, e)
     
         duration = time.time() - start_time
-    api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
-                   "/api/documents/scan-all", 200, duration)
+        api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/documents/scan-all", 200, duration)
         
         return jsonify({
             "pending": all_with_chunking,
             "count": len(all_with_chunking)
         })
+    
     except Exception as e:
         api_logger.exception("Error scanning all documents: %s", e)
         api_logger.info("API Response | endpoint=%s | status_code=%d | duration=%.3fs",

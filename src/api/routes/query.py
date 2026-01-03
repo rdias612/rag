@@ -11,6 +11,7 @@ import logging
 import time
 import traceback
 import uuid
+from pathlib import Path
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from pydantic import ValidationError
 
@@ -116,6 +117,18 @@ def query_stream():
     
     # Gerar request_id
     request_id = generate_request_id()
+
+    # Teste extra: log no root e gravação direta no arquivo para verificar escrita
+    logging.getLogger().info("[CHAT ROOT] request_id=%s", request_id)
+    try:
+        log_path = Path(__file__).resolve().parents[3] / "logs" / "server.log"
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(f"[DIRECT CHAT] req={request_id} q={data.get('question','')[:80]}\n")
+    except Exception as e:
+        print(f"[CHAT] direct file write failed: {e}", flush=True)
+
+    # Log via root para testar propagação
+    logging.getLogger().info("CHAT root log | request_id=%s", request_id)
     
     # Log entrada
     api_logger.info("API Request Received | request_id=%s | endpoint=%s | method=%s | question=%s",
@@ -197,10 +210,24 @@ def search():
 @query_bp.route("/chat", methods=["POST"])
 @limiter.limit(LIMITS["query"])
 def chat():
-    # User chat endpoint called
     """Endpoint RAG com suporte a histórico de conversas."""
+    # Debug: print direto para stdout
+    print("[CHAT] Endpoint called!", flush=True)
+    
     start_time = time.time()
     data = request.get_json() or {}
+    
+    print(f"[CHAT] Data received: {data.get('question', '')[:50]}", flush=True)
+
+    # Debug handlers e nível efetivo
+    h_info = []
+    for h in api_logger.handlers:
+        try:
+            name = getattr(h, "baseFilename", None) or h.__class__.__name__
+        except Exception:
+            name = h.__class__.__name__
+        h_info.append(name)
+    print(f"[CHAT] api_logger handlers={h_info} level={api_logger.getEffectiveLevel()} propagate={api_logger.propagate}", flush=True)
     
     # Gerar request_id
     request_id = generate_request_id()
