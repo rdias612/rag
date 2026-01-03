@@ -198,23 +198,9 @@ def search():
 @limiter.limit(LIMITS["query"])
 def chat():
     """Endpoint RAG com suporte a histórico de conversas."""
-    # Debug: print direto para stdout
-    print("[CHAT] Endpoint called!", flush=True)
     
     start_time = time.time()
     data = request.get_json() or {}
-    
-    print(f"[CHAT] Data received: {data.get('question', '')[:50]}", flush=True)
-
-    # Debug handlers e nível efetivo
-    h_info = []
-    for h in api_logger.handlers:
-        try:
-            name = getattr(h, "baseFilename", None) or h.__class__.__name__
-        except Exception:
-            name = h.__class__.__name__
-        h_info.append(name)
-    print(f"[CHAT] api_logger handlers={h_info} level={api_logger.getEffectiveLevel()} propagate={api_logger.propagate}", flush=True)
     
     # Gerar request_id
     request_id = generate_request_id()
