@@ -1,124 +1,33 @@
 # RAG System - Sistema de Recuperação e Geração Aumentada
 
-Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de documentos com técnicas avançadas de recuperação, interface web moderna e arquitetura escalável.
+Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de documentos com suporte a múltiplos formatos, histórico de conversas, busca híbrida e ingestão via API.
 
 ## 🚀 Tecnologias Utilizadas
 
-| Componente | Tecnologia | Versão | Descrição |
-|------------|------------|--------|-----------|
-| **Banco de Dados** | PostgreSQL + pgvector | 16+ | Armazenamento e busca vetorial |
-| **Embeddings** | BGE-M3 (bge-m3) | - | Modelo multilingue (1024 dimensões) via LM Studio |
-| **LLM** | Phi-3.5 Mini | - | Geração de respostas via LM Studio |
-| **API** | Flask + Flask-CORS | 3.0+ | Backend REST API |
-| **Frontend** | React 19 + Vite | 7.2+ | Interface moderna e responsiva |
-| **Estilização** | Tailwind CSS | 4.1+ | Design system e componentes |
-| **NLP** | spaCy + langdetect | 3.7+ | Chunking semântico e detecção de idioma |
-| **Monitoramento** | Prometheus | 0.19+ | Coleta de métricas de performance |
-| **Re-ranking** | sentence-transformers | 2.2+ | Cross-encoder para melhoria de relevância |
-| **Validação** | Pydantic | 2.0+ | Validação de dados e configurações |
-| **Migrações** | Alembic | 1.13+ | Gerenciamento de schema do banco |
-| **Agendamento** | APScheduler | 3.10+ | Tarefas em background |
-| **Ingestão** | Microsoft MarkItDown | 0.0.1+ | Conversão universal para Markdown |
-| **Segurança** | cryptography | 41.0+ | Criptografia em repouso (AES-128) |
-| **Segurança** | Restrictive CORS | - | Proteção contra origens não autorizadas |
-| **Segurança** | Flask-Limiter | 3.5+ | Rate limiting e proteção contra abuso |
-| **Dependências** | pip-tools | 7.4+ | Pinning e gestão de dependências |
-| **Arquitetura** | Repository Pattern | - | Desacoplamento da camada de dados |
-| **Arquitetura** | Modular RAG | - | Pipeline, Services e Retrieval Strategies |
+| Componente | Tecnologia | Descrição |
+|------------|------------|-----------|
+| **Banco de Dados** | PostgreSQL + pgvector | Armazenamento e busca vetorial |
+| **Embeddings** | Nomic Embed v1.5 | Modelo de embeddings via LM Studio |
+| **LLM** | Phi-3.5 Mini | Geração de respostas via LM Studio |
+| **API** | Flask | Backend REST API |
+| **NLP** | spaCy | Chunking semântico por sentenças |
+| **Ingestão** | pypdf, python-docx, beautifulsoup4 | Extração de múltiplos formatos |
+| **Testes** | pytest | Testes automatizados |
 
 ---
 
-## ✨ Funcionalidades Principais
+## ✨ Funcionalidades
 
-### 📄 Ingestão de Documentos
-- **Extração Unificada (MarkItDown)**: Todos os documentos são convertidos para Markdown estruturado antes do processamento, preservando tabelas e títulos.
-- **Múltiplos formatos**: PDF, DOCX, XLSX, PPTX, TXT, MD, HTML, CSV.
-- **Processamento em background**: Upload assíncrono com status tracking.
-- **Ingestão em massa**: Processamento de múltiplos documentos simultaneamente.
-- **Processamento Paralelo de Embeddings**: Batches processados simultaneamente para máxima performance (2.5x mais rápido).
-- **Detecção de alterações**: Re-ingestão automática de arquivos modificados via Hash SHA-256.
-- **Estatísticas detalhadas**: Contagem de chunks, tamanho de arquivos e métricas de conversão.
-- **Nota sobre Multimodalidade**: Atualmente, formatos de **imagem** e **áudio** estão desabilitados, pois requerem chaves de API externas para processamento via MarkItDown.
-
-### 🔍 Busca e Recuperação Avançada
-- **Busca Híbrida**: Combina busca vetorial (semântica) + Full-Text Search (palavras-chave)
-- **Re-ranking com Cross-Encoder**: Refina resultados usando modelo especializado
-- **Query Expansion**: Gera variações da pergunta para busca mais abrangente (3 variações por padrão, fundidas com RRF)
-- **HyDE (Hypothetical Document Embeddings)**: Gera documento hipotético para melhorar busca
-- **MMR (Maximal Marginal Relevance)**: Diversifica resultados para evitar redundância
-- **Adaptive Retrieval**: Ajusta parâmetros dinamicamente baseado na complexidade da query
-- **Filtro de similaridade**: Descarta resultados irrelevantes automaticamente
-- **Arquitetura Modular**: Pipeline orquestrada com serviços especializados (Search, Context, Prompt, Response)
-
-### 🗜️ Otimização de Contexto
-- **Compressão de Contexto**: Reduz contexto grande automaticamente antes de enviar ao LLM
-- **Hierarchical Chunking**: Divisão em chunks pais e filhos (opcional)
-- **Sentence Window Retrieval**: Busca precisa com sentenças individuais expandidas dinamicamente
-  - **Busca**: 3 modos de recuperação (Automático, Explicação, Precisão)
-  - **Ingestão**: Seleção de tipo de chunking por documento (Hierarchical vs Sentence Window)
-  - **Expansão Dinâmica**: 3 sentenças vizinhas para contexto suficiente
-  - **Decisão Automática**: Sistema analisa a pergunta e escolhe a melhor estratégia
-- **Contextual Metadata**: Metadados contextuais para melhor recuperação
-
-### 💬 Sistema de Conversação
-- **Histórico de conversas**: Perguntas de follow-up com contexto mantido
-- **Gerenciamento de sessões**: Sessões isoladas com expiração automática
-- **Streaming**: Respostas em tempo real
-- **Suporte multi-idioma**: Detecção automática (PT, EN, ES, DE, FR, IT)
-
-### 🎯 Sistema de Prompts Dinâmico
-- **13 prompts pré-configurados**: Para diferentes cenários de uso
-- **Gerenciamento via API**: Criar, atualizar, deletar prompts
-- **Categorias organizadas**: RAG principal, HyDE, Query Expansion, Instruções
-- **Priorização**: Sistema de prioridade para seleção automática
-- **Versionamento**: Controle de versões de prompts
-
-### 🔒 Segurança e Criptografia
-- **Criptografia em Repouso**: Dados sensíveis criptografados no banco (AES-128 + HMAC-SHA256)
-  - ⚠️ **IMPORTANTE**: O Encryption Manager está implementado em `src/core/encryption.py` mas **ainda NÃO está integrado ao sistema**. A funcionalidade está pronta para uso, mas requer integração nos repositórios e habilitação via `ENABLE_ENCRYPTION=true` no arquivo de configuração.
-- **Criptografia em Trânsito**: HTTPS/TLS1.3 com headers de segurança
-- **Headers de Segurança**: HSTS, CSP, X-Frame-Options, etc.
-- **Campos Criptografados**: conteúdo de documentos, metadados, comentários de feedback (quando habilitado)
-- **Criptografia Condicional**: Habilitável/desabilitável por campo
-- **Geração de Chaves Seguras**: Script dedicado para gerenciar chaves
-- **Restrictive CORS**: Configuração rigorosa de origens permitidas via `ALLOWED_ORIGINS` e `CORS_MAX_AGE`.
-- **API Rate Limiting**: Proteção global e por endpoint contra abusos e DoS (Flask-Limiter).
-- **Compliance**: Auxilia no cumprimento de LGPD (Art. 46) e ISO 27001
-
-### 🔬 Observabilidade e Monitoramento
-- **Métricas Prometheus**: Métricas nativas em cada fase do RAG
-- **Modo Debug/Explain**: Transparência total no pipeline (timing, scores, HyDE)
-- **Logging estruturado**: Logs detalhados para debugging
-- **Estátisticas de cache**: Hit rate, tamanho, performance
-
-### 🔍 Explicação Detalhada de Fontes
-- **Timeline completa do processo RAG**: Visualização de todas as etapas do pipeline
-- **Explicação de técnicas usadas**: HyDE, busca híbrida, re-ranking, MMR
-- **Detalhes de seleção de chunks**: Como e por quais chunks foram selecionados
-- **Métricas de similaridade**: Scores de similaridade para cada etapa
-- **Interface visual interativa**: Modal com timeline, cards expansíveis e ícones
-- **Ativação via toggle**: Botão (✨) no header para ativar/desativar funcionalidade
-- **Transparência para usuários**: Entendam como o sistema chegou a determinada resposta
-- **Baixo overhead**: ~50-100ms adicionais por query no backend
-
-### 🛡️ Qualidade e Validação
-- **Classificador de perguntas**: Identifica tipo de pergunta automaticamente
-- **Auto-avaliação**: Avalia qualidade de respostas RAG (opcional)
-- **Validação com Pydantic**: Validação rigorosa de inputs/outputs
-- **Sanitização de inputs**: Prevenção de ataques e injeções
-
-### 🔧 Administração
-- **Admin Dashboard**: Interface web completa para gerenciamento
-- **Upload via API**: Upload de documentos com tracking
-- **Gerenciamento de documentos**: Listar, deletar documentos ingeridos
-- **Sistema de feedback**: Coleta feedback do usuário sobre respostas
-- **Configuração via Env**: Suporte a ambientes DEV, SIT e UAT via arquivos `.env`
-- **Adaptive Retrieval Metrics**: Dashboard de métricas de adaptive retrieval
-  - Estatísticas agregadas (total queries, complexidade média, etc.)
-  - Distribuição de complexidade (Simple/Medium/Complex)
-  - Tabela de queries recentes com ajustes aplicados
-  - Gráfico de barras de distribuição
-  - Filtro por período (24h, 7 dias, 30 dias)
+- 📄 **Múltiplos formatos**: PDF, DOCX, TXT, Markdown, HTML
+- 🔍 **Busca Híbrida**: Combina busca vetorial (semântica) + Full-Text Search (palavras-chave)
+- 🗜️ **Compressão de Contexto**: Reduz contexto grande automaticamente antes de enviar ao LLM
+- 🔎 **Filtro de similaridade**: Descarta resultados irrelevantes automaticamente
+- 💬 **Histórico de conversas**: Perguntas de follow-up com contexto mantido
+- 📤 **Upload via API**: Ingestão de documentos com processamento assíncrono
+- ✂️ **Chunking semântico**: Divisão inteligente por sentenças (spaCy)
+- 🔄 **Streaming**: Respostas em tempo real
+- 📊 **Logging detalhado**: Sistema de logs para API, RAG e ingestão
+- 🧪 **Testes automatizados**: Suíte de testes para validação de funcionalidades
 
 ---
 
@@ -126,59 +35,37 @@ Sistema RAG (Retrieval-Augmented Generation) local para consulta inteligente de 
 
 ```
 rag/
-├── db/                            # Banco de dados
-│   ├── docker-compose.yml         # PostgreSQL + pgvector + Adminer
-│   └── init.sql                   # Script de inicialização
-├── scripts/                       # Scripts utilitários
-│   └── ingest.py                  # CLI para ingestão de documentos
-├── frontend/                      # Interface Web (React)
-│   ├── src/
-│   │   ├── api.ts                 # Cliente da API
-│   │   ├── App.tsx               # Componente principal
-│   │   ├── components/           # Componentes React
-│   │   │   ├── AdminDashboard.tsx    # Dashboard admin
-│   │   │   ├── ChatArea.tsx          # Área de chat
-│   │   │   ├── DocumentsPanel.tsx    # Gerenciamento de docs
-│   │   │   ├── PromptsManagement.tsx # Gestão de prompts
-│   │   │   ├── ExplanationModal.tsx  # Modal de explicação RAG
-│   │   │   └── ...                   # Outros componentes
-│   │   └── types.ts              # TypeScript types
-│   ├── package.json
-│   └── vite.config.ts
-├── src/                           # Backend Python
-│   ├── api/                       # Camada API
-│   │   ├── routes/                # Blueprints modulares (prompts, docs, chat, etc.)
-│   │   └── schemas.py             # Schemas Pydantic
-│   ├── core/                      # Lógica RAG e NLP
-│   │   ├── rag/                   # Nova arquitetura RAG Modular
-│   │   │   ├── services/          # Serviços (Search, Context, Prompt, Response)
-│   │   │   ├── strategies/        # Estratégias (Retrieval, HyDE, etc.)
-│   │   │   └── pipeline.py        # Orquestrador principal (RAGPipeline)
-│   │   ├── rag.py                 # Wrapper de compatibilidade
-│   │   └── ...                    # Módulos core (llm, embeddings, etc.)
-│   ├── data/                      # Camada de dados
-│   │   ├── repositories/          # Repository Pattern (Document, Prompt, etc.)
-│   │   ├── database.py            # Conexão base
-│   │   ├── ingestion.py           # Processamento de arquivos
-│   │   └── ...                    # Módulos de busca e chunking
-│   ├── app.py                     # Inicialização Flask (Limiter, Blueprints)
-│   └── config.py                  # Configurações centralizadas
-├── requirements/                  # Definições de dependências (pip-tools)
-│   ├── base.in                    # Dependências base
-│   └── dev.in                     # Dependências de desenvolvimento
-├── requirements.txt               # Pinned dependencies (Base)
-├── requirements-dev.txt           # Pinned dependencies (Dev)
-├── alembic/                       # Migrações do banco
-│   └── versions/                  # Scripts de migração
-├── docs/                          # Documentação adicional
-│   ├── MELHORIAS.md               # Lista de melhorias
-│   └── ...
-├── .env.example                   # Template de configurações
-├── .env.sit                       # Configurações SIT
-├── .env.uat                       # Configurações UAT
-├── run_app.py                     # Script de inicialização unificado
-├── requirements.txt                # Dependências Python
-└── alembic.ini                    # Configuração Alembic
+├── db/
+│   ├── docker-compose.yml    # PostgreSQL + pgvector + Adminer
+│   ├── init.sql              # Script de inicialização do banco
+│   └── connections.md        # Documentação de conexões
+├── scripts/
+│   └── ingest.py             # CLI para ingestão de documentos
+├── src/
+│   ├── api/
+│   │   └── routes.py         # Endpoints da API
+│   ├── core/
+│   │   ├── embeddings.py     # Geração de embeddings (Nomic)
+│   │   ├── llm.py            # Integração com LLM (Phi-3.5)
+│   │   ├── rag.py            # Pipeline RAG completo
+│   │   ├── conversation.py   # Gerenciador de histórico de conversas
+│   │   ├── context_compression.py  # Compressão inteligente de contexto
+│   │   └── logger.py         # Sistema de logging
+│   ├── data/
+│   │   ├── database.py       # Conexão PostgreSQL + pgvector
+│   │   ├── hybrid_search.py  # Busca híbrida (vetorial + FTS)
+│   │   ├── ingestion.py      # Leitura de documentos + chunking
+│   │   └── chunking.py       # Chunking semântico com spaCy
+│   ├── app.py                # Aplicação Flask principal
+│   └── config.py             # Configurações centralizadas
+├── tests/
+│   └── test_chunking_comparison.py  # Testes de chunking
+├── docs/
+│   ├── MELHORIAS.md          # Roadmap de melhorias
+│   ├── PLANO_CHUNKING_SEMANTICO.md  # Plano de implementação do chunking
+│   └── EVOLUCAO_LANGCHAIN_SGLANG.md  # Evolução futura com LangChain
+├── requirements.txt
+└── README.md
 ```
 
 ---
@@ -367,23 +254,14 @@ Este script inicia:
 - Frontend Vite (porta 5173)
 - Limpeza automática de sessões expiradas
 
-### Acessar Interface Web
+### Executar Testes
 
-- **Frontend**: http://localhost:5173
-- **Admin Dashboard**: Disponível na interface web
-- **API Docs**: Ver seção de endpoints abaixo
-
-### Ingestão de Documentos
-
-**Via Interface Web**:
-1. Acesse Admin Dashboard
-2. Vá em "Documentos"
-3. Use "Upload" ou "Ingerir Todos"
-
-**Via CLI**:
 ```bash
-# Ingerir pasta de documentos padrão
-python -m scripts.ingest
+# Testar qualidade do chunking
+python tests/test_chunking_comparison.py
+```
+
+---
 
 # Verificar status
 python -m scripts.ingest --stats
@@ -923,9 +801,12 @@ LOG_MAX_BYTES: int = 10485760  # 10MB
 LOG_BACKUP_COUNT: int = 3
 ```
 
-**Uso no Código:**
-```python
-import logging
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `CHUNK_SIZE` | `800` | Tamanho máximo do chunk |
+| `MIN_CHUNK_SIZE` | `200` | Tamanho mínimo do chunk |
+| `USE_SEMANTIC_CHUNKING` | `True` | Usar chunking por sentenças |
+| `CHUNK_OVERLAP_SENTENCES` | `1` | Sentenças de overlap |
 
 # Obter logger para o módulo
 logger = logging.getLogger(__name__)
@@ -979,21 +860,35 @@ Ver documento completo em `docs/MELHORIAS_COMPLETAS.md`
 
 ## 🤝 Contribuindo
 
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/NovaFuncionalidade`)
-3. Commit suas mudanças (`git commit -m 'Adiciona nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/NovaFuncionalidade`)
-5. Abra um Pull Request
+# Iniciar API
+python -m src.app
+
+# Testar qualidade do chunking
+python tests/test_chunking_comparison.py
+```
 
 ---
 
 ## 📄 Licença
 
-Projeto para estudo de técnicas avançadas de RAG.
+- [x] ✅ Filtro de similaridade mínima
+- [x] ✅ Chunking semântico com spaCy
+- [x] ✅ Suporte a múltiplos formatos (PDF, DOCX, TXT, MD, HTML)
+- [x] ✅ Histórico de conversas
+- [x] ✅ Endpoint de ingestão via API
+- [x] ✅ **Busca Híbrida** - Combina busca vetorial (pgvector) com Full-Text Search (BM25)
+- [x] ✅ **Compressão de Contexto** - Reduz contexto grande antes de enviar ao LLM
+- [x] ✅ **Sistema de Logging** - Logs detalhados para API, RAG e ingestão
+- [x] ✅ **Testes Automatizados** - Validação de funcionalidades do chunking
 
 ---
 
-## 📞 Suporte
+- [ ] Re-ranking com cross-encoder
+- [ ] Cache de embeddings
+- [ ] Métricas e monitoramento
+- [ ] Interface de chat (frontend)
+- [ ] Autenticação na API
+- [ ] Expansão da suíte de testes
 
 - **Issues**: GitHub Issues
 - **Documentação**: Ver pasta `docs/`
@@ -1027,7 +922,24 @@ Projeto para estudo de técnicas avançadas de RAG.
 
 ---
 
-**Última atualização**: Janeiro 2026
-**Versão**: 3.0
+## 🚀 Evolução Futura: LangChain e sglang
+
+O projeto possui documentação para evolução futura com tecnologias avançadas:
+
+### LangChain
+- Blocos prontos para loaders, splitters, embeddings e retrievers
+- Observabilidade com callbacks/tracing
+- Composição de chains/runnables para flexibilidade
+
+### sglang
+- Servidor de inferência otimizado com batching e speculative decoding
+- Redução de latência e custo
+- Cache KV para melhor performance
+
+Para mais detalhes sobre o plano de migração, consulte [docs/EVOLUCAO_LANGCHAIN_SGLANG.md](docs/EVOLUCAO_LANGCHAIN_SGLANG.md).
 
 ---
+
+## 📄 Licença
+
+Projeto pessoal para estudo e uso local.
