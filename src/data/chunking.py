@@ -6,29 +6,45 @@ respeitando limites naturais do texto (parágrafos, pontuação).
 """
 import re
 from typing import List, Optional
-import logging
+
 
 # Configurar logger
-logger = logging.getLogger(__name__)
+print(__name__)
 
-# Tentar carregar spaCy e modelo português
+# Importar detector de idioma
+try:
+    from src.core.language_detector import (
+        detect_language,
+        get_nlp_for_language,
+        LANGDETECT_AVAILABLE,
+        DEFAULT_LANGUAGE
+    )
+    LANGUAGE_DETECTION_AVAILABLE = True
+except ImportError:
+    LANGUAGE_DETECTION_AVAILABLE = False
+    LANGDETECT_AVAILABLE = False
+    DEFAULT_LANGUAGE = 'pt'
+    print("language_detector não disponível")
+
+# Tentar carregar spaCy
 try:
     import spacy
+    SPACY_AVAILABLE = True
     
+    # Modelo padrão (português) para compatibilidade
     try:
-        # Carregar modelo mínimo para segmentação de sentenças
-        nlp = spacy.blank("pt")  # Modelo em branco (mais leve)
-        nlp.add_pipe("sentencizer")  # Adicionar apenas sentencizer
-        SPACY_AVAILABLE = True
-        logger.info("spaCy carregado com sucesso (sentencizer pt)")
+        nlp = spacy.blank("pt")
+        nlp.add_pipe("sentencizer")
+        nlp.max_length = 50000000  # Aumentar para 50 milhões de caracteres
+        print("spaCy carregado com sucesso (sentencizer pt, max_length=50M)")
     except Exception as e:
-        SPACY_AVAILABLE = False
         nlp = None
-        logger.warning(f"Erro ao carregar spaCy: {e}. Usando fallback regex.")
+        print(f"Erro ao carregar spaCy padrão: {e}")
+        
 except ImportError:
     SPACY_AVAILABLE = False
     nlp = None
-    logger.warning("spaCy não instalado. Usando fallback com regex.")
+    print("spaCy não instalado. Usando fallback com regex.")
 
 
 class SemanticChunker:
@@ -62,9 +78,10 @@ class SemanticChunker:
         self.min_chunk_size = min_chunk_size
         self.overlap_sentences = overlap_sentences
         self.language = language
+        self._detected_language = None  # Cache do idioma detectado
         
         if not SPACY_AVAILABLE:
-            logger.warning("Usando fallback regex para segmentação de sentenças")
+            print("Usando fallback regex para segmentação de sentenças")
     
     def chunk(self, text: str) -> List[str]:
         """
@@ -79,12 +96,25 @@ class SemanticChunker:
         if not text or not text.strip():
             return []
         
+        print(f"Iniciando chunking semântico. Tamanho do texto: {len(text)} caracteres.")
+        
         # Normalizar espaços em branco
         text = self._normalize_whitespace(text)
         
         # Se texto é menor que o máximo, retornar como único chunk
         if len(text) <= self.max_chunk_size:
             return [text.strip()]
+        
+        # Se o texto for extremamente grande, dividir em blocos para não sobrecarregar o spaCy
+        # (Embora nlp.max_length tenha aumentado, processar blocos de 1M é mais seguro)
+        MAX_SPACY_BLOCK = 1000000
+        if len(text) > MAX_SPACY_BLOCK:
+            print(f"Texto muito grande ({len(text)} chars). Dividindo em blocos de {MAX_SPACY_BLOCK} para processamento.")
+            blocks = [text[i:i + MAX_SPACY_BLOCK] for i in range(0, len(text), MAX_SPACY_BLOCK)]
+            all_chunks = []
+            for block in blocks:
+                all_chunks.extend(self.chunk(block))
+            return all_chunks
         
         # Dividir em parágrafos primeiro
         paragraphs = self._split_into_paragraphs(text)
@@ -132,6 +162,8 @@ class SemanticChunker:
         # Mesclar chunks muito pequenos
         all_chunks = self._merge_small_chunks(all_chunks)
         
+        print(f"Chunking semântico concluído: {len(all_chunks)} chunks gerados.")
+        
         return all_chunks
     
     def _normalize_whitespace(self, text: str) -> str:
@@ -173,8 +205,22 @@ class SemanticChunker:
             return self._split_sentences_regex(text)
     
     def _split_sentences_spacy(self, text: str) -> List[str]:
-        """Divide sentenças usando spaCy."""
-        doc = nlp(text)
+        """Divide sentenças usando spaCy com detecção de idioma."""
+        # Detectar idioma se não foi detectado ainda
+        if LANGUAGE_DETECTION_AVAILABLE and self._detected_language is None:
+            self._detected_language = detect_language(text)
+            print(f"Idioma detectado para chunking: {self._detected_language}")
+        
+        # Usar modelo do idioma detectado ou default
+        if LANGUAGE_DETECTION_AVAILABLE and self._detected_language:
+            current_nlp = get_nlp_for_language(self._detected_language)
+        else:
+            current_nlp = nlp
+        
+        if current_nlp is None:
+            return self._split_sentences_regex(text)
+        
+        doc = current_nlp(text)
         return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     
     def _split_sentences_regex(self, text: str) -> List[str]:
@@ -344,17 +390,158 @@ def check_spacy_available() -> dict:
     return {
         "spacy_installed": SPACY_AVAILABLE,
         "model_loaded": nlp is not None,
-        "model_name": "pt_core_news_sm" if nlp else None,
-        "fallback_mode": not SPACY_AVAILABLE
+        "model_name": "pt (default)" if nlp else None,
+        "fallback_mode": not SPACY_AVAILABLE,
+        "language_detection_available": LANGUAGE_DETECTION_AVAILABLE,
+        "langdetect_available": LANGDETECT_AVAILABLE,
+        "default_language": DEFAULT_LANGUAGE
     }
+
+
+# =============================================================================
+# Phase 3 - Contextual Chunking (Metadados Enriquecidos)
+# =============================================================================
+
+def extract_section_title(text: str) -> Optional[str]:
+    """
+    Tenta detectar o título da seção a partir do texto.
+    
+    Procura por padrões de títulos no início do texto.
+    
+    Args:
+        text: Texto do chunk
+        
+    Returns:
+        Título da seção ou None
+    """
+    lines = text.strip().split('\n')
+    if not lines:
+        return None
+    
+    first_line = lines[0].strip()
+    
+    # Padrões de títulos
+    # 1. Linha curta no início (provavelmente título)
+    if len(first_line) < 100 and first_line:
+        # Remover numeração de seções
+        title = re.sub(r'^[\d.]+\s*', '', first_line)
+        title = re.sub(r'^[#*-]+\s*', '', title)
+        
+        # Verificar se parece um título (sem ponto final, capitalizado)
+        if title and not title.endswith('.') and len(title) < 100:
+            return title.strip()
+    
+    # 2. Markdown headers
+    match = re.match(r'^#+\s+(.+)$', first_line)
+    if match:
+        return match.group(1).strip()
+    
+    return None
+
+
+def summarize_text(text: str, max_length: int = 100) -> str:
+    """
+    Cria resumo curto do texto (primeiras N caracteres).
+    
+    Args:
+        text: Texto a resumir
+        max_length: Comprimento máximo
+        
+    Returns:
+        Texto resumido
+    """
+    if not text:
+        return ""
+    
+    text = text.strip()
+    
+    if len(text) <= max_length:
+        return text
+    
+    # Cortar em limite de palavra
+    truncated = text[:max_length]
+    last_space = truncated.rfind(' ')
+    
+    if last_space > max_length // 2:
+        truncated = truncated[:last_space]
+    
+    return truncated.strip() + "..."
+
+
+def add_contextual_metadata(
+    chunks: List[dict],
+    add_neighbor_summaries: bool = True,
+    add_section_titles: bool = True,
+    summary_length: int = 80
+) -> List[dict]:
+    """
+    Enriquece chunks com metadados contextuais.
+    
+    Adiciona:
+    - section_title: título detectado da seção
+    - prev_summary: resumo do chunk anterior
+    - next_summary: resumo do chunk seguinte
+    - chunk_index: posição na lista
+    
+    Args:
+        chunks: Lista de chunks com 'content' e 'metadata'
+        add_neighbor_summaries: Se True, adiciona resumos dos vizinhos
+        add_section_titles: Se True, detecta títulos de seção
+        summary_length: Comprimento máximo dos resumos
+        
+    Returns:
+        Chunks com metadados enriquecidos
+    """
+    if not chunks:
+        return chunks
+    
+    enriched = []
+    
+    for i, chunk in enumerate(chunks):
+        # Copiar chunk
+        new_chunk = chunk.copy()
+        if "metadata" not in new_chunk:
+            new_chunk["metadata"] = {}
+        else:
+            new_chunk["metadata"] = chunk["metadata"].copy()
+        
+        content = chunk.get("content", "")
+        
+        # Adicionar índice
+        new_chunk["metadata"]["chunk_index"] = i
+        new_chunk["metadata"]["total_chunks"] = len(chunks)
+        
+        # Detectar título da seção
+        if add_section_titles:
+            section_title = extract_section_title(content)
+            if section_title:
+                new_chunk["metadata"]["section_title"] = section_title
+        
+        # Adicionar resumos dos vizinhos
+        if add_neighbor_summaries:
+            # Chunk anterior
+            if i > 0:
+                prev_content = chunks[i - 1].get("content", "")
+                new_chunk["metadata"]["prev_summary"] = summarize_text(prev_content, summary_length)
+            
+            # Próximo chunk
+            if i < len(chunks) - 1:
+                next_content = chunks[i + 1].get("content", "")
+                new_chunk["metadata"]["next_summary"] = summarize_text(next_content, summary_length)
+        
+        enriched.append(new_chunk)
+    
+    print(f"Contextual metadata added to {len(enriched)} chunks")
+    
+    return enriched
 
 
 if __name__ == "__main__":
     # Teste rápido do módulo
-    print("=== Teste do Chunking Semântico ===\n")
+    print("=== Teste do Chunking Semântico ===")
     
     status = check_spacy_available()
-    print(f"Status spaCy: {status}\n")
+    print(f"Status spaCy: {status}")
     
     # Texto de exemplo
     sample_text = """
@@ -371,12 +558,12 @@ if __name__ == "__main__":
     chunks = chunk_text_semantic(sample_text, max_chunk_size=300)
     
     print(f"Texto original: {len(sample_text)} caracteres")
-    print(f"Chunks gerados: {len(chunks)}\n")
+    print(f"Chunks gerados: {len(chunks)}")
     
     for i, chunk in enumerate(chunks, 1):
         print(f"--- Chunk {i} ({len(chunk)} chars) ---")
         print(chunk)
-        print()
+        print("")
     
     quality = analyze_chunk_quality(chunks)
     print(f"Qualidade: {quality}")

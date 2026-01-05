@@ -1,0 +1,40 @@
+# =============================================================================
+# RAG System - Base Dependencies
+# =============================================================================
+
+# Web Framework
+flask
+flask-cors
+flask-limiter
+
+# Security
+cryptography
+
+# Database
+psycopg2
+SQLAlchemy
+alembic
+
+# HTTP Client
+requests
+
+# NLP
+spacy
+langdetect
+
+# Observability
+prometheus-client
+
+# Configuration
+python-dotenv
+pydantic
+pydantic-settings
+
+# Scheduling
+apscheduler
+
+# Document Processing
+markitdown[all]
+
+# Production Server
+gunicorn

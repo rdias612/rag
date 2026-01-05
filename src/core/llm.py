@@ -2,24 +2,19 @@
 Módulo de integração com o LLM (Phi-3.5 Mini) via LM Studio API.
 """
 import time
+import json
+
 import requests
 from typing import Optional, Generator
 
 from src.config import LM_STUDIO_BASE_URL, LLM_MODEL
-from src.core.logger import (
-    llm_logger,
-    log_llm_request,
-    log_llm_response,
-    log_llm_full_request,
-    log_llm_full_response
-)
-
 
 def generate_response(
     prompt: str,
     max_tokens: int = 1024,
     temperature: float = 0.7,
-    stream: bool = False
+    stream: bool = False,
+    request_id: str = None
 ) -> str:
     """
     Gera uma resposta usando o modelo Phi-3.5 Mini.
@@ -46,15 +41,19 @@ def generate_response(
         "stream": stream
     }
     
+    request_id = request_id or "unknown"
+    
+    # Log início da requisição
+    print("LLM Request Started | request_id=%s | model=%s | prompt_len=%d | max_tokens=%d | temperature=%s | stream=%s",
+                   request_id, LLM_MODEL, len(prompt), max_tokens, temperature, stream)
+    
     # Log da requisição (resumo)
-    log_llm_request(prompt, LLM_MODEL, {
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stream": stream
-    })
+    print("LLM Request | model=%s | prompt_len=%d | params=%s",
+                   LLM_MODEL, len(prompt), {"max_tokens": max_tokens, "temperature": temperature, "stream": stream})
     
     # Log da requisição completa (detalhado)
-    log_llm_full_request(LM_STUDIO_BASE_URL + "/chat/completions", payload)
+    print("LLM Full Request | url=%s | payload=%s",
+                    LM_STUDIO_BASE_URL + "/chat/completions", payload)
     
     if stream:
         return _generate_stream(payload)
@@ -73,14 +72,21 @@ def generate_response(
     result = data["choices"][0]["message"]["content"]
     duration = time.time() - start_time
     
+    print("LLM Response Received | request_id=%s | response_len=%d | duration=%s",
+                   request_id, len(result), f"{duration:.3f}s")
+    
     # Extrair tokens se disponível
     tokens = data.get("usage", {}).get("completion_tokens")
     
     # Log da resposta (resumo)
-    log_llm_response(result, duration, tokens)
+    print("LLM Response | response_len=%d | duration=%.3fs | tokens=%s",
+                   len(result), duration, tokens)
     
     # Log da resposta completa (detalhado - JSON original)
-    log_llm_full_response(data)
+    print("LLM Full Response | response=%s", data)
+    
+    print("LLM Complete | request_id=%s | total_duration=%s | status=%s",
+                   request_id, f"{duration:.3f}s", "success")
     
     return result
 
@@ -102,25 +108,34 @@ def _generate_stream(payload: dict) -> Generator[str, None, None]:
         timeout=120
     )
     
-    response.raise_for_status()
-    
-    for line in response.iter_lines():
-        if line:
-            line = line.decode("utf-8")
-            if line.startswith("data: "):
-                data = line[6:]
-                if data == "[DONE]":
-                    break
-                    
-                import json
-                try:
-                    chunk = json.loads(data)
-                    delta = chunk["choices"][0].get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield content
-                except json.JSONDecodeError:
-                    continue
+    try:
+        response.raise_for_status()
+        
+        print("LLM Stream Started | request_id=%s | model=%s",
+                       "unknown", payload.get("model"))
+        
+        for line in response.iter_lines():
+            if line:
+                line = line.decode("utf-8")
+                if line.startswith("data: "):
+                    data = line[6:]
+                    if data == "[DONE]":
+                        print("LLM Stream Complete | request_id=%s | status=%s",
+                                       "unknown", "done")
+                        break
+                        
+                    try:
+                        chunk = json.loads(data)
+                        delta = chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        print("LLM Stream Error | request_id=%s | model=%s | error_type=%s | error_message=%s",
+                           "unknown", payload.get("model"), type(e).__name__, str(e))
+        raise
 
 
 def generate_with_system_prompt(
@@ -159,13 +174,12 @@ def generate_with_system_prompt(
     
     # Log da requisição (resumo)
     full_prompt = f"[SYSTEM] {system_prompt}\n[USER] {user_prompt}"
-    log_llm_request(full_prompt, LLM_MODEL, {
-        "max_tokens": max_tokens,
-        "temperature": temperature
-    })
+    print("LLM Request | model=%s | prompt_len=%d | params=%s",
+                   LLM_MODEL, len(full_prompt), {"max_tokens": max_tokens, "temperature": temperature})
     
     # Log da requisição completa (detalhado)
-    log_llm_full_request(LM_STUDIO_BASE_URL + "/chat/completions", payload)
+    print("LLM Full Request | url=%s | payload=%s",
+                    LM_STUDIO_BASE_URL + "/chat/completions", payload)
     
     start_time = time.time()
     
@@ -183,10 +197,11 @@ def generate_with_system_prompt(
     
     # Log da resposta (resumo)
     tokens = data.get("usage", {}).get("completion_tokens")
-    log_llm_response(result, duration, tokens)
+    print("LLM Response | response_len=%d | duration=%.3fs | tokens=%s",
+                   len(result), duration, tokens)
     
     # Log da resposta completa (detalhado - JSON original)
-    log_llm_full_response(data)
+    print("LLM Full Response | response=%s", data)
     
     return result
 
@@ -207,12 +222,12 @@ def check_llm_service() -> bool:
         phi_available = any("phi" in m.lower() for m in available_models)
         
         if phi_available:
-            llm_logger.info(f"LLM service available. Models: {available_models}")
+            print("LLM service available. Models: %s", available_models)
             return True
         else:
-            llm_logger.warning(f"No Phi model found. Available: {available_models}")
+            print("No Phi model found. Available: %s", available_models)
             return False
             
     except Exception as e:
-        llm_logger.error(f"LLM service error: {e}")
+        print("LLM service error: %s", str(e))
         return False

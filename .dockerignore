@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv
+env
+*.egg-info
+*.egg
+dist/
+build/
+.tox/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# IDE
+.vscode
+.idea
+*.swp
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Ambiente
+.env
+.env.*.local
+.env.local
+! .env.example
+
+# Testes
+tests/
+*.test.py
+.pytest_cache
+.coverage
+htmlcov
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Frontend (build separado)
+frontend/
+
+# Logs e dados locais
+logs/
+*.log
+db/

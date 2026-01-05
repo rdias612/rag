@@ -5,13 +5,11 @@ Permite manter contexto entre perguntas de follow-up.
 """
 import uuid
 import time
+
 import threading
 from datetime import datetime, timedelta
 from typing import Optional
 from dataclasses import dataclass, field
-
-from src.core.logger import rag_logger
-
 
 @dataclass
 class Message:
@@ -44,8 +42,12 @@ class Conversation:
         Returns:
             Histórico formatado como string
         """
-        # Pegar as últimas N mensagens (excluindo a última do user, que é a pergunta atual)
-        recent = self.messages[-(max_messages + 1):-1] if len(self.messages) > 1 else []
+        # Se a última mensagem for do usuário, assumimos que é a pergunta atual e a ignoramos no histórico
+        # (pois ela já será incluída separadamente no prompt principal)
+        if self.messages and self.messages[-1].role == "user":
+            recent = self.messages[-(max_messages + 1):-1]
+        else:
+            recent = self.messages[-max_messages:]
         
         if not recent:
             return ""
@@ -112,13 +114,13 @@ class ConversationManager:
             max_sessions: Número máximo de sessões simultâneas
         """
         self._sessions: dict[str, Conversation] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._session_timeout = session_timeout_minutes * 60  # Converter para segundos
         self._max_sessions = max_sessions
         
-        rag_logger.info(
-            f"ConversationManager initialized: timeout={session_timeout_minutes}min, "
-            f"max_sessions={max_sessions}"
+        print(
+            "ConversationManager initialized: timeout=%dmin, max_sessions=%d",
+            session_timeout_minutes, max_sessions
         )
     
     def create_session(self) -> str:
@@ -132,7 +134,7 @@ class ConversationManager:
         
         with self._lock:
             # Limpar sessões antigas se necessário
-            self._cleanup_old_sessions()
+            self.cleanup_expired_sessions()
             
             # Verificar limite de sessões
             if len(self._sessions) >= self._max_sessions:
@@ -140,7 +142,7 @@ class ConversationManager:
             
             self._sessions[session_id] = Conversation(session_id=session_id)
         
-        rag_logger.info(f"New conversation session created: {session_id[:8]}...")
+        print("New conversation session created: %s...", session_id[:8])
         return session_id
     
     def get_session(self, session_id: str) -> Optional[Conversation]:
@@ -162,7 +164,7 @@ class ConversationManager:
             # Verificar se expirou
             if time.time() - session.last_activity > self._session_timeout:
                 del self._sessions[session_id]
-                rag_logger.info(f"Session expired: {session_id[:8]}...")
+                print("Session expired: %s...", session_id[:8])
                 return None
             
             return session
@@ -186,6 +188,23 @@ class ConversationManager:
         new_id = self.create_session()
         return new_id, self._sessions[new_id]
     
+    def get_history_as_text(self, session_id: str, max_messages: int = 10) -> str:
+        """
+        Obtém o histórico de uma sessão formatado como texto.
+        
+        Args:
+            session_id: ID da sessão
+            max_messages: Número máximo de mensagens
+            
+        Returns:
+            Histórico formatado ou string vazia
+        """
+        session = self.get_session(session_id)
+        if session is None:
+            return ""
+        
+        return session.get_history_for_prompt(max_messages)
+    
     def add_message(self, session_id: str, role: str, content: str) -> bool:
         """
         Adiciona uma mensagem a uma sessão.
@@ -203,7 +222,7 @@ class ConversationManager:
             return False
         
         session.add_message(role, content)
-        rag_logger.debug(f"Message added to session {session_id[:8]}...: {role}")
+        print("Message added to session %s...: %s", session_id[:8], role)
         return True
     
     def delete_session(self, session_id: str) -> bool:
@@ -219,7 +238,7 @@ class ConversationManager:
         with self._lock:
             if session_id in self._sessions:
                 del self._sessions[session_id]
-                rag_logger.info(f"Session deleted: {session_id[:8]}...")
+                print("Session deleted: %s...", session_id[:8])
                 return True
             return False
     
@@ -231,7 +250,7 @@ class ConversationManager:
             Lista de dicionários com informações das sessões
         """
         with self._lock:
-            self._cleanup_old_sessions()
+            self.cleanup_expired_sessions()
             return [
                 {
                     "session_id": session.session_id,
@@ -242,26 +261,27 @@ class ConversationManager:
                 for session in self._sessions.values()
             ]
     
-    def _cleanup_old_sessions(self) -> int:
+    def cleanup_expired_sessions(self) -> int:
         """
-        Remove sessões expiradas.
+        Remove sessões expiradas. Public method to be called by background task.
         
         Returns:
             Número de sessões removidas
         """
         now = time.time()
-        expired = [
-            sid for sid, session in self._sessions.items()
-            if now - session.last_activity > self._session_timeout
-        ]
-        
-        for sid in expired:
-            del self._sessions[sid]
-        
-        if expired:
-            rag_logger.info(f"Cleaned up {len(expired)} expired sessions")
-        
-        return len(expired)
+        with self._lock:
+            expired = [
+                sid for sid, session in self._sessions.items()
+                if now - session.last_activity > self._session_timeout
+            ]
+            
+            for sid in expired:
+                del self._sessions[sid]
+            
+            if expired:
+                print("Cleaned up %d expired sessions", len(expired))
+            
+            return len(expired)
     
     def _remove_oldest_session(self) -> None:
         """Remove a sessão mais antiga."""
@@ -273,7 +293,7 @@ class ConversationManager:
             key=lambda sid: self._sessions[sid].last_activity
         )
         del self._sessions[oldest_id]
-        rag_logger.info(f"Removed oldest session to free space: {oldest_id[:8]}...")
+        print("Removed oldest session to free space: %s...", oldest_id[:8])
 
 
 # Instância global do gerenciador de conversas

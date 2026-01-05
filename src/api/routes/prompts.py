@@ -1,0 +1,227 @@
+"""
+Blueprint de gerenciamento de prompts.
+
+Endpoints:
+- GET /prompts - Lista prompts
+- GET /prompts/<id> - Detalhes do prompt
+- POST /prompts - Cria prompt
+- PUT /prompts/<id> - Atualiza prompt
+- DELETE /prompts/<id> - Deleta prompt
+- GET /prompts/<id>/can-delete - Verifica se pode deletar
+- GET /prompts/categories - Lista categorias
+"""
+
+import time
+from flask import Blueprint, request, jsonify
+
+from src.data.repositories import PromptRepository, CRITICAL_CATEGORIES
+
+print("rag.api")
+
+prompts_bp = Blueprint("prompts", __name__)
+
+# Instância do repository
+_prompt_repo = PromptRepository()
+
+
+@prompts_bp.route("", methods=["GET"])
+def get_all_prompts():
+    """Lista todos os prompts disponíveis."""
+    start_time = time.time()
+    print("API Request | endpoint=%s | method=%s", "/api/prompts", "GET")
+    
+    try:
+        prompts = _prompt_repo.list_all()
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/prompts", 200, time.time() - start_time)
+        
+        return jsonify({
+            "prompts": prompts,
+            "count": len(prompts)
+        })
+    except Exception as e:
+        print("Error in /prompts: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/prompts", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@prompts_bp.route("/<int:prompt_id>", methods=["GET"])
+def get_prompt_detail(prompt_id: int):
+    """Retorna detalhes completos de um prompt específico."""
+    start_time = time.time()
+    print("API Request | endpoint=%s | method=%s", f"/api/prompts/{prompt_id}", "GET")
+    
+    try:
+        prompt = _prompt_repo.find_by_id(prompt_id)
+        
+        if not prompt:
+            print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           f"/api/prompts/{prompt_id}", 404, time.time() - start_time)
+            return jsonify({"error": "Prompt não encontrado"}), 404
+        
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}", 200, time.time() - start_time)
+        return jsonify(prompt)
+        
+    except Exception as e:
+        print("Error in /prompts/%d: %s", prompt_id, e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@prompts_bp.route("", methods=["POST"])
+def create_new_prompt():
+    """Cria um novo prompt."""
+    start_time = time.time()
+    data = request.get_json() or {}
+    print("API Request | endpoint=%s | method=%s | body=%s", "/api/prompts", "POST", {**data, "template": "..."})
+    
+    required_fields = ["name", "template", "category"]
+    missing_fields = [f for f in required_fields if f not in data]
+    
+    if missing_fields:
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/prompts", 400, time.time() - start_time)
+        return jsonify({
+            "error": "Campos obrigatórios faltando",
+            "missing_fields": missing_fields
+        }), 400
+    
+    try:
+        success, prompt_id, error_msg = _prompt_repo.create(
+            name=data["name"],
+            template=data["template"],
+            category=data["category"],
+            description=data.get("description"),
+            priority=data.get("priority", 100),
+            tags=data.get("tags", []),
+            use_case=data.get("use_case"),
+            created_by="user"
+        )
+        
+        if not success:
+            print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           "/api/prompts", 400, time.time() - start_time)
+            return jsonify({"error": error_msg}), 400
+        
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/prompts", 201, time.time() - start_time)
+        return jsonify({
+            "success": True,
+            "prompt_id": prompt_id,
+            "message": "Prompt criado com sucesso"
+        }), 201
+        
+    except Exception as e:
+        print("Error creating prompt: %s", e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       "/api/prompts", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@prompts_bp.route("/<int:prompt_id>", methods=["PUT"])
+def update_prompt_endpoint(prompt_id: int):
+    """Atualiza um prompt existente."""
+    start_time = time.time()
+    data = request.get_json() or {}
+    print("API Request | endpoint=%s | method=%s | body=%s", f"/api/prompts/{prompt_id}", "PUT", data)
+    
+    try:
+        success, error_msg = _prompt_repo.update(
+            prompt_id=prompt_id,
+            template=data.get("template"),
+            description=data.get("description"),
+            priority=data.get("priority"),
+            tags=data.get("tags"),
+            use_case=data.get("use_case"),
+            is_active=data.get("is_active")
+        )
+        
+        if not success:
+            print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           f"/api/prompts/{prompt_id}", 400, time.time() - start_time)
+            return jsonify({"error": error_msg}), 400
+        
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}", 200, time.time() - start_time)
+        return jsonify({
+            "success": True,
+            "message": "Prompt atualizado com sucesso"
+        })
+        
+    except Exception as e:
+        print("Error updating prompt %d: %s", prompt_id, e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@prompts_bp.route("/<int:prompt_id>/can-delete", methods=["GET"])
+def check_can_delete_prompt(prompt_id: int):
+    """Verifica se um prompt pode ser deletado."""
+    start_time = time.time()
+    print("API Request | endpoint=%s | method=%s", f"/api/prompts/{prompt_id}/can-delete", "GET")
+    
+    try:
+        can_delete, reason = _prompt_repo.can_delete(prompt_id)
+        
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}/can-delete", 200, time.time() - start_time)
+        
+        return jsonify({
+            "can_delete": can_delete,
+            "reason": reason
+        })
+    except Exception as e:
+        print("Error checking delete permission for prompt %d: %s", prompt_id, e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}/can-delete", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@prompts_bp.route("/<int:prompt_id>", methods=["DELETE"])
+def delete_prompt_endpoint(prompt_id: int):
+    """Deleta um prompt (com validação)."""
+    start_time = time.time()
+    print("API Request | endpoint=%s | method=%s", f"/api/prompts/{prompt_id}", "DELETE")
+    
+    try:
+        success, error_msg = _prompt_repo.delete(prompt_id)
+        
+        if not success:
+            print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                           f"/api/prompts/{prompt_id}", 400, time.time() - start_time)
+            return jsonify({"error": error_msg}), 400
+        
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}", 200, time.time() - start_time)
+        return jsonify({
+            "success": True,
+            "message": "Prompt deletado com sucesso"
+        })
+        
+    except Exception as e:
+        print("Error deleting prompt %d: %s", prompt_id, e)
+        print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                       f"/api/prompts/{prompt_id}", 500, time.time() - start_time)
+        return jsonify({"error": str(e)}), 500
+
+
+@prompts_bp.route("/categories", methods=["GET"])
+def get_prompt_categories():
+    """Retorna as categorias disponíveis e suas descrições."""
+    start_time = time.time()
+    print("API Request | endpoint=%s | method=%s", "/api/prompts/categories", "GET")
+    
+    categories = {
+        **CRITICAL_CATEGORIES,
+        "instruction": "Instruções específicas por tipo de pergunta"
+    }
+    
+    print("API Response | endpoint=%s | status_code=%d | duration=%.3fs",
+                   "/api/prompts/categories", 200, time.time() - start_time)
+    
+    return jsonify({"categories": categories})
+

@@ -6,11 +6,11 @@ os chunks antes de enviá-los ao LLM, mantendo as informações essenciais
 e reduzindo custos de tokens.
 """
 import time
+import re
+
 from typing import Optional
 
-from src.core.logger import rag_logger
 from src.core.llm import generate_response
-
 
 # Template para compressão de contexto
 COMPRESSION_PROMPT_TEMPLATE = """Você é um assistente especializado em resumir textos mantendo as informações mais relevantes.
@@ -47,7 +47,6 @@ def should_compress(context: str, threshold: int) -> bool:
     """
     return len(context) > threshold
 
-
 def compress_context(
     context: str,
     question: str,
@@ -69,7 +68,7 @@ def compress_context(
     original_size = len(context)
     start_time = time.time()
     
-    rag_logger.info(f"Compressing context: {original_size} chars -> target {target_size} chars")
+    print("Compressing context: %d chars -> target %d chars", original_size, target_size)
     
     # Montar prompt de compressão
     prompt = COMPRESSION_PROMPT_TEMPLATE.format(
@@ -89,9 +88,9 @@ def compress_context(
     compressed_size = len(compressed)
     compression_ratio = (1 - compressed_size / original_size) * 100
     
-    rag_logger.info(
-        f"Context compressed: {original_size} -> {compressed_size} chars "
-        f"({compression_ratio:.1f}% reduction) in {compression_time:.2f}s"
+    print(
+        "Context compressed: %d -> %d chars (%.1f%% reduction) in %.2fs",
+        original_size, compressed_size, compression_ratio, compression_time
     )
     
     return {
@@ -101,7 +100,6 @@ def compress_context(
         "compression_ratio": compression_ratio,
         "compression_time_ms": int(compression_time * 1000)
     }
-
 
 def smart_compress(
     context: str,
@@ -126,7 +124,7 @@ def smart_compress(
     original_size = len(context)
     
     if not should_compress(context, compression_threshold):
-        rag_logger.debug(f"Context size ({original_size}) below threshold ({compression_threshold}), skipping compression")
+        print("Context size (%d) below threshold (%d), skipping compression", original_size, compression_threshold)
         return {
             "context": context,
             "was_compressed": False,
@@ -154,7 +152,6 @@ def smart_compress(
         "compression_time_ms": result["compression_time_ms"]
     }
 
-
 def extract_key_sentences(
     context: str,
     question: str,
@@ -174,8 +171,6 @@ def extract_key_sentences(
     Returns:
         Contexto com apenas as sentenças mais relevantes
     """
-    import re
-    
     # Dividir em sentenças
     sentences = re.split(r'(?<=[.!?])\s+', context)
     
@@ -212,9 +207,6 @@ def extract_key_sentences(
     
     result = ' '.join(s[2] for s in top_sentences)
     
-    rag_logger.debug(
-        f"Key sentence extraction: {len(sentences)} sentences -> {len(top_sentences)} "
-        f"({len(context)} chars -> {len(result)} chars)"
-    )
+    print("Key sentence extraction: %d sentences -> %d (%d chars -> %d chars)", len(sentences), len(top_sentences), len(context), len(result))
     
     return result

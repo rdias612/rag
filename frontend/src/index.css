@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sidebar: var(--sidebar-bg);
+  --color-chat: var(--chat-bg);
+  --color-card: var(--card-bg);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-hover: var(--accent-hover);
+  --color-surface: var(--surface-bg);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border-color);
+
+  --animate-fade-in: fadeIn 0.3s ease-out;
+  --animate-slide-up: slideUp 0.4s ease-out;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    0% {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* Base styles & Scrollbar */
+@layer base {
+  :root {
+    --sidebar-width: 18rem;
+
+    /* Dark Theme (Default) */
+    --sidebar-bg: #09090b;
+    --chat-bg: #09090b;
+    --card-bg: #18181b;
+    --accent-primary: #6366f1;
+    --accent-hover: #4f46e5;
+    --surface-bg: #27272a;
+    --text-primary: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  :root.light {
+    --sidebar-bg: #f8fafc;
+    --chat-bg: #ffffff;
+    --card-bg: #ffffff;
+    --accent-primary: #2563eb;
+    --accent-hover: #1d4ed8;
+    --surface-bg: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  body {
+    @apply bg-chat text-text-primary antialiased selection:bg-accent-primary/20 selection:text-accent-primary;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full hover:bg-text-secondary/50 transition-colors;
+}
+
+/* Utils */
+.glass {
+  @apply bg-card/60 backdrop-blur-xl border border-border;
+}
+
+.glass-hover {
+  @apply hover:bg-surface hover:border-accent-primary/20 transition-all duration-200;
+}

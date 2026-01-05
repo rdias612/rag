@@ -4,281 +4,109 @@ Módulo de ingestão de documentos: leitura de múltiplos formatos e chunking.
 Formatos suportados:
 - PDF (.pdf)
 - Word (.docx)
+- Excel (.xlsx)
+- PowerPoint (.pptx)
 - Texto (.txt)
 - Markdown (.md)
 - HTML (.html, .htm)
+- CSV (.csv)
 """
 import os
-import re
-import logging
+import warnings
 from pathlib import Path
 from datetime import datetime
-from typing import Generator, Callable
+from typing import Generator, Callable, Optional, Literal
 
-import pypdf
+# Suprimir avisos do pydub sobre ffmpeg (comum em Windows sem ffmpeg instalado)
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub")
+
+from markitdown import MarkItDown
+
+from src.core.embeddings import get_embeddings_batch
+from src.core.advanced_batch_processor import get_advanced_processor
 
 from src.config import (
     DOCUMENTS_DIR, 
     CHUNK_SIZE, 
     CHUNK_OVERLAP,
-    USE_SEMANTIC_CHUNKING,
+    USE_SEMANTIC_CHUNKING, 
     MIN_CHUNK_SIZE,
-    CHUNK_OVERLAP_SENTENCES
+    CHUNK_OVERLAP_SENTENCES,
+    ENABLE_ADVANCED_BATCH_PROCESSING,
+    PARENT_CHUNK_SIZE,
+    CHILD_CHUNK_SIZE,
+    CHILD_CHUNK_OVERLAP
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
-
-logger = logging.getLogger(__name__)
-
+from src.data.hierarchical_chunking import create_parent_child_chunks
+from src.data.sentence_window import create_sentence_index
 
 # =============================================================================
-# Formatos suportados
+# Formatos suportados e Proibidos (MarkItDown requer API key para estes)
 # =============================================================================
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".html", ".htm"}
+SUPPORTED_EXTENSIONS = {
+    ".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md", ".html", ".htm", ".csv"
+}
+
+FORBIDDEN_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp",  # Imagens
+    ".mp3", ".wav", ".m4a", ".flac"    # Áudio
+}
+
+# Instância global do MarkItDown
+md_converter = MarkItDown()
 
 
-def clean_pdf_text(text: str) -> str:
+def extract_text_with_markitdown(file_path: Path) -> list[dict]:
     """
-    Limpa texto extraído de PDF, corrigindo problemas comuns.
-    
-    - Remove hifenização de quebra de linha (pala-\nvra -> palavra)
-    - Normaliza quebras de linha no meio de frases
-    - Remove múltiplos espaços
-    - Preserva parágrafos (linhas duplas)
+    Extrai texto de qualquer formato suportado usando MarkItDown da Microsoft.
+    Converte o arquivo para Markdown antes de retornar o texto.
     
     Args:
-        text: Texto bruto extraído do PDF
+        file_path: Caminho para o arquivo
         
     Returns:
-        Texto limpo e normalizado
+        Lista de dicts com text e page (Markdown total em page=1)
     """
-    if not text:
-        return ""
+    ext = file_path.suffix.lower()
     
-    # 1. Substituir quebras de linha duplas por marcador temporário
-    text = re.sub(r'\n\s*\n', '\n\n', text)  # Normalizar parágrafos
-    text = text.replace('\n\n', '<<<PARAGRAPH>>>')
-    
-    # 2. Remover hifenização de quebra de linha (pala-\nvra -> palavra)
-    text = re.sub(r'-\s*\n\s*', '', text)
-    
-    # 3. Substituir quebras de linha simples por espaço
-    text = re.sub(r'\n', ' ', text)
-    
-    # 4. Restaurar parágrafos
-    text = text.replace('<<<PARAGRAPH>>>', '\n\n')
-    
-    # 5. Remover múltiplos espaços
-    text = re.sub(r' +', ' ', text)
-    
-    # 6. Limpar espaços ao redor de parágrafos
-    text = re.sub(r'\n +', '\n', text)
-    text = re.sub(r' +\n', '\n', text)
-    
-    return text.strip()
+    # Proteção contra formatos que requerem API Key (imagem/áudio)
+    if ext in FORBIDDEN_EXTENSIONS:
+        print("Formato %s não suportado sem chave de API: %s" % (ext, file_path.name))
+        raise ValueError(
+            f"O formato {ext} requer uma chave de API para processamento (Multimodal) "
+            "e não está habilitado no momento."
+        )
 
-
-def extract_text_from_pdf(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo PDF, página por página.
-    
-    Args:
-        file_path: Caminho para o arquivo PDF
-        
-    Returns:
-        Lista de dicts com text e page_number
-    """
-    pages = []
-    
-    with open(file_path, "rb") as f:
-        reader = pypdf.PdfReader(f)
-        
-        for page_num, page in enumerate(reader.pages, start=1):
-            text = page.extract_text()
-            if text and text.strip():
-                # Limpar texto extraído do PDF
-                cleaned_text = clean_pdf_text(text)
-                pages.append({
-                    "text": cleaned_text,
-                    "page": page_num
-                })
-    
-    return pages
-
-
-def extract_text_from_docx(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo Word (.docx).
-    
-    Args:
-        file_path: Caminho para o arquivo .docx
-        
-    Returns:
-        Lista de dicts com text (documento inteiro, page=1)
-    """
     try:
-        from docx import Document
-    except ImportError:
-        logger.error("python-docx não instalado. Execute: pip install python-docx")
-        raise ImportError("python-docx é necessário para processar arquivos .docx")
-    
-    doc = Document(file_path)
-    
-    # Extrair texto de todos os parágrafos
-    paragraphs = []
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if text:
-            paragraphs.append(text)
-    
-    # Extrair texto de tabelas também
-    for table in doc.tables:
-        for row in table.rows:
-            row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
-            if row_text:
-                paragraphs.append(row_text)
-    
-    full_text = "\n\n".join(paragraphs)
-    
-    if not full_text.strip():
-        return []
-    
-    return [{"text": full_text, "page": 1}]
-
-
-def extract_text_from_txt(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo de texto plano (.txt).
-    
-    Args:
-        file_path: Caminho para o arquivo .txt
+        print("Convertendo %s para Markdown" % file_path.name)
+        start_time = datetime.now()
+        result = md_converter.convert(str(file_path))
+        text = result.text_content
+        duration = (datetime.now() - start_time).total_seconds()
         
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    # Tentar diferentes encodings
-    encodings = ["utf-8", "latin-1", "cp1252"]
-    
-    for encoding in encodings:
-        try:
-            with open(file_path, "r", encoding=encoding) as f:
-                text = f.read()
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        logger.error(f"Não foi possível decodificar {file_path}")
-        return []
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
-
-
-def extract_text_from_markdown(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo Markdown (.md).
-    Converte para HTML e depois extrai texto limpo.
-    
-    Args:
-        file_path: Caminho para o arquivo .md
-        
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    try:
-        import markdown
-        from bs4 import BeautifulSoup
-    except ImportError:
-        logger.error("markdown ou beautifulsoup4 não instalado")
-        raise ImportError("markdown e beautifulsoup4 são necessários para processar arquivos .md")
-    
-    # Ler arquivo markdown
-    with open(file_path, "r", encoding="utf-8") as f:
-        md_content = f.read()
-    
-    # Converter para HTML
-    html = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
-    
-    # Extrair texto limpo do HTML
-    soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text(separator="\n\n")
-    
-    # Limpar múltiplas quebras de linha
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
-
-
-def extract_text_from_html(file_path: Path) -> list[dict]:
-    """
-    Extrai texto de um arquivo HTML (.html, .htm).
-    
-    Args:
-        file_path: Caminho para o arquivo HTML
-        
-    Returns:
-        Lista de dicts com text (arquivo inteiro, page=1)
-    """
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:
-        logger.error("beautifulsoup4 não instalado. Execute: pip install beautifulsoup4")
-        raise ImportError("beautifulsoup4 é necessário para processar arquivos HTML")
-    
-    with open(file_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
-    
-    soup = BeautifulSoup(html_content, "html.parser")
-    
-    # Remover scripts e styles
-    for element in soup(["script", "style", "nav", "footer", "header"]):
-        element.decompose()
-    
-    # Extrair texto
-    text = soup.get_text(separator="\n\n")
-    
-    # Limpar múltiplas quebras de linha e espaços
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    text = re.sub(r' +', ' ', text)
-    
-    if not text.strip():
-        return []
-    
-    return [{"text": text.strip(), "page": 1}]
+        if not text or not text.strip():
+            print("MarkItDown retornou texto vazio para %s" % file_path.name)
+            return []
+            
+        print("Extração concluída para %s em %.2fs. Tamanho: %d caracteres." % (file_path.name, duration, len(text)))
+        return [{"text": text.strip(), "page": 1}]
+    except Exception as e:
+        print("Erro ao converter %s com MarkItDown: %s" % (file_path.name, e))
+        raise e
 
 
 def get_extractor_for_file(file_path: Path) -> Callable[[Path], list[dict]]:
     """
-    Retorna a função extratora apropriada para o tipo de arquivo.
+    Retorna a função extratora MarkItDown.
     
     Args:
         file_path: Caminho do arquivo
         
     Returns:
         Função extratora de texto
-        
-    Raises:
-        ValueError: Se o formato não for suportado
     """
-    ext = file_path.suffix.lower()
-    
-    extractors = {
-        ".pdf": extract_text_from_pdf,
-        ".docx": extract_text_from_docx,
-        ".txt": extract_text_from_txt,
-        ".md": extract_text_from_markdown,
-        ".html": extract_text_from_html,
-        ".htm": extract_text_from_html,
-    }
-    
-    if ext not in extractors:
-        raise ValueError(f"Formato não suportado: {ext}. Formatos válidos: {', '.join(extractors.keys())}")
-    
-    return extractors[ext]
+    return extract_text_with_markitdown
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
@@ -367,39 +195,144 @@ def process_pdf(file_path: Path) -> list[dict]:
 
 def process_document(file_path: Path) -> list[dict]:
     """
-    Processa um documento de qualquer formato suportado: extrai texto e divide em chunks.
-    
-    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
+    Processa um documento usando estratégia de Parent-Child Chunking.
     
     Args:
         file_path: Caminho para o arquivo
         
     Returns:
-        Lista de chunks com content e metadata
+        Lista de chunks (filhos e pais) com metadados estruturados
+    """
+    return process_document_with_chunking_type(file_path, "hierarchical")
+
+
+def process_document_sentence_window(file_path: Path) -> list[dict]:
+    """
+    Processa um documento usando Sentence Window Retrieval.
+    
+    Divide o documento em sentenças individuais, cada sentença
+    torna-se um chunk com metadados de posição.
+    
+    Args:
+        file_path: Caminho para o arquivo
+        
+    Returns:
+        Lista de chunks de sentenças com metadados estruturados
     """
     # Obter extrator apropriado
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)
     
-    all_chunks = []
+    # Unificar texto
+    full_text = "\n\n".join([p["text"] for p in pages])
     
-    for page_data in pages:
-        chunks = chunk_text(page_data["text"])
+    base_metadata = {
+        "source": file_path.name,
+        "source_path": str(file_path),
+        "file_type": file_path.suffix.lower(),
+        "timestamp": datetime.now().isoformat(),
+        "page": 1
+    }
+    
+    # Gerar chunks de sentenças
+    sentence_chunks = create_sentence_index(
+        full_text,
+        base_metadata
+    )
+    
+    # Adicionar chunk_type aos metadados
+    for chunk in sentence_chunks:
+        chunk["metadata"]["chunk_type"] = "sentence"
+        chunk["metadata"]["chunk_index"] = chunk["metadata"]["sentence_index"]
+        chunk["metadata"]["page"] = 1
+    
+    print("Created %d sentence chunks for %s" % (len(sentence_chunks), file_path.name))
+    
+    return sentence_chunks
+
+
+def process_document_with_chunking_type(
+    file_path: Path,
+    chunking_type: Literal["hierarchical", "sentence"] = "hierarchical"
+) -> list[dict]:
+    """
+    Processa um documento usando o tipo de chunking especificado.
+    
+    Args:
+        file_path: Caminho do arquivo
+        chunking_type: "hierarchical" ou "sentence"
         
-        for i, chunk in enumerate(chunks):
-            all_chunks.append({
-                "content": chunk,
-                "metadata": {
-                    "source": file_path.name,
-                    "source_path": str(file_path),
-                    "file_type": file_path.suffix.lower(),
-                    "page": page_data["page"],
-                    "chunk_index": i,
-                    "timestamp": datetime.now().isoformat()
-                }
-            })
+    Returns:
+        Lista de chunks com metadados
+    """
+    if chunking_type == "hierarchical":
+        # Chamar função existente (sem o prefixo "process_document" para evitar recursão)
+        return _process_document_hierarchical(file_path)
+    elif chunking_type == "sentence":
+        return process_document_sentence_window(file_path)
+    else:
+        print("Unknown chunking type: %s, using hierarchical" % chunking_type)
+        return _process_document_hierarchical(file_path)
+
+
+def _process_document_hierarchical(file_path: Path) -> list[dict]:
+    """
+    Implementação interna de hierarchical chunking.
     
-    return all_chunks
+    Separado para evitar recursão com process_document().
+    """
+    # Obter extrator apropriado
+    extractor = get_extractor_for_file(file_path)
+    pages = extractor(file_path)
+    
+    # Unificar texto para chunking hierárquico (preservando estrutura)
+    full_text = "\n\n".join([p["text"] for p in pages])
+    
+    base_metadata = {
+        "source": file_path.name,
+        "source_path": str(file_path),
+        "file_type": file_path.suffix.lower(),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Gerar chunks hierárquicos
+    print("Iniciando chunking hierárquico para %s" % file_path.name)
+    start_chunking = datetime.now()
+    parent_chunks, child_chunks = create_parent_child_chunks(
+        full_text,
+        base_metadata,
+        parent_size=PARENT_CHUNK_SIZE,
+        child_size=CHILD_CHUNK_SIZE,
+        child_overlap=CHILD_CHUNK_OVERLAP
+    )
+    duration_chunking = (datetime.now() - start_chunking).total_seconds()
+    print("Chunking concluído: %d pais, %d filhos em %.2fs" % (len(parent_chunks), len(child_chunks), duration_chunking))
+    
+    # 1. Processar Chunks Pais
+    for i, p in enumerate(parent_chunks):
+        p["metadata"]["chunk_index"] = i
+        p["metadata"]["page"] = 1
+        p["metadata"]["chunk_type"] = "parent"
+        
+    # 2. Processar Chunks Filhos
+    for i, c in enumerate(child_chunks):
+        c["metadata"]["chunk_index"] = i
+        c["metadata"]["page"] = 1
+        c["metadata"]["chunk_type"] = "child"
+        
+        # Enriquecer filhos com possíveis títulos de seção se encontrados no pai
+        parent_idx = c["metadata"]["parent_index"]
+        if 0 <= parent_idx < len(parent_chunks):
+            parent_text = parent_chunks[parent_idx]["content"]
+            lines = parent_text.split('\n')
+            if lines:
+                first_line = lines[0].strip()
+                if len(first_line) < 100 and len(first_line) > 3:
+                    if first_line.isupper() or first_line.endswith(':'):
+                        c["metadata"]["possible_section"] = first_line
+    
+    # Retornar ambos para inserção no banco
+    return parent_chunks + child_chunks
 
 
 def get_all_pdfs(directory: Path = DOCUMENTS_DIR) -> list[Path]:
@@ -440,7 +373,10 @@ def get_all_documents(directory: Path = DOCUMENTS_DIR) -> list[Path]:
     return document_files
 
 
-def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, None, None]:
+def process_all_documents(
+    directory: Path = DOCUMENTS_DIR,
+    chunking_type: Optional[Literal["hierarchical", "sentence"]] = None
+) -> Generator[dict, None, None]:
     """
     Processa todos os documentos suportados de um diretório, gerando chunks.
     
@@ -448,9 +384,10 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
     
     Args:
         directory: Diretório com os documentos
+        chunking_type: Tipo de chunking (hierarchical ou sentence), None usa default
         
     Yields:
-        Chunks com content e metadata
+        Chunks com content, metadata e collection_id
     """
     document_files = get_all_documents(directory)
     chunking_mode = "SEMÂNTICO (spaCy)" if USE_SEMANTIC_CHUNKING else "LEGADO (caracteres)"
@@ -461,37 +398,52 @@ def process_all_documents(directory: Path = DOCUMENTS_DIR) -> Generator[dict, No
         ext = f.suffix.lower()
         files_by_type[ext] = files_by_type.get(ext, 0) + 1
     
-    print(f"📁 Encontrados {len(document_files)} documentos")
+    print(f"Encontrados {len(document_files)} documentos")
     for ext, count in sorted(files_by_type.items()):
-        print(f"   └─ {ext}: {count} arquivo(s)")
-    print(f"🔧 Modo de chunking: {chunking_mode}")
-    logger.info(f"Iniciando processamento: {len(document_files)} documentos, modo={chunking_mode}")
+        print("   - %s: %d arquivo(s)" % (ext, count))
+    print("Modo de chunking: %s" % chunking_mode)
+    print("Iniciando processamento: %d documentos, modo=%s" % (len(document_files), chunking_mode))
     
     if USE_SEMANTIC_CHUNKING:
-        print(f"   └─ max_chunk={CHUNK_SIZE}, min_chunk={MIN_CHUNK_SIZE}, overlap_sentences={CHUNK_OVERLAP_SENTENCES}")
+        print("   - max_chunk=%d, min_chunk=%d, overlap_sentences=%d", CHUNK_SIZE, MIN_CHUNK_SIZE, CHUNK_OVERLAP_SENTENCES)
     
     total_chunks = 0
     
     for i, doc_path in enumerate(document_files, start=1):
-        print(f"📄 [{i}/{len(document_files)}] Processando: {doc_path.name}")
+        # Determinar collection_id baseado no subdiretório
+        # Ex: DOCUMENTS_DIR/projeto_A/doc.pdf -> collection_id = "projeto_A"
+        # Ex: DOCUMENTS_DIR/doc.pdf -> collection_id = "default"
+        try:
+            relative_path = doc_path.relative_to(directory)
+            if len(relative_path.parts) > 1:
+                # O primeiro componente do caminho relativo é o nome da coleção
+                collection_id = relative_path.parts[0]
+            else:
+                collection_id = "default"
+        except ValueError:
+            collection_id = "default"
+            
+        print("[%d/%d] Processando: %s (Coleção: %s)", i, len(document_files), doc_path.name, collection_id)
         
         try:
-            chunks = process_document(doc_path)
+            chunks = process_document_with_chunking_type(
+                doc_path,
+                chunking_type if chunking_type else "hierarchical"
+            )
             total_chunks += len(chunks)
-            print(f"   ✂️ Gerados {len(chunks)} chunks")
-            logger.info(f"Processado {doc_path.name}: {len(chunks)} chunks")
+            print("   Gerados %d chunks (%s)", len(chunks), chunking_type or 'hierarchical')
+            print("Processado %s: %d chunks (Coleção: %s)", doc_path.name, len(chunks), collection_id)
             
             for chunk in chunks:
+                # Adicionar collection_id ao chunk
+                chunk["collection_id"] = collection_id
                 yield chunk
-                
         except Exception as e:
-            print(f"   ❌ Erro ao processar {doc_path.name}: {e}")
-            logger.error(f"Erro ao processar {doc_path.name}: {e}")
+            print("Erro ao processar %s: %s" % (doc_path.name, e))
             continue
     
-    print(f"\n✅ Total: {total_chunks} chunks gerados de {len(document_files)} arquivos")
-    logger.info(f"Processamento concluído: {total_chunks} chunks de {len(document_files)} arquivos")
-
+    print("Total: %d chunks gerados de %d arquivos" % (total_chunks, len(document_files)))
+    print("Processamento concluído: %d chunks de %d arquivos" % (total_chunks, len(document_files)))
 
 def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
     """
@@ -504,8 +456,6 @@ def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
         Dict com estatísticas
     """
     document_files = get_all_documents(directory)
-    
-    total_pages = 0
     total_size = 0
     files_by_type = {}
     
@@ -513,21 +463,63 @@ def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
         ext = doc_path.suffix.lower()
         files_by_type[ext] = files_by_type.get(ext, 0) + 1
         total_size += doc_path.stat().st_size
-        
-        # Contar páginas apenas para PDFs
-        if ext == ".pdf":
-            try:
-                with open(doc_path, "rb") as f:
-                    reader = pypdf.PdfReader(f)
-                    total_pages += len(reader.pages)
-            except:
-                pass
     
     return {
         "total_files": len(document_files),
         "files_by_type": files_by_type,
-        "total_pdf_pages": total_pages,
         "total_size_mb": round(total_size / (1024 * 1024), 2),
         "supported_formats": list(SUPPORTED_EXTENSIONS),
         "files": [p.name for p in document_files]
     }
+
+
+def process_document_advanced(
+    file_path: Path,
+    use_advanced: Optional[bool] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None
+) -> list[dict]:
+    """
+    Processa documento usando processador avançado quando disponível.
+    
+    Extrai texto, cria chunks e gera embeddings usando o processador
+    avançado com paralelismo quando apropriado.
+    
+    Args:
+        file_path: Caminho do arquivo para processar
+        use_advanced: Força uso do processador avançado (None usa config)
+        progress_callback: Callback para progresso (current, total)
+        
+    Returns:
+        Lista de chunks com metadados e embeddings
+    """
+    # Extrair texto e criar chunks (mesmo processamento atual)
+    chunks = process_document(file_path)
+    
+    if not chunks:
+        return []
+    
+    # Decidir se usa processador avançado
+    should_use_advanced = (
+        use_advanced if use_advanced is not None 
+        else ENABLE_ADVANCED_BATCH_PROCESSING
+    )
+    
+    texts = [chunk["content"] for chunk in chunks]
+    
+    if should_use_advanced and len(texts) >= 32:  # Mínimo de 32 textos para valer a pena
+        print("Using advanced batch processor for %s (%d texts)" % (file_path.name, len(texts)))
+        
+        processor = get_advanced_processor()
+        embeddings = processor.process_batch_sync(texts, progress_callback)
+        
+    else:
+        # Usar processamento padrão
+        mode = "standard" if not should_use_advanced else "small document (<32 chunks)"
+        print("Using standard batch processor for %s (%d texts, mode=%s)" % (file_path.name, len(texts), mode))
+        embeddings = get_embeddings_batch(texts)
+    
+    # Adicionar embeddings aos chunks
+    for chunk, embedding in zip(chunks, embeddings):
+        chunk["embedding"] = embedding
+    
+    return chunks

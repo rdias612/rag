@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # =========================================================================
+  # Database - PostgreSQL com pgvector
+  # =========================================================================
+  db:
+    image: ankane/pgvector:latest
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-ragdb}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag-network
+
+  # =========================================================================
+  # Adminer - Gerenciamento de Banco
+  # =========================================================================
+  adminer:
+    image: adminer:latest
+    container_name: rag-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - rag-network
+
+  # =========================================================================
+  # Backend - Flask API
+  # =========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-ragdb}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      - LM_STUDIO_BASE_URL=${LM_STUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - APP_ENV=production
+      - SPACY_HOME=/models/spacy
+      - XDG_DATA_HOME=/models
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./logs:/app/logs
+      - ./models/spacy:/models/spacy:ro
+    networks:
+      - rag-network
+
+  # =========================================================================
+  # Frontend - React + Nginx
+  # =========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag-frontend
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    networks:
+      - rag-network
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge
