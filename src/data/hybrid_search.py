@@ -4,23 +4,15 @@ Módulo de Busca Híbrida (Vetorial + BM25/Full-Text Search).
 Combina busca semântica (pgvector) com busca por palavras-chave
 (PostgreSQL Full-Text Search) para obter resultados mais completos.
 """
-
 import time
-from typing import Optional
-
-import psycopg2
+from typing import Optional, List, Dict, Any
 from psycopg2.extras import RealDictCursor
 
-from src.config import (
-    DATABASE_CONFIG,
-    TOP_K_RESULTS,
-    MIN_SIMILARITY_THRESHOLD,
-    HYBRID_SEARCH_ALPHA
-)
+from src.config import TOP_K_RESULTS, MIN_SIMILARITY_THRESHOLD, HYBRID_SEARCH_ALPHA
+from src.data.database import get_connection
+from src.core.logger import get_logger
 
-def get_connection():
-    """Cria conexão com o banco de dados."""
-    return psycopg2.connect(**DATABASE_CONFIG)
+logger = get_logger("data.hybrid_search")
 
 
 def init_fulltext_search():
@@ -28,13 +20,11 @@ def init_fulltext_search():
     Inicializa as estruturas necessárias para Full-Text Search.
     Adiciona coluna tsvector e índice GIN para busca por texto.
     """
-    print("Initializing Full-Text Search structures...")
+    logger.info("Inicializando estruturas de Full-Text Search no PostgreSQL...")
     start_time = time.time()
     
-    conn = get_connection()
-    try:
+    with get_connection() as conn:
         with conn.cursor() as cur:
-            # Adicionar coluna para vetor de texto (se não existir)
             cur.execute("""
                 DO $$ 
                 BEGIN
@@ -47,58 +37,37 @@ def init_fulltext_search():
                 END $$;
             """)
             
-            # Criar índice GIN para Full-Text Search (se não existir)
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_documentos_fts 
-                ON documentos 
-                USING gin(search_vector);
+                CREATE INDEX IF NOT EXISTS idx_documentos_search_vector 
+                ON documentos USING gin(search_vector);
             """)
             
-            # Atualizar search_vector para documentos existentes
             cur.execute("""
-                UPDATE documentos 
-                SET search_vector = to_tsvector('portuguese', content)
-                WHERE search_vector IS NULL;
-            """)
-            
-            # Criar trigger para atualizar automaticamente o search_vector
-            cur.execute("""
-                CREATE OR REPLACE FUNCTION update_search_vector()
-                RETURNS TRIGGER AS $$
+                CREATE OR REPLACE FUNCTION documentos_search_vector_trigger() 
+                RETURNS trigger AS $$
                 BEGIN
-                    NEW.search_vector := to_tsvector('portuguese', NEW.content);
+                    NEW.search_vector := to_tsvector('portuguese', COALESCE(NEW.content, ''));
                     RETURN NEW;
-                END;
+                END
                 $$ LANGUAGE plpgsql;
             """)
             
-            # Criar trigger se não existir
             cur.execute("""
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
-                        SELECT 1 FROM pg_trigger WHERE tgname = 'trg_update_search_vector'
+                        SELECT 1 FROM pg_trigger 
+                        WHERE tgname = 'tsvectorupdate'
                     ) THEN
-                        CREATE TRIGGER trg_update_search_vector
+                        CREATE TRIGGER tsvectorupdate 
                         BEFORE INSERT OR UPDATE ON documentos
-                        FOR EACH ROW
-                        EXECUTE FUNCTION update_search_vector();
+                        FOR EACH ROW EXECUTE FUNCTION documentos_search_vector_trigger();
                     END IF;
                 END $$;
             """)
             
-            conn.commit()
-            
-        duration = time.time() - start_time
-        print("Full-Text Search initialized in %.2fs", duration)
-        print("Full-Text Search inicializado com sucesso!")
-        
-    except Exception as e:
-        conn.rollback()
-        print("Error initializing Full-Text Search: %s", e, exc_info=True)
-        raise
-    finally:
-        conn.close()
+    duration = time.time() - start_time
+    logger.info("Full-Text Search inicializado com sucesso em %.2fs", duration)
 
 
 def search_fulltext(
@@ -108,21 +77,11 @@ def search_fulltext(
 ) -> list[dict]:
     """
     Busca documentos usando Full-Text Search (BM25-like ranking).
-    
-    Args:
-        query: Texto da busca
-        top_k: Número de resultados
-        
-    Returns:
-        Lista de documentos com content, metadata e rank
     """
-    start_time = time.time()
-    print("Full-text search: '%s...' (top_k=%d)", query[:50], top_k)
+    logger.debug("Full-text search: '%s...' (top_k=%d)", query[:50], top_k)
     
-    conn = get_connection()
-    try:
+    with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Construir query com filtro de coleção facultativo e chunk_type
             where_conditions = ["search_vector @@ query", "(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
             params = [query]
             
@@ -138,6 +97,7 @@ def search_fulltext(
                     id,
                     content,
                     metadata,
+                    collection_id,
                     ts_rank_cd(search_vector, query, 32) as rank
                 FROM 
                     documentos,
@@ -148,16 +108,7 @@ def search_fulltext(
             """, tuple(params))
             
             results = cur.fetchall()
-            
-    finally:
-        conn.close()
-    
-    duration = time.time() - start_time
-    results_list = [dict(row) for row in results]
-    
-    print("Full-text search returned %d results in %.3fs", len(results_list), duration)
-    
-    return results_list
+            return [dict(r) for r in results]
 
 
 def search_hybrid(
@@ -165,46 +116,26 @@ def search_hybrid(
     query_embedding: list[float],
     top_k: int = TOP_K_RESULTS,
     alpha: float = None,
-    min_similarity: Optional[float] = None,
+    min_similarity: float = None,
     collection_id: Optional[str] = None,
     request_id: str = None
 ) -> list[dict]:
     """
-    Busca híbrida combinando busca vetorial e Full-Text Search.
-    
-    Usa Reciprocal Rank Fusion (RRF) para combinar os rankings.
-    
-    Args:
-        query: Texto da pergunta (para FTS)
-        query_embedding: Embedding da pergunta (para busca vetorial)
-        top_k: Número final de resultados
-        alpha: Peso da busca vetorial (0.0 a 1.0). 
-               1.0 = só vetorial, 0.0 = só FTS
-               None = usa config HYBRID_SEARCH_ALPHA
-        min_similarity: Similaridade mínima para busca vetorial
-        
-    Returns:
-        Lista de documentos ranqueados com score híbrido
+    Executa busca híbrida combinando busca vetorial e full-text.
     """
     start_time = time.time()
     request_id = request_id or "unknown"
     
     if alpha is None:
         alpha = HYBRID_SEARCH_ALPHA
-    
     if min_similarity is None:
         min_similarity = MIN_SIMILARITY_THRESHOLD
     
-    print("Hybrid Search Started | request_id=%s | alpha=%.2f | top_k=%d | collection_id=%s",
-                    request_id or "unknown", alpha, top_k, collection_id or "default")
-    
-    # Buscar mais resultados inicialmente para ter margem de fusão
+    logger.debug("Hybrid Search Started | request_id=%s | alpha=%.2f | top_k=%d", request_id, alpha, top_k)
     search_k = top_k * 3
     
-    conn = get_connection()
-    try:
+    with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # 1. Busca Vetorial
             where_conditions_v = ["(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
             params_v = [query_embedding]
             
@@ -226,13 +157,8 @@ def search_hybrid(
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s;
             """, tuple(params_v))
-            
             vector_results = cur.fetchall()
             
-            print("Vector Search Results | request_id=%s | results=%d",
-                          request_id or "unknown", len(vector_results))
-            
-            # 2. Busca Full-Text
             where_conditions_f = ["search_vector @@ query", "(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
             params_f = [query]
             
@@ -256,152 +182,101 @@ def search_hybrid(
                 ORDER BY rank DESC
                 LIMIT %s;
             """, tuple(params_f))
-            
             fts_results = cur.fetchall()
-            
-            print("FTS Search Results | request_id=%s | results=%d",
-                          request_id or "unknown", len(fts_results))
-            
-    finally:
-        conn.close()
-    
-    # 3. Combinar resultados usando Reciprocal Rank Fusion (RRF)
-    # RRF Score = 1 / (k + rank), onde k é uma constante (geralmente 60)
+
+    # Combinar resultados usando Reciprocal Rank Fusion (RRF)
     k = 60
-    
-    # Criar mapa de scores
-    doc_scores = {}
+    rrf_scores = {}
     doc_data = {}
     
-    # Processar resultados vetoriais
-    for rank, doc in enumerate(vector_results):
+    for rank_idx, doc in enumerate(vector_results):
         doc_id = doc['id']
-        rrf_score = alpha * (1 / (k + rank + 1))
+        rrf_score = alpha * (1.0 / (k + rank_idx + 1))
+        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + rrf_score
+        doc_data[doc_id] = {
+            'id': doc['id'],
+            'content': doc['content'],
+            'metadata': doc['metadata'],
+            'vector_similarity': doc['similarity'],
+            'fts_rank': 0.0
+        }
+    
+    for rank_idx, doc in enumerate(fts_results):
+        doc_id = doc['id']
+        rrf_score = (1.0 - alpha) * (1.0 / (k + rank_idx + 1))
+        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + rrf_score
         
-        if doc_id not in doc_scores:
-            doc_scores[doc_id] = {'vector': 0, 'fts': 0}
+        if doc_id in doc_data:
+            doc_data[doc_id]['fts_rank'] = doc['rank']
+        else:
             doc_data[doc_id] = {
-                'id': doc_id,
+                'id': doc['id'],
                 'content': doc['content'],
                 'metadata': doc['metadata'],
-                'similarity': doc['similarity']
+                'vector_similarity': 0.0,
+                'fts_rank': doc['rank']
             }
-        
-        doc_scores[doc_id]['vector'] = rrf_score
     
-    # Processar resultados FTS
-    for rank, doc in enumerate(fts_results):
-        doc_id = doc['id']
-        rrf_score = (1 - alpha) * (1 / (k + rank + 1))
-        
-        if doc_id not in doc_scores:
-            doc_scores[doc_id] = {'vector': 0, 'fts': 0}
-            doc_data[doc_id] = {
-                'id': doc_id,
-                'content': doc['content'],
-                'metadata': doc['metadata'],
-                'similarity': 0  # Não veio da busca vetorial
-            }
-        
-        doc_scores[doc_id]['fts'] = rrf_score
-    
-    # Calcular score final e ordenar
     final_results = []
-    for doc_id, scores in doc_scores.items():
-        total_score = scores['vector'] + scores['fts']
-        doc_info = doc_data[doc_id]
-        
-        # Aplicar filtro de similaridade mínima (apenas se veio da busca vetorial)
-        if scores['vector'] > 0 and doc_info['similarity'] < min_similarity:
-            # Só incluir se também teve match no FTS
-            if scores['fts'] == 0:
-                continue
-        
+    for doc_id, score in rrf_scores.items():
+        data = doc_data[doc_id]
+        if min_similarity > 0 and data['vector_similarity'] > 0 and data['vector_similarity'] < min_similarity:
+            continue
+            
         final_results.append({
-            'id': doc_info['id'],
-            'content': doc_info['content'],
-            'metadata': doc_info['metadata'],
-            'similarity': doc_info['similarity'],
-            'hybrid_score': total_score,
-            'vector_contribution': scores['vector'],
-            'fts_contribution': scores['fts']
+            'id': data['id'],
+            'content': data['content'],
+            'metadata': data['metadata'],
+            'similarity': data['vector_similarity'],
+            'fts_rank': data['fts_rank'],
+            'hybrid_score': score
         })
     
-    # Ordenar por score híbrido
     final_results.sort(key=lambda x: x['hybrid_score'], reverse=True)
-    
-    # Limitar ao top_k
     final_results = final_results[:top_k]
     
     duration = time.time() - start_time
-    
-    print("Hybrid Search Complete | request_id=%s | vector_results=%d | fts_results=%d | final_results=%d | total_duration=%.3fs",
-                    request_id or "unknown", len(vector_results), len(fts_results), len(final_results), duration)
-    
+    logger.info("Hybrid Search Complete | request_id=%s | vec=%d | fts=%d | final=%d | duration=%.3fs",
+                request_id, len(vector_results), len(fts_results), len(final_results), duration)
     return final_results
 
 
 def check_fulltext_ready() -> bool:
-    """
-    Verifica se o Full-Text Search está configurado.
-    
-    Returns:
-        True se a coluna search_vector existe e está populada
-    """
-    conn = get_connection()
+    """Verifica se o Full-Text Search está configurado."""
     try:
-        with conn.cursor() as cur:
-            # Verificar se a coluna existe
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
-                    WHERE table_name = 'documentos' AND column_name = 'search_vector'
-                );
-            """)
-            column_exists = cur.fetchone()[0]
-            
-            if not column_exists:
-                return False
-            
-            # Verificar se há documentos com search_vector populado
-            cur.execute("""
-                SELECT COUNT(*) FROM documentos WHERE search_vector IS NOT NULL;
-            """)
-            count = cur.fetchone()[0]
-            
-            return count > 0
-            
-    finally:
-        conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'documentos' AND column_name = 'search_vector'
+                    );
+                """)
+                column_exists = cur.fetchone()[0]
+                if not column_exists:
+                    return False
+                
+                cur.execute("SELECT COUNT(*) FROM documentos WHERE search_vector IS NOT NULL;")
+                count = cur.fetchone()[0]
+                return count > 0
+    except Exception:
+        return False
 
 
-def update_existing_documents_fts():
-    """
-    Atualiza o search_vector para todos os documentos existentes.
-    Útil após adicionar a funcionalidade de FTS.
-    """
-    print("Updating search_vector for all existing documents...")
+def update_existing_documents_fts() -> int:
+    """Atualiza o search_vector para todos os documentos existentes."""
+    logger.info("Atualizando search_vector para documentos existentes...")
     start_time = time.time()
     
-    conn = get_connection()
-    try:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE documentos 
-                SET search_vector = to_tsvector('portuguese', content)
-                WHERE search_vector IS NULL OR search_vector = '';
+                SET search_vector = to_tsvector('portuguese', COALESCE(content, ''))
+                WHERE search_vector IS NULL;
             """)
             updated = cur.rowcount
-            conn.commit()
             
-        duration = time.time() - start_time
-        print("Updated %d documents in %.2fs", updated, duration)
-        print("%d documentos atualizados com Full-Text Search!", updated)
-        return updated
-        
-    except Exception as e:
-        conn.rollback()
-        print("Error updating documents: %s", e, exc_info=True)
-        raise
-    finally:
-        conn.close()
+    duration = time.time() - start_time
+    logger.info("Atualizados %d documentos com Full-Text Search em %.2fs", updated, duration)
+    return updated

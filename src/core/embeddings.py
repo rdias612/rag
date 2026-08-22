@@ -1,121 +1,62 @@
 """
-Módulo de geração de embeddings via LM Studio API (Nomic Embed v1.5).
+Módulo de geração de embeddings via LM Studio API (Nomic Embed v1.5 / BGE-M3).
 """
 import time
 import re
-
 import requests
-from typing import Union
+from typing import Optional, List
 
-from src.config import LM_STUDIO_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSION
-from src.config import EMBEDDING_CACHE_ENABLED
+from src.config import LM_STUDIO_BASE_URL, EMBEDDING_MODEL, EMBEDDING_DIMENSION, EMBEDDING_CACHE_ENABLED
 from src.core.embedding_cache import embedding_cache
+from src.core.logger import get_logger
 
-def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> list[float]:
+logger = get_logger("core.embeddings")
+
+
+def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> Optional[List[float]]:
     """
-    Gera o embedding de um texto usando o modelo Nomic Embed v1.5.
+    Gera o embedding de um texto usando a API do LM Studio.
     
     Args:
         text: Texto para gerar embedding
-        use_cache: Se True, usa cache para evitar recálculo (default: True)
+        use_cache: Se True, usa cache para evitar recálculo
+        request_id: ID da requisição para correlação
         
     Returns:
-        Lista de floats representando o embedding
+        Lista de floats representando o embedding ou None se o texto for inválido.
     """
     request_id = request_id or "unknown"
     
-    # Verificar cache primeiro (se habilitado)
+    if not text or not isinstance(text, str):
+        return None
+        
+    # Verificar cache
     if use_cache and EMBEDDING_CACHE_ENABLED:
         cached = embedding_cache.get(text)
         if cached is not None:
-            print("Embedding from Cache | request_id=%s | text_len=%d",
-                                 request_id, len(text))
+            logger.debug("Embedding from Cache | request_id=%s | text_len=%d", request_id, len(text))
             return cached
     
     start_time = time.time()
     
-    print("Embedding Generation Started | request_id=%s | text_len=%d",
-                         request_id, len(text))
+    # Limpeza do texto
+    text_clean = "".join(char for char in text if char.isprintable() or char in "\n\r\t")
+    text_clean = re.sub(r'\s+', ' ', text_clean).strip()
     
-    # Limpeza robusta do texto para evitar erros no modelo/LM Studio
-    # 1. Remover caracteres não imprimíveis e de controle (exceto \n, \r, \t)
-    text = "".join(char for char in text if char.isprintable() or char in "\n\r\t")
-    # 2. Normalizar espaços (múltiplos espaços viram um único)
-    text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
-    
-    # 3. Validar tamanho mínimo do texto (chunks muito pequenos causam problemas)
-    if len(text) < 10:
-        print("Texto muito pequeno (%d chars) após limpeza. Retornando None.", len(text))
+    if len(text_clean) < 10:
+        logger.debug("Texto muito pequeno (%d chars) após limpeza. Retornando None.", len(text_clean))
         return None
     
-    # 4. Validar conteúdo do texto (evitar chunks só com caracteres especiais)
-    if len(text.strip(' \n\r\t.,!?;:()[]{}<>"/\'-=+*&^%$#@|~`_')) < 5:
-        print("Texto composto principalmente de caracteres especiais. Retornando None.")
+    if len(text_clean.strip(' \n\r\t.,!?;:()[]{}<>"/\'-=+*&^%$#@|~`_')) < 5:
+        logger.debug("Texto composto principalmente de caracteres especiais. Retornando None.")
         return None
 
-    # Log do texto enviado para embedding
-    print("Embedding Request | model=%s | text_len=%d", EMBEDDING_MODEL, len(text))
-    
-    response = requests.post(
-        f"{LM_STUDIO_BASE_URL}/embeddings",
-        json={
-            "model": EMBEDDING_MODEL,
-            "input": text
-        },
-        timeout=60
-    )
-    
-    response.raise_for_status()
-    data = response.json()
-    
-    embedding = data["data"][0]["embedding"]
-    duration = time.time() - start_time
-    
-    # Validar embedding de forma mais detalhada
-    null_count = sum(1 for v in embedding if v is None)
-    nan_count = sum(1 for v in embedding if isinstance(v, float) and (v != v))  # NaN check
-    inf_count = sum(1 for v in embedding if isinstance(v, float) and (v == float('inf') or v == float('-inf')))
-    
-    is_valid = (
-        embedding is not None and 
-        isinstance(embedding, list) and 
-        len(embedding) > 0 and 
-        null_count == 0 and
-        nan_count == 0 and
-        inf_count == 0
-    )
-
-    if not is_valid:
-        error_details = []
-        if embedding is None:
-            error_details.append("embedding is None")
-        if not isinstance(embedding, list):
-            error_details.append("not a list")
-        if null_count > 0:
-            error_details.append(f"{null_count} NULLs")
-        if nan_count > 0:
-            error_details.append(f"{nan_count} NaNs")
-        if inf_count > 0:
-            error_details.append(f"{inf_count} Infs")
-        
-        error_reason = ", ".join(error_details)
-        
-        # Logar o texto que causou problema para análise
-        text_sample = text[:150] + "..." if len(text) > 150 else text
-        print(
-            "Embedding inválido retornado para '%s'. Texto: %d chars, Embedding: %d dims. Erro: %s. Tentando retry único...",
-            text_sample, len(text), len(embedding) if embedding else 0, error_reason
-        )
-        
-        # Um pequeno sleep antes de tentar de novo
-        time.sleep(1.0)
-        
+    try:
         response = requests.post(
             f"{LM_STUDIO_BASE_URL}/embeddings",
             json={
                 "model": EMBEDDING_MODEL,
-                "input": text
+                "input": text_clean
             },
             timeout=60
         )
@@ -123,188 +64,82 @@ def get_embedding(text: str, use_cache: bool = True, request_id: str = None) -> 
         data = response.json()
         embedding = data["data"][0]["embedding"]
         
-        # Validar novamente após retry
-        null_count = sum(1 for v in embedding if v is None)
-        nan_count = sum(1 for v in embedding if isinstance(v, float) and (v != v))
-        inf_count = sum(1 for v in embedding if isinstance(v, float) and (v == float('inf') or v == float('-inf')))
+        duration = time.time() - start_time
         
-        is_valid = (
-            embedding is not None and 
-            isinstance(embedding, list) and 
-            len(embedding) > 0 and 
-            null_count == 0 and
-            nan_count == 0 and
-            inf_count == 0
-        )
-        
-        if not is_valid:
-            error_details = []
-            if embedding is None:
-                error_details.append("embedding is None")
-            if not isinstance(embedding, list):
-                error_details.append("not a list")
-            if null_count > 0:
-                error_details.append(f"{null_count} NULLs")
-            if nan_count > 0:
-                error_details.append(f"{nan_count} NaNs")
-            if inf_count > 0:
-                error_details.append(f"{inf_count} Infs")
-            
-            error_reason = ", ".join(error_details)
-            
-            # Log mais detalhado para debug
-            text_sample = text[:150] + "..." if len(text) > 150 else text
-            print(
-                "ERRO: Embedding inválido após retry. Texto: '%s' (%d chars). Erro: %s",
-                text_sample, len(text), error_reason
+        # Validar integridade do vetor
+        if not embedding or not isinstance(embedding, list) or any(v is None for v in embedding):
+            logger.warning("Embedding com valores nulos retornado pelo modelo. Tentando retry único...")
+            time.sleep(0.5)
+            response = requests.post(
+                f"{LM_STUDIO_BASE_URL}/embeddings",
+                json={"model": EMBEDDING_MODEL, "input": text_clean},
+                timeout=60
             )
-            raise ValueError(f"O modelo de embeddings retornou um valor inválido ({error_reason}) após retry para o texto: '{text[:50]}...'")
+            response.raise_for_status()
+            embedding = response.json()["data"][0]["embedding"]
+        
+        logger.debug("Embedding Generated | request_id=%s | dim=%d | duration=%.3fs", request_id, len(embedding), duration)
+        
+        if use_cache and EMBEDDING_CACHE_ENABLED and embedding:
+            embedding_cache.set(text, embedding)
+            
+        return embedding
+        
+    except Exception as e:
+        logger.error("Erro na geração de embedding | request_id=%s | erro=%s", request_id, e)
+        raise
 
-    # Log do embedding gerado
-    print("Embedding Response | dim=%d | duration=%.3fs", len(embedding), duration)
-    
-    print("Embedding Generated | request_id=%s | dimension=%d | duration=%s | was_cached=%s",
-                         request_id, len(embedding), f"{duration:.3f}s", False)
-    
-    # Armazenar no cache (se habilitado)
-    if use_cache and EMBEDDING_CACHE_ENABLED:
-        embedding_cache.set(text, embedding)
-        print("Embedding Cached | request_id=%s", request_id)
-    
-    return embedding
 
-
-def get_embeddings_batch(texts: list[str], batch_size: int = 32, document_name: str = None, request_id: str = None) -> list[list[float]]:
+def get_embeddings_batch(texts: List[str], batch_size: int = 32, document_name: str = None, request_id: str = None) -> List[List[float]]:
     """
     Gera embeddings para múltiplos textos em batch.
-    
-    Args:
-        texts: Lista de textos para gerar embeddings
-        batch_size: Tamanho do batch para cada requisição
-        document_name: Nome do documento sendo processado (para log)
-        
-    Returns:
-        Lista de embeddings (cada um é uma lista de floats)
     """
     all_embeddings = []
     total_start = time.time()
     request_id = request_id or "unknown"
     
-    doc_info = f" [{document_name}]" if document_name else ""
-    print("Batch Embedding Started | request_id=%s | document_name=%s | texts_count=%d | batch_size=%d",
-                         request_id, document_name or "unknown", len(texts), batch_size)
+    logger.info("Batch Embedding Started | request_id=%s | doc=%s | count=%d | batch_size=%d",
+                request_id, document_name or "unknown", len(texts), batch_size)
     
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
+        batch_clean = ["".join(char for char in t if char.isprintable() or char in "\n\r\t").strip() for t in batch]
         
-        # Limpar textos do batch para evitar que um caracter estranho derrube o batch todo
-        batch = ["".join(char for char in t if char.isprintable() or char in "\n\r\t").strip() for t in batch]
-        
-        batch_start = time.time()
-        
-        print("Embedding Batch Request | model=%s | texts_count=%d", EMBEDDING_MODEL, len(batch))
-        
-        response = requests.post(
-            f"{LM_STUDIO_BASE_URL}/embeddings",
-            json={
-                "model": EMBEDDING_MODEL,
-                "input": batch
-            },
-            timeout=120
-        )
-        
-        response.raise_for_status()
-        data = response.json()
-        
-        # Ordenar por índice para garantir ordem correta
-        sorted_data = sorted(data["data"], key=lambda x: x["index"])
-        batch_embeddings = [item.get("embedding") for item in sorted_data]
-        
-        # Validar e retentar individualmente se necessário
-        validated_embeddings = []
-        for idx, emb in enumerate(batch_embeddings):
-            # Validação robusta igual à função individual
-            null_count = sum(1 for v in emb if v is None) if emb else 0
-            nan_count = sum(1 for v in emb if isinstance(v, float) and (v != v)) if emb else 0
-            inf_count = sum(1 for v in emb if isinstance(v, float) and (v == float('inf') or v == float('-inf'))) if emb else 0
-            
-            is_valid = (
-                emb is not None and 
-                isinstance(emb, list) and 
-                len(emb) > 0 and 
-                null_count == 0 and
-                nan_count == 0 and
-                inf_count == 0
+        try:
+            response = requests.post(
+                f"{LM_STUDIO_BASE_URL}/embeddings",
+                json={"model": EMBEDDING_MODEL, "input": batch_clean},
+                timeout=120
             )
+            response.raise_for_status()
+            data = response.json()
             
-            if is_valid:
-                validated_embeddings.append(emb)
-            else:
-                # Tentar recuperar individualmente
-                orig_idx = i + idx
-                problematic_text = texts[orig_idx]
-                
-                error_details = []
-                if emb is None:
-                    error_details.append("embedding is None")
-                if not isinstance(emb, list):
-                    error_details.append("not a list")
-                if null_count > 0:
-                    error_details.append(f"{null_count} NULLs")
-                if nan_count > 0:
-                    error_details.append(f"{nan_count} NaNs")
-                if inf_count > 0:
-                    error_details.append(f"{inf_count} Infs")
-                
-                error_reason = ", ".join(error_details)
-                text_sample = problematic_text[:100] + "..." if len(problematic_text) > 100 else problematic_text
-                
-                print(
-                    "Embedding inválido no batch (index %d). Texto: '%s' (%d chars). Erro: %s. Tentando recuperação individual...",
-                    orig_idx, text_sample, len(problematic_text), error_reason
-                )
-                
+            sorted_data = sorted(data["data"], key=lambda x: x["index"])
+            batch_embeddings = [item.get("embedding") for item in sorted_data]
+            all_embeddings.extend(batch_embeddings)
+            
+        except Exception as e:
+            logger.warning("Falha no batch de embeddings, tentando item a item: %s", e)
+            for single_text in batch:
                 try:
-                    # Retry individualmente (sem cache para garantir nova tentativa)
-                    # Adicionamos um pequeno delay preventivo
-                    time.sleep(0.5)
-                    recovered_emb = get_embedding(problematic_text, use_cache=False)
+                    emb = get_embedding(single_text, use_cache=True, request_id=request_id)
+                    all_embeddings.append(emb)
+                except Exception:
+                    all_embeddings.append(None)
                     
-                    # Log de sucesso na recuperação
-                    print("Sucesso ao recuperar embedding individual para index %d", orig_idx)
-                    validated_embeddings.append(recovered_emb)
-                except Exception as e:
-                    # Se falhar mesmo individualmente, colocamos None e o banco lidará com isso
-                    validated_embeddings.append(None)
-                    
-                    # Log mais informativo e menos assustador, pois o sistema irá ignorar este trecho
-                    print(
-                        "CHUNK IGNORADO (Falha persistente no modelo) no index %d: '%s'. Motivo: %s",
-                        orig_idx, text_sample, str(e)
-                    )
-
-        all_embeddings.extend(validated_embeddings)
-        
-        batch_duration = time.time() - batch_start
-        print("Embedding Batch Response | count=%d | duration=%.3fs | dim=%d",
-                             len(batch), batch_duration, EMBEDDING_DIMENSION)
-        
-        print("Embeddings progress%s: %d/%d chunks", doc_info, min(i + batch_size, len(texts)), len(texts))
+        logger.debug("Embeddings progresso: %d/%d chunks processados", min(i + batch_size, len(texts)), len(texts))
     
     total_duration = time.time() - total_start
-    print("Batch Embedding Complete | request_id=%s | document_name=%s | total_embeddings=%d | total_duration=%s",
-                         request_id, document_name or "unknown", len(all_embeddings), f"{total_duration:.2f}s")
-    
+    logger.info("Batch Embedding Complete | request_id=%s | total=%d | duration=%.2fs",
+                request_id, len(all_embeddings), total_duration)
     return all_embeddings
 
 
 def check_embedding_service() -> bool:
     """Verifica se o serviço de embeddings está disponível."""
     try:
-        # Testar com um texto simples
-        embedding = get_embedding("teste")
-        print("Embedding service available. Dimension: %d", len(embedding))
-        return len(embedding) > 0
+        embedding = get_embedding("teste de conexao")
+        return bool(embedding and len(embedding) > 0)
     except Exception as e:
-        print("Embedding service error: %s", str(e))
+        logger.error("Serviço de embedding indisponível: %s", e)
         return False

@@ -11,12 +11,12 @@ from src.config import (
     USE_ENHANCED_PROMPTS
 )
 
-# Instância do repository
-_prompt_repo = PromptRepository()
-
 
 class PromptService:
     """Gerencia construção de prompts dinâmicos."""
+    
+    def __init__(self):
+        self._prompt_repo = PromptRepository()
     
     def build_prompt(
         self,
@@ -69,19 +69,6 @@ class PromptService:
         template = RAG_PROMPT_TEMPLATE_WITH_HISTORY if history else RAG_PROMPT_TEMPLATE
         instructions = get_instructions_for_type(question_type) if question_type else ""
         
-        return template.format(
-            contexto=context,
-            pergunta=question,
-            historico=history or "",
-            instrucoes_tipo=instructions
-        )
-    
-    def _format_default_prompt(self, context: str, question: str, question_type: str, history: str) -> str:
-        """Formata prompt padrão de config."""
-        template = RAG_PROMPT_TEMPLATE_WITH_HISTORY if history else RAG_PROMPT_TEMPLATE
-        instructions = get_instructions_for_type(question_type) if question_type else ""
-        
-        # Mesclar instruções no prompt se necessário (depende do template)
         return template.format(
             contexto=context,
             pergunta=question,

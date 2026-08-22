@@ -6,6 +6,7 @@ import time
 from typing import Optional
 
 from src.data.repositories.base import BaseRepository
+from src.core.logger import get_logger
 from src.config import (
     TOP_K_RESULTS,
     MIN_SIMILARITY_THRESHOLD,
@@ -13,6 +14,8 @@ from src.config import (
     ENCRYPT_DOCUMENT_CONTENT,
     ENCRYPT_METADATA
 )
+
+logger = get_logger("data.document_repository")
 
 # Importar funções de criptografia
 try:
@@ -26,9 +29,6 @@ try:
 except ImportError:
     ENCRYPTION_AVAILABLE = False
 
-    # Importar IngestionRepository (usado em métodos específicos)
-    from src.data.repositories.ingestion_repository import IngestionRepository
-
 
 class DocumentRepository(BaseRepository):
     """Gerencia documentos/chunks no banco de dados."""
@@ -38,7 +38,6 @@ class DocumentRepository(BaseRepository):
         """Insere um documento com embedding."""
         start_time = time.time()
         
-        # Criptografar se habilitado
         if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION:
             if ENCRYPT_DOCUMENT_CONTENT:
                 content = encrypt_data(content)
@@ -51,7 +50,7 @@ class DocumentRepository(BaseRepository):
         
         with self._get_cursor() as cur:
             if not isinstance(embedding, list) or any(v is None for v in embedding):
-                raise ValueError(f"Embedding inválido: contém valores nulos ou tipo incorreto")
+                raise ValueError("Embedding inválido: contém valores nulos ou tipo incorreto")
             
             cur.execute("""
                 INSERT INTO documentos (content, metadata, embedding, collection_id)
@@ -61,18 +60,17 @@ class DocumentRepository(BaseRepository):
             doc_id = cur.fetchone()[0]
         
         duration = time.time() - start_time
-        print(f"DB INSERT Result | affected_rows=1 | duration={duration:.3f}s")
+        logger.debug("DB INSERT Result | affected_rows=1 | duration=%.3fs", duration)
         return doc_id
     
     def create_batch(self, documents: list[dict]) -> int:
         """Insere múltiplos documentos em batch."""
         start_time = time.time()
-        print("DB INSERT BATCH | documents_count=%d", len(documents))
+        logger.debug("DB INSERT BATCH | documents_count=%d", len(documents))
         
         with self._get_cursor() as cur:
             values = []
             for doc in documents:
-                # Validar embedding
                 if doc["embedding"] is None or not isinstance(doc["embedding"], list):
                     continue
                 if any(v is None for v in doc["embedding"]):
@@ -108,7 +106,7 @@ class DocumentRepository(BaseRepository):
             inserted_count = len(values)
         
         duration = time.time() - start_time
-        print(f"DB INSERT BATCH Result | affected_rows={inserted_count} | duration={duration:.3f}s")
+        logger.debug("DB INSERT BATCH Result | affected_rows=%d | duration=%.3fs", inserted_count, duration)
         return inserted_count
     
     def find_similar(self, query_embedding: list[float], top_k: int = TOP_K_RESULTS,
@@ -122,8 +120,7 @@ class DocumentRepository(BaseRepository):
         if min_similarity is None:
             min_similarity = MIN_SIMILARITY_THRESHOLD
         
-        print("DB Vector Search | embedding_dim=%d | embedding_sample=%s | top_k=%d",
-                        len(query_embedding), str(query_embedding[:10]), top_k)
+        logger.debug("DB Vector Search | embedding_dim=%d | top_k=%d", len(query_embedding), top_k)
         
         with self._get_cursor(dict_cursor=True) as cur:
             where_conditions = ["(metadata->>'chunk_type' != 'parent' OR metadata->>'chunk_type' IS NULL)"]
@@ -134,9 +131,6 @@ class DocumentRepository(BaseRepository):
                 params.append(collection_id)
             
             if chunking_type:
-                # Filtrar por tipo de chunking no metadata
-                # Para hierarchical: buscar chunks do tipo 'child'
-                # Para sentence: buscar chunks do tipo 'sentence'
                 if chunking_type == "hierarchical":
                     where_conditions.append("metadata->>'chunk_type' = 'child'")
                 elif chunking_type == "sentence":
@@ -165,7 +159,6 @@ class DocumentRepository(BaseRepository):
         
         duration = time.time() - start_time
         
-        # Descriptografar se necessário
         results_list = []
         for row in results:
             row_dict = dict(row)
@@ -185,11 +178,10 @@ class DocumentRepository(BaseRepository):
             
             results_list.append(row_dict)
         
-        # Filtrar por similaridade mínima
         if min_similarity > 0:
             results_list = [r for r in results_list if r["similarity"] >= min_similarity]
         
-        print("DB Search Results | results_count=%d | duration=%.3fs", len(results_list), duration)
+        logger.debug("DB Search Results | results_count=%d | duration=%.3fs", len(results_list), duration)
         return results_list
     
     def find_by_id(self, id: int) -> Optional[dict]:
@@ -223,7 +215,7 @@ class DocumentRepository(BaseRepository):
             deleted = cur.rowcount
         
         duration = time.time() - start_time
-        print(f"Removed {deleted} chunks from {source_path} in {duration:.2f}s")
+        logger.info("Removed %d chunks from %s in %.2fs", deleted, source_path, duration)
         return deleted
     
     def list_collections(self) -> list[str]:
@@ -250,35 +242,19 @@ class DocumentRepository(BaseRepository):
                                       collection_id: Optional[str] = None) -> list[dict]:
         """
         Busca documentos similares filtrando especificamente por tipo de chunking.
-        
-        Método otimizado que usa a tabela documentos_ingeridos para
-        identificar quais arquivos usaram determinado tipo de chunking
-        e busca apenas nesses documentos.
-        
-        Args:
-            query_embedding: Vetor de embedding da query
-            chunking_type: Tipo de chunking ('hierarchical' ou 'sentence')
-            top_k: Número de resultados
-            min_similarity: Similaridade mínima
-            collection_id: Filtrar por coleção
-            
-        Returns:
-            Lista de documentos encontrados
         """
-        # Buscar paths de documentos com este tipo de chunking
+        from src.data.repositories.ingestion_repository import IngestionRepository
         ingestion_repo = IngestionRepository()
         source_paths = ingestion_repo.find_by_chunking_type(chunking_type, collection_id)
         
         if not source_paths:
-            # Nenhum documento com este tipo de chunking
             return []
         
-        # Buscar apenas nesses documentos
         return self.find_similar(
             query_embedding=query_embedding,
             top_k=top_k,
             min_similarity=min_similarity,
-            collection_id=None,  # Já filtrado por source_paths
+            collection_id=None,
             chunking_type=chunking_type,
             source_paths=source_paths
         )
@@ -300,8 +276,6 @@ class DocumentRepository(BaseRepository):
             return None
         
         content = row[0]
-        
-        # Descriptografar se necessário
         if ENCRYPTION_AVAILABLE and ENABLE_ENCRYPTION and ENCRYPT_DOCUMENT_CONTENT:
             try:
                 content = decrypt_data(content)

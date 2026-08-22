@@ -9,29 +9,20 @@ Métricas:
 - Answer Relevancy: resposta é relevante à pergunta?
 - Context Precision: chunks recuperados são relevantes?
 """
-
 import re
 import math
-from typing import Optional
+from typing import Optional, List, Dict
 
 from src.core.llm import generate_response
 from src.core.embeddings import get_embedding
+from src.core.logger import get_logger
 
-print(__name__)
+logger = get_logger("core.evaluation")
 
 
 def calculate_faithfulness(answer: str, context: str) -> float:
     """
-    Avalia se a resposta é fiel (baseada) no contexto fornecido.
-    
-    Usa LLM para verificar se as afirmações da resposta estão no contexto.
-    
-    Args:
-        answer: Resposta gerada pelo RAG
-        context: Contexto usado para gerar a resposta
-        
-    Returns:
-        Score de 0.0 a 1.0
+    Avalia se a resposta é fiel ao contexto fornecido.
     """
     prompt = f"""Avalie se a resposta abaixo é baseada APENAS no contexto fornecido.
 
@@ -53,27 +44,18 @@ Score:"""
 
     try:
         response = generate_response(prompt, temperature=0.1, max_tokens=10)
-        # Extrair número da resposta
         numbers = re.findall(r'\d+', response)
         if numbers:
-            score = min(100, max(0, int(numbers[0]))) / 100.0
-            return score
-        return 0.5  # Fallback
+            return min(100, max(0, int(numbers[0]))) / 100.0
+        return 0.5
     except Exception as e:
-        print(f"Faithfulness calculation failed: {e}")
+        logger.warning("Faithfulness calculation failed: %s", e)
         return 0.5
 
 
 def calculate_answer_relevancy(question: str, answer: str) -> float:
     """
     Avalia se a resposta é relevante para a pergunta.
-    
-    Args:
-        question: Pergunta original
-        answer: Resposta gerada
-        
-    Returns:
-        Score de 0.0 a 1.0
     """
     prompt = f"""Avalie se a resposta abaixo responde adequadamente à pergunta.
 
@@ -97,50 +79,41 @@ Score:"""
         response = generate_response(prompt, temperature=0.1, max_tokens=10)
         numbers = re.findall(r'\d+', response)
         if numbers:
-            score = min(100, max(0, int(numbers[0]))) / 100.0
-            return score
+            return min(100, max(0, int(numbers[0]))) / 100.0
         return 0.5
     except Exception as e:
-        print(f"Answer relevancy calculation failed: {e}")
+        logger.warning("Answer relevancy calculation failed: %s", e)
         return 0.5
 
 
-def calculate_context_precision(question: str, chunks: list[dict]) -> float:
+def calculate_context_precision(question: str, chunks: List[dict]) -> float:
     """
-    Avalia se os chunks recuperados são relevantes para a pergunta.
-    
-    Usa similaridade entre embeddings.
-    
-    Args:
-        question: Pergunta original
-        chunks: Lista de chunks recuperados com 'content'
-        
-    Returns:
-        Score de 0.0 a 1.0
+    Avalia se os chunks recuperados são relevantes para a pergunta via similaridade de cosseno.
     """
     if not chunks:
         return 0.0
     
     try:
         question_embedding = get_embedding(question)
-        
-        # Calcular similaridade média com os chunks
+        if not question_embedding:
+            return 0.5
+            
         similarities = []
-        for chunk in chunks[:5]:  # Top 5 chunks
+        for chunk in chunks[:5]:
             if "similarity" in chunk:
                 similarities.append(chunk["similarity"])
             else:
-                # Calcular manualmente se não tiver
                 chunk_embedding = get_embedding(chunk.get("content", "")[:500])
-                sim = _cosine_similarity(question_embedding, chunk_embedding)
-                similarities.append(sim)
+                if chunk_embedding:
+                    sim = _cosine_similarity(question_embedding, chunk_embedding)
+                    similarities.append(sim)
         
         if similarities:
             return sum(similarities) / len(similarities)
         return 0.5
         
     except Exception as e:
-        print(f"Context precision calculation failed: {e}")
+        logger.warning("Context precision calculation failed: %s", e)
         return 0.5
 
 
@@ -158,28 +131,17 @@ def evaluate_rag_response(
     question: str,
     answer: str,
     context: str,
-    chunks: list[dict] = None
+    chunks: List[dict] = None
 ) -> dict:
     """
-    Avalia uma resposta RAG usando múltiplas métricas.
-    
-    Args:
-        question: Pergunta original
-        answer: Resposta gerada
-        context: Contexto usado
-        chunks: Chunks recuperados (opcional, para context_precision)
-        
-    Returns:
-        Dict com scores de cada métrica
+    Avalia uma resposta RAG usando métricas RAGAS.
     """
-    print("Evaluating RAG response with RAGAS-inspired metrics...")
+    logger.debug("Iniciando avaliação da resposta RAG...")
     
-    # Calcular métricas
     faithfulness = calculate_faithfulness(answer, context)
     relevancy = calculate_answer_relevancy(question, answer)
     precision = calculate_context_precision(question, chunks) if chunks else None
     
-    # Score geral (média ponderada)
     metrics_count = 2 + (1 if precision is not None else 0)
     overall = (faithfulness + relevancy + (precision or 0)) / metrics_count
     
@@ -192,23 +154,13 @@ def evaluate_rag_response(
     if precision is not None:
         result["context_precision"] = round(precision, 3)
     
-    print(f"RAGAS Evaluation: {result}")
-    
+    logger.debug("Resultado da Avaliação: %s", result)
     return result
 
 
 def get_evaluation_summary(scores: dict) -> str:
-    """
-    Gera resumo textual da avaliação.
-    
-    Args:
-        scores: Dict com scores das métricas
-        
-    Returns:
-        Descrição textual dos scores
-    """
+    """Gera resumo textual da avaliação."""
     overall = scores.get("overall_score", 0)
-    
     if overall >= 0.8:
         quality = "Excelente"
     elif overall >= 0.6:
@@ -217,7 +169,6 @@ def get_evaluation_summary(scores: dict) -> str:
         quality = "Moderada"
     else:
         quality = "Precisa melhorar"
-    
     return f"Qualidade: {quality} (Score: {overall:.1%})"
 
 

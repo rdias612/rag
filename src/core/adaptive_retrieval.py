@@ -15,6 +15,9 @@ from src.config import (
     ADAPTIVE_MIN_SIM_MAX,
     ADAPTIVE_RETRIEVAL_LOG_LEVEL
 )
+from src.core.logger import get_logger
+
+logger = get_logger("core.adaptive_retrieval")
 
 def analyze_query_complexity(question: str) -> dict:
     """
@@ -140,20 +143,9 @@ def get_adaptive_params(
         "adjustment_reason": adjustment_reason
     }
     
-    print(
-        f"Adaptive params: top_k={top_k} (orig: {base_top_k}), "
-        f"min_sim={min_similarity:.2f} (orig: {base_min_similarity:.2f}), "
-        f"reason={adjustment_reason}, "
-        f"complexity={complexity}/10, words={word_count}"
-    )
-    
-    print(
-        f"Query analysis details: word_count={word_count}, "
-        f"complexity_score={complexity}, "
-        f"has_technical_terms={analysis['has_technical_terms']}, "
-        f"has_numbers={analysis['has_numbers']}, "
-        f"has_quotes={analysis['has_quotes']}, "
-        f"is_compound={analysis['is_compound']}"
+    logger.debug(
+        "Adaptive params: top_k=%d (orig: %d), min_sim=%.2f (orig: %.2f), reason=%s, complexity=%d/10, words=%d",
+        top_k, base_top_k, min_similarity, base_min_similarity, adjustment_reason, complexity, word_count
     )
     
     return result

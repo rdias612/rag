@@ -7,82 +7,21 @@ janela expandida (sentença + vizinhos) para contexto ao LLM.
 Benefícios:
 - Busca mais precisa (sentenças pequenas)
 - Contexto expandido para respostas melhores
-- Usa spaCy para melhor detecção de sentenças em português
+- Usa NLP centralizado para detecção de sentenças
 """
-import re
-from typing import List, Optional, Tuple
-import spacy
+from typing import List, Tuple
 
-# Carregar modelo spaCy para português (mesmo usado no projeto)
-try:
-    nlp = spacy.load("pt_core_news_md")
-    print("spaCy model loaded successfully for Portuguese")
-except OSError:
-    print("pt_core_news_md model not found, falling back to en_core_web_sm")
-    try:
-        nlp = spacy.load("en_core_web_sm")
-        print("Using English spaCy model as fallback")
-    except OSError:
-        print("No spaCy model found. Sentence splitting may be inaccurate.")
-        nlp = None
+from src.core.nlp import split_sentences
+from src.core.logger import get_logger
+
+logger = get_logger("data.sentence_window")
 
 
 def split_into_sentences(text: str) -> List[str]:
     """
-    Divide texto em sentenças usando spaCy.
-    
-    Usa spaCy para detecção linguística de sentenças em português,
-    muito mais precisa que regex simples.
-    
-    Args:
-        text: Texto a dividir
-        
-    Returns:
-        Lista de sentenças
+    Divide texto em sentenças usando o NLPManager centralizado.
     """
-    if not text or not text.strip():
-        return []
-    
-    if nlp is None:
-        # Fallback para regex se spaCy não estiver disponível
-        print("spaCy not available, using regex fallback")
-        return split_into_sentences_regex(text)
-    
-    try:
-        doc = nlp(text)
-        sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-        
-        print(f"Split text into {len(sentences)} sentences using spaCy")
-        return sentences
-    except Exception as e:
-        print(f"Error splitting sentences with spaCy: {e}")
-        return split_into_sentences_regex(text)
-
-
-def split_into_sentences_regex(text: str) -> List[str]:
-    """
-    Fallback: Divide texto em sentenças usando regex.
-    
-    Args:
-        text: Texto a dividir
-        
-    Returns:
-        Lista de sentenças
-    """
-    # Padrões de fim de sentença
-    sentence_endings = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
-    
-    # Dividir
-    sentences = sentence_endings.split(text)
-    
-    # Limpar e filtrar vazios
-    sentences = [s.strip() for s in sentences if s.strip()]
-    
-    # Fallback: se não encontrou quebras, dividir por ponto
-    if len(sentences) <= 1 and len(text) > 200:
-        sentences = [s.strip() + '.' for s in text.split('.') if s.strip()]
-    
-    return sentences
+    return split_sentences(text, language="pt")
 
 
 def create_sentence_index(
@@ -108,7 +47,6 @@ def create_sentence_index(
     char_position = 0
     
     for i, sentence in enumerate(sentences):
-        # Encontrar posição real no texto
         pos = text.find(sentence, char_position)
         if pos >= 0:
             char_position = pos
@@ -128,8 +66,7 @@ def create_sentence_index(
         index.append(entry)
         char_position += len(sentence)
     
-    print(f"Created sentence index with {len(index)} sentences")
-    
+    logger.debug("Criado índice com %d sentenças", len(index))
     return index
 
 
@@ -140,31 +77,17 @@ def get_sentence_window(
 ) -> Tuple[str, dict]:
     """
     Retorna janela de sentenças ao redor do índice alvo.
-    
-    Args:
-        sentences: Lista de sentenças indexadas
-        target_index: Índice da sentença encontrada
-        window_size: Número de sentenças antes/depois
-        
-    Returns:
-        Tupla (texto_janela, metadados)
     """
     if not sentences or target_index < 0:
         return "", {}
     
     total = len(sentences)
-    
-    # Calcular limites da janela
     start_idx = max(0, target_index - window_size)
     end_idx = min(total, target_index + window_size + 1)
     
-    # Extrair sentenças da janela
     window_sentences = sentences[start_idx:end_idx]
-    
-    # Combinar textos
     window_text = " ".join([s.get("content", "") for s in window_sentences])
     
-    # Metadados da janela
     window_metadata = {
         "target_sentence_index": target_index,
         "window_start": start_idx,
@@ -173,7 +96,6 @@ def get_sentence_window(
         "is_expanded_window": True
     }
     
-    # Copiar metadados do documento original
     if window_sentences:
         base_meta = window_sentences[0].get("metadata", {})
         for key in ["source", "page", "document_id"]:
@@ -191,15 +113,6 @@ def expand_sentence_results(
 ) -> List[dict]:
     """
     Expande resultados de busca por sentença para janelas.
-    
-    Args:
-        sentence_results: Resultados da busca (sentenças individuais)
-        all_sentences: Todas as sentenças do documento
-        window_size: Tamanho da janela
-        deduplicate: Se True, remove janelas sobrepostas
-        
-    Returns:
-        Lista de janelas expandidas
     """
     if not sentence_results:
         return []
@@ -212,21 +125,17 @@ def expand_sentence_results(
         sentence_idx = meta.get("sentence_index")
         
         if sentence_idx is None:
-            # Não é resultado de sentence index, passar adiante
             expanded.append(result)
             continue
         
-        # Calcular range da janela
         start = max(0, sentence_idx - window_size)
         end = min(len(all_sentences), sentence_idx + window_size + 1)
         range_key = (start, end)
         
-        # Deduplicar janelas sobrepostas
         if deduplicate and range_key in seen_ranges:
             continue
         seen_ranges.add(range_key)
         
-        # Criar janela expandida
         window_text, window_meta = get_sentence_window(
             all_sentences, sentence_idx, window_size
         )
@@ -240,8 +149,7 @@ def expand_sentence_results(
             }
             expanded.append(expanded_result)
     
-    print(f"Expanded {len(sentence_results)} sentences to {len(expanded)} windows")
-    
+    logger.debug("Expandidas %d sentenças para %d janelas", len(sentence_results), len(expanded))
     return expanded
 
 
@@ -249,6 +157,6 @@ def check_sentence_window_available() -> dict:
     """Verifica status do módulo."""
     return {
         "available": True,
-        "version": "1.0",
+        "version": "1.1",
         "note": "Requires sentence-indexed documents for full functionality"
     }

@@ -4,13 +4,14 @@ Módulo Self-RAG (Retrieval-Augmented Generation com Reflexão).
 Após gerar uma resposta, avalia se ela está completa e correta.
 Se necessário, busca mais informações e regenera.
 """
-
 import time
 from typing import Optional, Tuple
 
 from src.core.llm import generate_response
+from src.core.logger import get_logger
 
-# Prompt para avaliar completude da resposta
+logger = get_logger("core.self_rag")
+
 EVALUATION_PROMPT = """Avalie se a resposta abaixo responde adequadamente à pergunta do usuário.
 
 PERGUNTA:
@@ -60,32 +61,20 @@ def evaluate_response(
     context: str,
     temperature: float = 0.1
 ) -> dict:
-    """
-    Avalia se a resposta está completa e correta.
-    
-    Args:
-        question: Pergunta original
-        answer: Resposta gerada
-        context: Contexto usado
-        temperature: Temperatura para avaliação (baixa para consistência)
-        
-    Returns:
-        Dict com score, is_complete, e reason
-    """
+    """Avalia se a resposta está completa e correta."""
     start_time = time.time()
     
     prompt = EVALUATION_PROMPT.format(
         question=question,
-        context=context[:3000],  # Limitar contexto
+        context=context[:3000],
         answer=answer
     )
     
     try:
         response = generate_response(prompt, temperature=temperature, max_tokens=200)
         
-        # Parsear resposta
         result = {
-            "score": 70,  # Default
+            "score": 70,
             "is_complete": True,
             "reason": "",
             "evaluation_time_ms": 0
@@ -98,23 +87,19 @@ def evaluate_response(
                 try:
                     score_str = line.replace('SCORE:', '').strip()
                     result["score"] = int(''.join(filter(str.isdigit, score_str[:3])))
-                except:
+                except Exception:
                     pass
             elif line.startswith('COMPLETA:'):
-                is_complete = 'SIM' in line.upper()
-                result["is_complete"] = is_complete
+                result["is_complete"] = 'SIM' in line.upper()
             elif line.startswith('MOTIVO:'):
                 result["reason"] = line.replace('MOTIVO:', '').strip()
         
         result["evaluation_time_ms"] = round((time.time() - start_time) * 1000, 2)
-        
-        print("Self-RAG evaluation: score=%d, complete=%s",
-                     result['score'], result['is_complete'])
-        
+        logger.debug("Self-RAG evaluation: score=%d, complete=%s", result['score'], result['is_complete'])
         return result
         
     except Exception as e:
-        print("Self-RAG evaluation failed: %s", str(e))
+        logger.warning("Self-RAG evaluation failed: %s", e)
         return {
             "score": 70,
             "is_complete": True,
@@ -130,19 +115,7 @@ def refine_response(
     additional_context: str,
     temperature: float = 0.7
 ) -> str:
-    """
-    Refina uma resposta incompleta usando contexto adicional.
-    
-    Args:
-        question: Pergunta original
-        previous_answer: Resposta anterior (incompleta)
-        reason: Motivo da incompletude
-        additional_context: Novo contexto para usar
-        temperature: Temperatura para geração
-        
-    Returns:
-        Resposta refinada
-    """
+    """Refina uma resposta incompleta usando contexto adicional."""
     prompt = REFINEMENT_PROMPT.format(
         question=question,
         previous_answer=previous_answer,
@@ -152,12 +125,12 @@ def refine_response(
     
     try:
         refined = generate_response(prompt, temperature=temperature, max_tokens=1024)
-        print("Self-RAG: Response refined with additional context")
+        logger.info("Self-RAG: Resposta refinada com contexto adicional")
         return refined.strip()
-        
     except Exception as e:
-        print("Self-RAG refinement failed: %s", str(e))
+        logger.error("Self-RAG refinement failed: %s", e)
         return previous_answer
+
 
 def self_rag_pipeline(
     question: str,
@@ -167,23 +140,7 @@ def self_rag_pipeline(
     min_score: int = 60,
     max_iterations: int = 1
 ) -> Tuple[str, dict]:
-    """
-    Pipeline completo de Self-RAG.
-    
-    1. Avalia resposta
-    2. Se incompleta, busca mais contexto e refina
-    
-    Args:
-        question: Pergunta original
-        answer: Resposta inicial
-        context: Contexto usado
-        search_function: Função para buscar mais contexto (opcional)
-        min_score: Score mínimo para considerar completa
-        max_iterations: Máximo de refinamentos
-        
-    Returns:
-        Tupla (resposta_final, métricas)
-    """
+    """Pipeline completo de Self-RAG."""
     metrics = {
         "iterations": 0,
         "initial_score": 0,
@@ -196,7 +153,6 @@ def self_rag_pipeline(
     current_answer = answer
     
     for i in range(max_iterations + 1):
-        # Avaliar resposta atual
         evaluation = evaluate_response(question, current_answer, context)
         
         if i == 0:
@@ -205,17 +161,14 @@ def self_rag_pipeline(
         metrics["iterations"] = i + 1
         metrics["final_score"] = evaluation["score"]
         
-        # Se completa ou atingiu limite, retornar
         if evaluation["is_complete"] and evaluation["score"] >= min_score:
             break
         
         if i >= max_iterations:
             break
         
-        # Tentar refinar
         if search_function and not evaluation["is_complete"]:
             try:
-                # Buscar mais contexto
                 additional_results = search_function(question, top_k=3)
                 if additional_results:
                     additional_context = "\n\n".join([
@@ -229,18 +182,17 @@ def self_rag_pipeline(
                         additional_context=additional_context
                     )
                     metrics["was_refined"] = True
-                    
             except Exception as e:
-                print("Self-RAG search/refine failed: %s", str(e))
+                logger.error("Self-RAG search/refine failed: %s", e)
                 break
     
     metrics["total_time_ms"] = round((time.time() - start_time) * 1000, 2)
-    
     return current_answer, metrics
+
 
 def check_self_rag_available() -> dict:
     """Verifica status do módulo."""
     return {
         "available": True,
-        "version": "1.0"
+        "version": "1.1"
     }

@@ -2,7 +2,7 @@
 Pipeline RAG principal - orquestrador modular.
 """
 import time
-
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, List, Literal
 
 from src.config import (
@@ -16,6 +16,7 @@ from src.config import (
     EVALUATION_MIN_SCORE_THRESHOLD,
     SENTENCE_WINDOW_SIZE
 )
+from src.core.logger import get_logger
 from src.core.embeddings import get_embedding
 from src.core.llm import generate_response
 from src.core.question_classifier import classify_question
@@ -34,7 +35,10 @@ from src.core.rag.services.prompt_service import PromptService
 from src.core.rag.services.response_service import ResponseService
 from src.core.rag.strategies.retrieval_strategy import RetrievalStrategy
 
-print("rag.pipeline")
+logger = get_logger("rag.pipeline")
+
+# Executor para avaliações e métricas assíncronas
+_background_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="rag_async")
 
 
 def determine_search_strategy(question: str) -> Literal["hierarchical", "sentence"]:
@@ -45,21 +49,13 @@ def determine_search_strategy(question: str) -> Literal["hierarchical", "sentenc
     - Perguntas curtas/diretas → Sentence Window (mais preciso)
     - Perguntas explicativas → Hierarchical (mais contexto)
     - Padrão: Hierarchical (mais seguro)
-    
-    Args:
-        question: Texto da pergunta do usuário
-        
-    Returns:
-        'hierarchical' ou 'sentence'
     """
     question_lower = question.lower()
     words = question.split()
     
-    # Critério 1: Perguntas muito curtas (até 5 palavras)
     if len(words) <= 5:
         return "sentence"
     
-    # Critério 2: Indicadores de perguntas específicas/diretas
     specific_indicators = [
         "qual é", "o que é", "quanto custa", "onde fica", 
         "quem é", "qual", "quanto", "onde", "quem",
@@ -68,7 +64,6 @@ def determine_search_strategy(question: str) -> Literal["hierarchical", "sentenc
     if any(ind in question_lower for ind in specific_indicators):
         return "sentence"
     
-    # Critério 3: Indicadores de perguntas explicativas
     explanatory_indicators = [
         "como funciona", " pq ", "por que", "porque", "como fazer",
         "explique", "detalhe", "descreva", "o processo de",
@@ -77,11 +72,9 @@ def determine_search_strategy(question: str) -> Literal["hierarchical", "sentenc
     if any(ind in question_lower for ind in explanatory_indicators):
         return "hierarchical"
     
-    # Critério 4: Perguntas começando com "como"
     if question_lower.startswith("como "):
         return "hierarchical"
     
-    # Padrão: Hierarchical (mais seguro)
     return "hierarchical"
 
 
@@ -125,65 +118,34 @@ class RAGPipeline:
         request_id = request_id or "unknown"
         inc_query()
         
-        # Log início da query
-        data_str = " | ".join(f"{k}={v}" for k, v in {
-            "question": question[:100],
-            "top_k": top_k,
-            "collection_id": collection_id
-        }.items())
-        print("[Query Started] | request_id=%s | %s", request_id, data_str)
+        logger.info("[Query Started] | request_id=%s | question=%s | top_k=%d | collection_id=%s",
+                    request_id, question[:100], top_k, collection_id)
         
         # Determinar estratégia de chunking (Sentence Window vs Hierarchical)
         if search_mode == "auto" or search_mode is None:
-            # Decisão automática baseada na pergunta
             strategy = determine_search_strategy(question)
             use_sentence_window = (strategy == "sentence")
-            print(f"Search mode: auto, Strategy: {strategy}, Use Sentence Window: {use_sentence_window} | request_id={request_id}")
-            data_str = " | ".join(f"{k}={v}" for k, v in {
-                "strategy": strategy,
-                "use_sentence_window": use_sentence_window
-            }.items())
-            print("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
+            logger.info("[Strategy Determined] | request_id=%s | strategy=%s | use_sentence_window=%s",
+                        request_id, strategy, use_sentence_window)
         elif search_mode == "hierarchical":
             use_sentence_window = False
-            print(f"Search mode: hierarchical, Use Sentence Window: False | request_id={request_id}")
-            data_str = " | ".join(f"{k}={v}" for k, v in {
-                "strategy": "hierarchical",
-                "use_sentence_window": False
-            }.items())
-            print("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
+            logger.info("[Strategy Determined] | request_id=%s | strategy=hierarchical", request_id)
         elif search_mode == "sentence":
             use_sentence_window = True
-            print(f"Search mode: sentence, Use Sentence Window: True | request_id={request_id}")
-            data_str = " | ".join(f"{k}={v}" for k, v in {
-                "strategy": "sentence",
-                "use_sentence_window": True
-            }.items())
-            print("[Strategy Determined] | request_id=%s | %s", request_id, data_str)
+            logger.info("[Strategy Determined] | request_id=%s | strategy=sentence", request_id)
         else:
-            # Fallback seguro
             use_sentence_window = False
-            print(f"Invalid search_mode: {search_mode}, using hierarchical | request_id={request_id}")
-            data_str = " | ".join(f"{k}={v}" for k, v in {
-                "strategy": "hierarchical",
-                "reason": f"Invalid search_mode: {search_mode}"
-            }.items())
-            print("[Strategy Fallback] | request_id=%s | %s", request_id, data_str)
+            logger.warning("[Strategy Fallback] | request_id=%s | reason=Invalid search_mode: %s", request_id, search_mode)
         
-        # Inicializar métricas de adaptive retrieval
         adaptive_metrics = {"applied": False, "reason": "disabled_by_config"}
         
         try:
             with LatencyTracker("rag_total"):
                 # 1. Classificar pergunta
-                print("[Classification] Started | request_id=%s", request_id)
                 question_type = classify_question(question)
-                data_str = " | ".join(f"{k}={v}" for k, v in {"question_type": question_type}.items())
-                print("[Classification Complete] | request_id=%s | %s", request_id, data_str)
-                print("[Classification] Completed | request_id=%s", request_id)
+                logger.debug("[Classification Complete] | request_id=%s | question_type=%s", request_id, question_type)
                 
                 # 1.5 Aplicar Adaptive Retrieval se habilitado
-                print("[Adaptive Retrieval] Started | request_id=%s", request_id)
                 if ENABLE_ADAPTIVE_RETRIEVAL and enable_adaptive:
                     base_min_sim = min_similarity if min_similarity is not None else MIN_SIMILARITY_THRESHOLD
                     adaptive_result = get_adaptive_params(
@@ -204,31 +166,17 @@ class RAGPipeline:
                         "adjustment_reason": adaptive_result["adjustment_reason"],
                         "characteristics": adaptive_result["analysis"]
                     }
-                    data_str = " | ".join(f"{k}={v}" for k, v in {"adaptive_params": adaptive_metrics}.items())
-                    print("[Adaptive Applied] | request_id=%s | %s", request_id, data_str)
-                elif enable_adaptive and not ENABLE_ADAPTIVE_RETRIEVAL:
-                    adaptive_metrics = {"applied": False, "reason": "disabled_in_config"}
-                    data_str = " | ".join(f"{k}={v}" for k, v in {"reason": "disabled_in_config"}.items())
-                    print("[Adaptive Skipped] | request_id=%s | %s", request_id, data_str)
-                else:
-                    adaptive_metrics = {"applied": False, "reason": "disabled_by_user"}
-                    data_str = " | ".join(f"{k}={v}" for k, v in {"reason": "disabled_by_user"}.items())
-                    print("[Adaptive Skipped] | request_id=%s | %s", request_id, data_str)
-                print("[Adaptive Retrieval] Completed | request_id=%s", request_id)
+                    logger.info("[Adaptive Applied] | request_id=%s | top_k=%d | min_sim=%.2f", request_id, top_k, min_similarity)
                 
                 # 2. Gerar embedding (com HyDE se habilitado)
-                print("[Embedding] Started | request_id=%s", request_id)
                 hyde_embedding = self.strategies.apply_hyde(question)
                 embedding = hyde_embedding or get_embedding(question)
-                data_str = " | ".join(f"{k}={v}" for k, v in {"dimension": len(embedding)}.items())
-                print("[Embedding Generated] | request_id=%s | %s", request_id, data_str)
-                print("[Embedding] Completed | request_id=%s", request_id)
+                if not embedding:
+                    logger.warning("[Embedding Empty] | request_id=%s | fallback to basic vector", request_id)
                 
-                # 3. Buscar documentos (Phase 1)
-                print("[Search] Started | request_id=%s", request_id)
+                # 3. Buscar documentos
                 search_metrics = {}
                 if use_sentence_window:
-                    # Usa Sentence Window Retrieval
                     initial_docs = self.search.search_with_sentence_window(
                         question=question,
                         query_embedding=embedding,
@@ -238,23 +186,20 @@ class RAGPipeline:
                         request_id=request_id
                     )
                 else:
-                    # Usa Hierarchical Chunking (padrão)
                     initial_docs = self.search.search(
                         question=question,
                         query_embedding=embedding,
-                        top_k=top_k * 3,  # Busca mais para o re-ranking
+                        top_k=top_k * 3,
                         min_similarity=min_similarity,
                         use_hybrid=use_hybrid_search,
                         hybrid_alpha=hybrid_alpha,
                         collection_id=collection_id,
                         request_id=request_id
                     )
-                data_str = " | ".join(f"{k}={v}" for k, v in {"documents_found": len(initial_docs)}.items())
-                print("[Search Complete] | request_id=%s | %s", request_id, data_str)
-                print("[Search] Completed | request_id=%s", request_id)
                 
-                # 4. Refinar busca (Phase 2: MMR, Re-ranking)
-                print("[Reranking] Started | request_id=%s", request_id)
+                logger.info("[Search Complete] | request_id=%s | documents_found=%d", request_id, len(initial_docs))
+                
+                # 4. Refinar busca (MMR, Re-ranking)
                 documents, search_metrics = self.strategies.apply_phase2_pipeline(
                     question=question,
                     question_embedding=embedding,
@@ -262,19 +207,14 @@ class RAGPipeline:
                     final_top_k=top_k,
                     search_metrics=search_metrics
                 )
-                data_str = " | ".join(f"{k}={v}" for k, v in {"documents_after_rerank": len(documents)}.items())
-                print("[Reranking Complete] | request_id=%s | %s", request_id, data_str)
-                print("[Reranking] Completed | request_id=%s", request_id)
                 
                 observe_chunks_retrieved(len(documents))
                 
                 if not documents:
-                    data_str = " | ".join(f"{k}={v}" for k, v in {"question": question[:100]}.items())
-                    print("[No Results Found] | request_id=%s | %s", request_id, data_str)
+                    logger.info("[No Results Found] | request_id=%s | question=%s", request_id, question[:100])
                     return self.responses.build_no_results_response(question, question_type, search_metrics)
                 
                 # 5. Montar e comprimir contexto
-                print("[Context Building] Started | request_id=%s", request_id)
                 raw_context = self.context.build_context(documents, request_id=request_id)
                 context_result = self.context.compress_if_needed(
                     raw_context,
@@ -282,15 +222,8 @@ class RAGPipeline:
                     enable_compression,
                     request_id=request_id
                 )
-                data_str = " | ".join(f"{k}={v}" for k, v in {
-                    "context_chars": len(raw_context),
-                    "was_compressed": context_result["was_compressed"]
-                }.items())
-                print("[Context Ready] | request_id=%s | %s", request_id, data_str)
-                print("[Context Building] Completed | request_id=%s", request_id)
                 
                 # 6. Construir prompt
-                print("[Prompt Building] Started | request_id=%s", request_id)
                 prompt = self.prompts.build_prompt(
                     context=context_result["context"],
                     question=question,
@@ -298,61 +231,46 @@ class RAGPipeline:
                     history=history,
                     response_style=response_style
                 )
-                data_str = " | ".join(f"{k}={v}" for k, v in {"prompt_length": len(prompt)}.items())
-                print("[Prompt Built] | request_id=%s | %s", request_id, data_str)
-                print("[Prompt Building] Completed | request_id=%s", request_id)
                 
                 # 7. Gerar resposta
-                print("[LLM] Started | request_id=%s", request_id)
                 answer = generate_response(prompt, temperature=temperature, request_id=request_id)
-                data_str = " | ".join(f"{k}={v}" for k, v in {"answer_length": len(answer)}.items())
-                print("[LLM Complete] | request_id=%s | %s", request_id, data_str)
-                print("[LLM] Completed | request_id=%s", request_id)
                 
-                # 7.5. Auto-avaliação (opcional)
+                # 7.5. Auto-avaliação desacoplada em background (Task 1.5)
                 evaluation_metrics = {}
                 if ENABLE_AUTO_EVALUATION:
-                    with LatencyTracker("evaluation"):
+                    def _run_eval():
                         try:
-                            # Avaliar resposta
-                            evaluation_result = evaluate_rag_response(
+                            eval_res = evaluate_rag_response(
                                 question=question,
                                 answer=answer,
                                 context=raw_context,
                                 chunks=documents
                             )
+                            if eval_res["overall_score"] >= EVALUATION_MIN_SCORE_THRESHOLD:
+                                evaluation_repo.save_evaluation(
+                                    question=question,
+                                    answer=answer,
+                                    context=raw_context,
+                                    scores=eval_res,
+                                    session_id=collection_id,
+                                    chunks_retrieved=len(documents),
+                                    search_mode=search_mode,
+                                    adaptive_used=adaptive_metrics.get("applied", False)
+                                )
+                                logger.info("[Background Eval Saved] score=%.2f%%", eval_res['overall_score'] * 100)
+                        except Exception as eval_err:
+                            logger.warning("[Background Eval Error] %s", eval_err)
                             
-                            # Filtrar avaliações muito baixas
-                            if evaluation_result["overall_score"] >= EVALUATION_MIN_SCORE_THRESHOLD:
-                                evaluation_metrics = evaluation_result
-                                
-                                # Salvar no banco (assíncrono para não impactar performance)
-                                try:
-                                    evaluation_repo.save_evaluation(
-                                        question=question,
-                                        answer=answer,
-                                        context=raw_context,
-                                        scores=evaluation_result,
-                                        session_id=collection_id,  # Usando collection_id temporariamente
-                                        chunks_retrieved=len(documents),
-                                        search_mode=search_mode,
-                                        adaptive_used=adaptive_metrics.get("applied", False)
-                                    )
-                                    print(f"Evaluation saved: score={evaluation_result['overall_score']:.2%}")
-                                except Exception as e:
-                                    print(f"Failed to save evaluation: {e}")
-                        except Exception as e:
-                            print(f"Failed to evaluate response: {e}")
+                    _background_executor.submit(_run_eval)
                 
-                # 7.6. Self-RAG - Avaliar e refinar se habilitado
+                # 7.6. Self-RAG se explicitamente ativado
                 self_rag_metrics = {}
                 if ENABLE_SELF_RAG:
                     with LatencyTracker("self_rag"):
-                        # Função de busca adicional usando Query Expansion
                         def additional_search(query: str, top_k: int):
                             expanded_queries = expand_query(query)
                             results = []
-                            for eq in expanded_queries[:2]:  # Limitar para não demorar muito
+                            for eq in expanded_queries[:2]:
                                 eq_embedding = get_embedding(eq)
                                 results.extend(
                                     self.search.search(
@@ -367,7 +285,6 @@ class RAGPipeline:
                                 )
                             return results[:top_k]
                         
-                        # Aplicar Self-RAG
                         answer, self_rag_metrics = self_rag_pipeline(
                             question=question,
                             answer=answer,
@@ -380,31 +297,29 @@ class RAGPipeline:
                 # 8. Formatar resposta
                 total_duration = time.time() - start_time
                 
-                # 8.1 Salvar métricas de adaptive retrieval se aplicado
+                # 8.1 Salvar métricas de adaptive em background
                 if adaptive_metrics.get("applied") and collection_id:
-                    try:
-                        adaptive_retrieval_repo.save_metric(
-                            session_id=collection_id,  # Usando collection_id como session_id temporariamente
-                            question=question,
-                            complexity_score=adaptive_metrics["complexity_score"],
-                            word_count=adaptive_metrics["word_count"],
-                            top_k_original=adaptive_metrics["original_top_k"],
-                            top_k_adjusted=adaptive_metrics["top_k"],
-                            min_similarity_original=adaptive_metrics["original_min_similarity"],
-                            min_similarity_adjusted=adaptive_metrics["min_similarity"],
-                            adjustment_reason=adaptive_metrics["adjustment_reason"],
-                            characteristics=adaptive_metrics["characteristics"],
-                            duration_ms=int(total_duration * 1000)
-                        )
-                    except Exception as e:
-                        print(f"Failed to save adaptive metric: {e}")
+                    def _save_adaptive_metric():
+                        try:
+                            adaptive_retrieval_repo.save_metric(
+                                session_id=collection_id,
+                                question=question,
+                                complexity_score=adaptive_metrics["complexity_score"],
+                                word_count=adaptive_metrics["word_count"],
+                                top_k_original=adaptive_metrics["original_top_k"],
+                                top_k_adjusted=adaptive_metrics["top_k"],
+                                min_similarity_original=adaptive_metrics["original_min_similarity"],
+                                min_similarity_adjusted=adaptive_metrics["min_similarity"],
+                                adjustment_reason=adaptive_metrics["adjustment_reason"],
+                                characteristics=adaptive_metrics["characteristics"],
+                                duration_ms=int(total_duration * 1000)
+                            )
+                        except Exception as metric_err:
+                            logger.warning("[Adaptive Metric Save Error] %s", metric_err)
+                            
+                    _background_executor.submit(_save_adaptive_metric)
                 
-                # Log final
-                data_str = " | ".join(f"{k}={v}" for k, v in {
-                    "total_duration": f"{total_duration:.3f}s",
-                    "status": "success"
-                }.items())
-                print("[Query Complete] | request_id=%s | %s", request_id, data_str)
+                logger.info("[Query Complete] | request_id=%s | duration=%.3fs | status=success", request_id, total_duration)
                 
                 return self.responses.format_response(
                     answer=answer,
@@ -419,15 +334,8 @@ class RAGPipeline:
                 )
                 
         except Exception as e:
-            context = {
-                "question": question,
-                "collection_id": collection_id
-            }
-            print(
-                "[RAG Pipeline] Error | request_id=%s | error_type=%s | error_message=%s | context=%s",
-                request_id, type(e).__name__, str(e), context
-            )
-            # Track error type for Prometheus metrics
+            logger.error("[RAG Pipeline Error] | request_id=%s | error_type=%s | error_message=%s",
+                         request_id, type(e).__name__, str(e), exc_info=True)
             inc_error(type(e).__name__)
             raise
 
@@ -437,27 +345,24 @@ class RAGPipeline:
         top_k: int = TOP_K_RESULTS,
         temperature: float = 0.7,
         response_style: str = "detailed",
+        search_mode: Optional[Literal["auto", "hierarchical", "sentence"]] = None,
         request_id: str = None
     ):
         """Versão simplificada para streaming."""
         request_id = request_id or "unknown"
         
-        # Repete lógica básica mas foca no gerador
         embedding = get_embedding(question)
         docs = self.search.search(question, embedding, top_k, request_id=request_id)
         
         if not docs:
-            data_str = " | ".join(f"{k}={v}" for k, v in {"question": question[:100]}.items())
-            print("[No Results (Stream)] | request_id=%s | %s", request_id, data_str)
-            yield "Desculpe, não encontrei informações para responder."
+            logger.info("[No Results (Stream)] | request_id=%s | question=%s", request_id, question[:100])
+            yield "Desculpe, não encontrei informações nos documentos para responder."
             return
 
         context = self.context.build_context(docs, request_id=request_id)
         prompt = self.prompts.build_prompt(context, question, response_style=response_style)
         
-        data_str = " | ".join(f"{k}={v}" for k, v in {"question": question[:100]}.items())
-        print("[Stream Query Started] | request_id=%s | %s", request_id, data_str)
-        
+        logger.info("[Stream Query Started] | request_id=%s | question=%s", request_id, question[:100])
         return generate_response(prompt, temperature=temperature, stream=True, request_id=request_id)
 
     def query_with_history(
@@ -468,25 +373,13 @@ class RAGPipeline:
     ) -> Dict[str, Any]:
         """Query RAG com suporte a histórico."""
         request_id = kwargs.get("request_id", "unknown")
-        
-        data_str = " | ".join(f"{k}={v}" for k, v in {"session_id": session_id}.items())
-        print("[History Retrieved] | request_id=%s | %s", request_id, data_str)
+        logger.info("[History Query] | request_id=%s | session_id=%s", request_id, session_id)
         
         history_text = conversation_manager.get_history_as_text(session_id)
-        
-        # Injeta o histórico no processamento
         result = self.query(question, history=history_text, **kwargs)
         
-        # Salva a nova iteração no histórico
         conversation_manager.add_message(session_id, "user", question)
         conversation_manager.add_message(session_id, "assistant", result["answer"])
-        
-        data_str = " | ".join(f"{k}={v}" for k, v in {
-            "session_id": session_id,
-            "messages_count": 2
-        }.items())
-        print("[History Saved] | request_id=%s | %s", request_id, data_str)
-        
         return result
 
     def search_only(
@@ -498,12 +391,7 @@ class RAGPipeline:
     ) -> List[Dict[str, Any]]:
         """Apenas busca documentos similares, sem gerar resposta."""
         request_id = request_id or "unknown"
-        
-        data_str = " | ".join(f"{k}={v}" for k, v in {
-            "question": question[:100],
-            "top_k": top_k
-        }.items())
-        print("[Search Only Started] | request_id=%s | %s", request_id, data_str)
+        logger.info("[Search Only Started] | request_id=%s | question=%s | top_k=%d", request_id, question[:100], top_k)
         
         embedding = get_embedding(question)
         results = self.search.search(
@@ -514,11 +402,9 @@ class RAGPipeline:
             use_hybrid=False,
             request_id=request_id
         )
-        
-        data_str = " | ".join(f"{k}={v}" for k, v in {"results_count": len(results)}.items())
-        print("[Search Only Complete] | request_id=%s | %s", request_id, data_str)
-        
+        logger.info("[Search Only Complete] | request_id=%s | results_count=%d", request_id, len(results))
         return results
+
 
 # Instância global para compatibilidade
 _default_pipeline = RAGPipeline()

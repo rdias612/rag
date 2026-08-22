@@ -4,9 +4,9 @@ import time
 from typing import List, Dict, Any, Optional
 
 from src.data.repositories.base import BaseRepository
+from src.core.logger import get_logger
 
-# Standard logger for repository operations
-print("")
+logger = get_logger("data.evaluation_repository")
 
 
 class EvaluationRepository(BaseRepository):
@@ -102,10 +102,10 @@ class EvaluationRepository(BaseRepository):
                 doc_id = cur.fetchone()[0]
             
             duration = time.time() - start_time
-            print("Evaluation saved in %.2fs: score=%.2f%%", duration, scores.get('overall_score', 0) * 100)
+            logger.info("Evaluation saved in %.2fs: score=%.2f%%", duration, scores.get('overall_score', 0) * 100)
             return doc_id
         except Exception as e:
-            print("Failed to save evaluation: %s", e, exc_info=True)
+            logger.error("Failed to save evaluation: %s", e, exc_info=True)
             return None
     
     def get_stats(
@@ -284,7 +284,7 @@ class EvaluationRepository(BaseRepository):
         
         duration = time.time() - start_time
         if count > 0:
-            print("Deleted %d old evaluations (>%d days) in %.2fs", count, days, duration)
+            logger.info("Deleted %d old evaluations (>%d days) in %.2fs", count, days, duration)
         
         return count
     

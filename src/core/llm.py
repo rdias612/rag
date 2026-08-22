@@ -3,11 +3,14 @@ Módulo de integração com o LLM (Phi-3.5 Mini) via LM Studio API.
 """
 import time
 import json
-
 import requests
-from typing import Optional, Generator
+from typing import Generator
 
 from src.config import LM_STUDIO_BASE_URL, LLM_MODEL
+from src.core.logger import get_logger
+
+logger = get_logger("core.llm")
+
 
 def generate_response(
     prompt: str,
@@ -17,16 +20,7 @@ def generate_response(
     request_id: str = None
 ) -> str:
     """
-    Gera uma resposta usando o modelo Phi-3.5 Mini.
-    
-    Args:
-        prompt: Prompt completo (com contexto e pergunta)
-        max_tokens: Número máximo de tokens na resposta
-        temperature: Temperatura para geração (0.0 = determinístico, 1.0 = criativo)
-        stream: Se True, retorna um generator para streaming
-        
-    Returns:
-        Resposta gerada pelo modelo
+    Gera uma resposta usando o modelo de LLM configurado.
     """
     payload = {
         "model": LLM_MODEL,
@@ -42,99 +36,67 @@ def generate_response(
     }
     
     request_id = request_id or "unknown"
-    
-    # Log início da requisição
-    print("LLM Request Started | request_id=%s | model=%s | prompt_len=%d | max_tokens=%d | temperature=%s | stream=%s",
-                   request_id, LLM_MODEL, len(prompt), max_tokens, temperature, stream)
-    
-    # Log da requisição (resumo)
-    print("LLM Request | model=%s | prompt_len=%d | params=%s",
-                   LLM_MODEL, len(prompt), {"max_tokens": max_tokens, "temperature": temperature, "stream": stream})
-    
-    # Log da requisição completa (detalhado)
-    print("LLM Full Request | url=%s | payload=%s",
-                    LM_STUDIO_BASE_URL + "/chat/completions", payload)
+    logger.debug("LLM Request Started | request_id=%s | model=%s | prompt_len=%d",
+                 request_id, LLM_MODEL, len(prompt))
     
     if stream:
-        return _generate_stream(payload)
+        return _generate_stream(payload, request_id)
     
     start_time = time.time()
     
-    response = requests.post(
-        f"{LM_STUDIO_BASE_URL}/chat/completions",
-        json=payload,
-        timeout=120
-    )
-    
-    response.raise_for_status()
-    data = response.json()
-    
-    result = data["choices"][0]["message"]["content"]
-    duration = time.time() - start_time
-    
-    print("LLM Response Received | request_id=%s | response_len=%d | duration=%s",
-                   request_id, len(result), f"{duration:.3f}s")
-    
-    # Extrair tokens se disponível
-    tokens = data.get("usage", {}).get("completion_tokens")
-    
-    # Log da resposta (resumo)
-    print("LLM Response | response_len=%d | duration=%.3fs | tokens=%s",
-                   len(result), duration, tokens)
-    
-    # Log da resposta completa (detalhado - JSON original)
-    print("LLM Full Response | response=%s", data)
-    
-    print("LLM Complete | request_id=%s | total_duration=%s | status=%s",
-                   request_id, f"{duration:.3f}s", "success")
-    
-    return result
+    try:
+        response = requests.post(
+            f"{LM_STUDIO_BASE_URL}/chat/completions",
+            json=payload,
+            timeout=120
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        result = data["choices"][0]["message"]["content"]
+        duration = time.time() - start_time
+        
+        logger.info("LLM Complete | request_id=%s | response_len=%d | duration=%.3fs",
+                    request_id, len(result), duration)
+        return result
+    except Exception as e:
+        logger.error("Erro na chamada LLM | request_id=%s | error=%s", request_id, e)
+        raise
 
 
-def _generate_stream(payload: dict) -> Generator[str, None, None]:
+def _generate_stream(payload: dict, request_id: str = "unknown") -> Generator[str, None, None]:
     """
     Gera resposta em streaming.
-    
-    Args:
-        payload: Payload da requisição
-        
-    Yields:
-        Tokens da resposta conforme são gerados
     """
-    response = requests.post(
-        f"{LM_STUDIO_BASE_URL}/chat/completions",
-        json=payload,
-        stream=True,
-        timeout=120
-    )
-    
+    logger.debug("LLM Stream Started | request_id=%s | model=%s", request_id, payload.get("model"))
     try:
+        response = requests.post(
+            f"{LM_STUDIO_BASE_URL}/chat/completions",
+            json=payload,
+            stream=True,
+            timeout=120
+        )
         response.raise_for_status()
-        
-        print("LLM Stream Started | request_id=%s | model=%s",
-                       "unknown", payload.get("model"))
         
         for line in response.iter_lines():
             if line:
-                line = line.decode("utf-8")
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        print("LLM Stream Complete | request_id=%s | status=%s",
-                                       "unknown", "done")
+                line_str = line.decode("utf-8")
+                if line_str.startswith("data: "):
+                    data_str = line_str[6:]
+                    if data_str == "[DONE]":
                         break
                         
                     try:
-                        chunk = json.loads(data)
+                        chunk = json.loads(data_str)
                         delta = chunk["choices"][0].get("delta", {})
                         content = delta.get("content", "")
                         if content:
                             yield content
                     except json.JSONDecodeError:
                         continue
+        logger.debug("LLM Stream Finished | request_id=%s", request_id)
     except Exception as e:
-        print("LLM Stream Error | request_id=%s | model=%s | error_type=%s | error_message=%s",
-                           "unknown", payload.get("model"), type(e).__name__, str(e))
+        logger.error("LLM Stream Error | request_id=%s | error=%s", request_id, e)
         raise
 
 
@@ -146,15 +108,6 @@ def generate_with_system_prompt(
 ) -> str:
     """
     Gera uma resposta com system prompt separado.
-    
-    Args:
-        system_prompt: Instruções do sistema
-        user_prompt: Prompt do usuário
-        max_tokens: Número máximo de tokens na resposta
-        temperature: Temperatura para geração
-        
-    Returns:
-        Resposta gerada pelo modelo
     """
     payload = {
         "model": LLM_MODEL,
@@ -169,65 +122,28 @@ def generate_with_system_prompt(
             }
         ],
         "max_tokens": max_tokens,
-        "temperature": temperature
+        "temperature": temperature,
+        "stream": False
     }
     
-    # Log da requisição (resumo)
-    full_prompt = f"[SYSTEM] {system_prompt}\n[USER] {user_prompt}"
-    print("LLM Request | model=%s | prompt_len=%d | params=%s",
-                   LLM_MODEL, len(full_prompt), {"max_tokens": max_tokens, "temperature": temperature})
-    
-    # Log da requisição completa (detalhado)
-    print("LLM Full Request | url=%s | payload=%s",
-                    LM_STUDIO_BASE_URL + "/chat/completions", payload)
-    
-    start_time = time.time()
-    
-    response = requests.post(
-        f"{LM_STUDIO_BASE_URL}/chat/completions",
-        json=payload,
-        timeout=120
-    )
-    
-    response.raise_for_status()
-    data = response.json()
-    
-    result = data["choices"][0]["message"]["content"]
-    duration = time.time() - start_time
-    
-    # Log da resposta (resumo)
-    tokens = data.get("usage", {}).get("completion_tokens")
-    print("LLM Response | response_len=%d | duration=%.3fs | tokens=%s",
-                   len(result), duration, tokens)
-    
-    # Log da resposta completa (detalhado - JSON original)
-    print("LLM Full Response | response=%s", data)
-    
-    return result
+    try:
+        response = requests.post(
+            f"{LM_STUDIO_BASE_URL}/chat/completions",
+            json=payload,
+            timeout=120
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.error("Erro na geração com system prompt: %s", e)
+        raise
 
 
 def check_llm_service() -> bool:
     """Verifica se o serviço LLM está disponível."""
     try:
-        response = requests.get(
-            f"{LM_STUDIO_BASE_URL}/models",
-            timeout=10
-        )
-        response.raise_for_status()
-        
-        models = response.json()
-        available_models = [m["id"] for m in models.get("data", [])]
-        
-        # Verificar se algum modelo phi está disponível
-        phi_available = any("phi" in m.lower() for m in available_models)
-        
-        if phi_available:
-            print("LLM service available. Models: %s", available_models)
-            return True
-        else:
-            print("No Phi model found. Available: %s", available_models)
-            return False
-            
+        response = generate_response("Diga olá em uma palavra", max_tokens=10)
+        return bool(response and len(response.strip()) > 0)
     except Exception as e:
-        print("LLM service error: %s", str(e))
+        logger.error("Serviço LLM indisponível: %s", e)
         return False

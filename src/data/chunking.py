@@ -7,15 +7,15 @@ respeitando limites naturais do texto (parágrafos, pontuação).
 import re
 from typing import List, Optional
 
+from src.core.logger import get_logger
+from src.core.nlp import nlp_manager, split_sentences, SPACY_AVAILABLE
 
-# Configurar logger
-print(__name__)
+logger = get_logger("data.chunking")
 
-# Importar detector de idioma
+# Importar detector de idioma se disponível
 try:
     from src.core.language_detector import (
         detect_language,
-        get_nlp_for_language,
         LANGDETECT_AVAILABLE,
         DEFAULT_LANGUAGE
     )
@@ -24,27 +24,6 @@ except ImportError:
     LANGUAGE_DETECTION_AVAILABLE = False
     LANGDETECT_AVAILABLE = False
     DEFAULT_LANGUAGE = 'pt'
-    print("language_detector não disponível")
-
-# Tentar carregar spaCy
-try:
-    import spacy
-    SPACY_AVAILABLE = True
-    
-    # Modelo padrão (português) para compatibilidade
-    try:
-        nlp = spacy.blank("pt")
-        nlp.add_pipe("sentencizer")
-        nlp.max_length = 50000000  # Aumentar para 50 milhões de caracteres
-        print("spaCy carregado com sucesso (sentencizer pt, max_length=50M)")
-    except Exception as e:
-        nlp = None
-        print(f"Erro ao carregar spaCy padrão: {e}")
-        
-except ImportError:
-    SPACY_AVAILABLE = False
-    nlp = None
-    print("spaCy não instalado. Usando fallback com regex.")
 
 
 class SemanticChunker:
@@ -191,72 +170,16 @@ class SemanticChunker:
     
     def _split_into_sentences(self, text: str) -> List[str]:
         """
-        Divide texto em sentenças usando spaCy ou fallback regex.
-        
-        Args:
-            text: Texto a ser dividido
-            
-        Returns:
-            Lista de sentenças
+        Divide texto em sentenças usando NLPManager unificado.
         """
-        if SPACY_AVAILABLE and nlp is not None:
-            return self._split_sentences_spacy(text)
-        else:
-            return self._split_sentences_regex(text)
-    
-    def _split_sentences_spacy(self, text: str) -> List[str]:
-        """Divide sentenças usando spaCy com detecção de idioma."""
-        # Detectar idioma se não foi detectado ainda
+        lang = self.language or "pt"
         if LANGUAGE_DETECTION_AVAILABLE and self._detected_language is None:
             self._detected_language = detect_language(text)
-            print(f"Idioma detectado para chunking: {self._detected_language}")
-        
-        # Usar modelo do idioma detectado ou default
-        if LANGUAGE_DETECTION_AVAILABLE and self._detected_language:
-            current_nlp = get_nlp_for_language(self._detected_language)
-        else:
-            current_nlp = nlp
-        
-        if current_nlp is None:
-            return self._split_sentences_regex(text)
-        
-        doc = current_nlp(text)
-        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-    
-    def _split_sentences_regex(self, text: str) -> List[str]:
-        """
-        Divide sentenças usando regex (fallback).
-        
-        Menos preciso que spaCy, mas funciona sem dependências.
-        """
-        # Padrão para fim de sentença: . ! ? seguido de espaço e maiúscula
-        # Evita quebrar em abreviações comuns
-        
-        # Proteger abreviações comuns
-        protected = text
-        abbreviations = [
-            r'Dr\.', r'Dra\.', r'Sr\.', r'Sra\.', r'Prof\.', 
-            r'Fig\.', r'Tab\.', r'etc\.', r'Ex\.', r'vs\.',
-            r'p\.', r'pp\.', r'vol\.', r'ed\.',
-        ]
-        
-        for i, abbr in enumerate(abbreviations):
-            protected = re.sub(abbr, f'__ABBR{i}__', protected, flags=re.IGNORECASE)
-        
-        # Dividir por pontuação final
-        # Padrão: ponto/interrogação/exclamação seguido de espaço
-        sentences = re.split(r'(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇ])', protected)
-        
-        # Restaurar abreviações
-        result = []
-        for sent in sentences:
-            for i, abbr in enumerate(abbreviations):
-                original = abbr.replace('\\', '')
-                sent = sent.replace(f'__ABBR{i}__', original)
-            if sent.strip():
-                result.append(sent.strip())
-        
-        return result
+            logger.debug("Idioma detectado para chunking: %s", self._detected_language)
+        if self._detected_language:
+            lang = self._detected_language
+            
+        return nlp_manager.split_into_sentences(text, language=lang)
     
     def _merge_small_chunks(self, chunks: List[str]) -> List[str]:
         """
@@ -387,10 +310,11 @@ def check_spacy_available() -> dict:
     Returns:
         Dict com status do spaCy
     """
+    nlp_inst = nlp_manager.get_pipeline("pt")
     return {
         "spacy_installed": SPACY_AVAILABLE,
-        "model_loaded": nlp is not None,
-        "model_name": "pt (default)" if nlp else None,
+        "model_loaded": nlp_inst is not None,
+        "model_name": "pt (unified)" if nlp_inst else None,
         "fallback_mode": not SPACY_AVAILABLE,
         "language_detection_available": LANGUAGE_DETECTION_AVAILABLE,
         "langdetect_available": LANGDETECT_AVAILABLE,

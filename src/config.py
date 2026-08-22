@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # Diretórios
     # =========================================================================
     BASE_DIR: Path = Path(__file__).parent.parent
-    DOCUMENTS_DIR: Path = Path(r"C:\Users\Rian\Documents\treinamento")
+    DOCUMENTS_DIR: Path = Path(os.getenv("DOCUMENTS_DIR", str(Path(__file__).parent.parent / "documents")))
 
     # =========================================================================
     # PostgreSQL + pgvector
