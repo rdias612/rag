@@ -1,0 +1,66 @@
+[
+  {
+    "id": "tc_001",
+    "category": "factual",
+    "question": "O que é Retrieval-Augmented Generation (RAG)?",
+    "ground_truth_answer": "RAG é uma arquitetura que combina recuperação de informações em uma base de conhecimento externa com modelos de linguagem (LLMs) para gerar respostas precisas e contextualizadas.",
+    "expected_keywords": ["retrieval", "augmented", "geração", "recuperação", "base de conhecimento", "llm"],
+    "expected_sources": ["rag", "arquitetura", "manual"]
+  },
+  {
+    "id": "tc_002",
+    "category": "technical",
+    "question": "Qual a diferença entre busca densa (vetorial) e busca esparsa (BM25)?",
+    "ground_truth_answer": "A busca densa utiliza embeddings para capturar similaridade semântica e significado contextual, enquanto a busca esparsa (BM25 / Full-Text) pontua por correspondência exata de termos e frequência de palavras.",
+    "expected_keywords": ["densa", "esparsa", "vetorial", "bm25", "embeddings", "palavras-chave"],
+    "expected_sources": ["hybrid_search", "embeddings"]
+  },
+  {
+    "id": "tc_003",
+    "category": "conceptual",
+    "question": "Como funciona a técnica de Hierarchical Chunking (Parent-Child)?",
+    "ground_truth_answer": "O Hierarchical Chunking divide o texto em chunks menores (filhos) para indexação e busca vetorial precisa, mas recupera e envia ao LLM o chunk maior (pai) para fornecer contexto amplo.",
+    "expected_keywords": ["hierarchical", "parent", "child", "pai", "filho", "contexto"],
+    "expected_sources": ["chunking", "hierarchical"]
+  },
+  {
+    "id": "tc_004",
+    "category": "technical",
+    "question": "Para que serve o algoritmo Reciprocal Rank Fusion (RRF)?",
+    "ground_truth_answer": "O RRF combina listas ordenadas de diferentes métodos de busca (como busca vetorial e busca full-text) calculando uma pontuação combinada baseada na posição do ranking de cada documento.",
+    "expected_keywords": ["rrf", "reciprocal rank fusion", "ranking", "fusão", "híbrida"],
+    "expected_sources": ["hybrid_search"]
+  },
+  {
+    "id": "tc_005",
+    "category": "technical",
+    "question": "O que é Sentence Window Retrieval e qual o seu objetivo?",
+    "ground_truth_answer": "Sentence Window Retrieval indexa sentenças individuais para alta precisão de busca e, ao encontrar o resultado mais similar, expande a janela recuperando sentenças adjacentes anteriores e posteriores.",
+    "expected_keywords": ["sentence window", "sentença", "janela", "expansão", "vizinhos"],
+    "expected_sources": ["sentence_window"]
+  },
+  {
+    "id": "tc_006",
+    "category": "conceptual",
+    "question": "O que é Contextual Retrieval e como ele resolve a perda de contexto?",
+    "ground_truth_answer": "Contextual Retrieval é uma técnica que prefixa cada chunk com um resumo situacional de 1 a 2 frases gerado pelo LLM na ingestão, garantindo que o chunk não perca o contexto do documento pai.",
+    "expected_keywords": ["contextual retrieval", "anthropic", "resumo", "situa", "perda de contexto"],
+    "expected_sources": ["contextual_retrieval"]
+  },
+  {
+    "id": "tc_007",
+    "category": "comparative",
+    "question": "Qual a vantagem de usar um Reranker Cross-Encoder em relação a apenas busca por similaridade de cosseno?",
+    "ground_truth_answer": "Enquanto a similaridade de cosseno compara vetores isolados, o Cross-Encoder processa a query e o documento juntos em atenção cruzada, capturando interações semânticas e relações muito mais ricas.",
+    "expected_keywords": ["reranker", "cross-encoder", "atenção cruzada", "cosseno", "precisão"],
+    "expected_sources": ["reranker"]
+  },
+  {
+    "id": "tc_008",
+    "category": "out_of_domain",
+    "question": "Qual a receita tradicional do bolo de cenoura com cobertura de chocolate?",
+    "ground_truth_answer": "Não encontrei informações sobre receitas de bolo de cenoura nos documentos fornecidos.",
+    "expected_keywords": ["não encontrei", "não há informações", "documentos"],
+    "expected_sources": []
+  }
+]

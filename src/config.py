@@ -124,6 +124,13 @@ class Settings(BaseSettings):
     SENTENCE_WINDOW_SIZE: int = 2
 
     # =========================================================================
+    # Contextual Retrieval (Anthropic Pattern - Phase 2.1)
+    # =========================================================================
+    ENABLE_CONTEXTUAL_RETRIEVAL: bool = False
+    CONTEXTUAL_RETRIEVAL_MODEL: Optional[str] = None  # None usa LLM_MODEL
+    CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS: int = 15000
+
+    # =========================================================================
     # Adaptive Retrieval (Phase 2)
     # =========================================================================
     ENABLE_ADAPTIVE_RETRIEVAL: bool = True
@@ -263,6 +270,9 @@ SELF_RAG_MIN_SCORE = settings.SELF_RAG_MIN_SCORE
 SELF_RAG_MAX_ITERATIONS = settings.SELF_RAG_MAX_ITERATIONS
 ENABLE_SENTENCE_WINDOW = settings.ENABLE_SENTENCE_WINDOW
 SENTENCE_WINDOW_SIZE = settings.SENTENCE_WINDOW_SIZE
+ENABLE_CONTEXTUAL_RETRIEVAL = settings.ENABLE_CONTEXTUAL_RETRIEVAL
+CONTEXTUAL_RETRIEVAL_MODEL = settings.CONTEXTUAL_RETRIEVAL_MODEL
+CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS = settings.CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS
 ENABLE_ADVANCED_BATCH_PROCESSING = settings.ENABLE_ADVANCED_BATCH_PROCESSING
 ADVANCED_BATCH_MAX_WORKERS = settings.ADVANCED_BATCH_MAX_WORKERS
 ADVANCED_BATCH_SIZE = settings.ADVANCED_BATCH_SIZE

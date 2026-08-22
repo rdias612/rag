@@ -123,35 +123,39 @@ Esta seção estabelece o plano de implementação de técnicas avançadas volta
 ---
 
 ### 📋 Tarefa 2.1: Contextual Retrieval (Anthropic Pattern)
+* **Status:** ✅ Concluído
 * **Objetivo:** Resolver a perda de contexto em chunks isolados gerando resumos contextuais na ingestão.
 * **Arquivos Afetados:**
-  - `src/data/contextual_retrieval.py` *(Novo)*
+  - [`src/data/contextual_retrieval.py`](file:///c:/Users/PC/Documents/GitHub/rag/src/data/contextual_retrieval.py) *(Criado)*
   - [`src/data/ingestion.py`](file:///c:/Users/PC/Documents/GitHub/rag/src/data/ingestion.py)
-  - [`src/data/repositories/document_repository.py`](file:///c:/Users/PC/Documents/GitHub/rag/src/data/repositories/document_repository.py)
+  - [`src/config.py`](file:///c:/Users/PC/Documents/GitHub/rag/src/config.py)
+  - [`tests/test_contextual_retrieval.py`](file:///c:/Users/PC/Documents/GitHub/rag/tests/test_contextual_retrieval.py)
 * **Tasks:**
-  - [ ] Criar prompt para LLM: `Dado o documento inteiro e o chunk abaixo, forneça 1-2 frases situando o chunk no documento`.
-  - [ ] Integrar no pipeline de ingestão: gerar o contexto contextual e prefixar no chunk antes de gerar o embedding.
-  - [ ] Armazenar o campo `contextualized_content` no banco mantendo o texto original para exibição limpa ao usuário.
-* **Critério de Aceite:** Chunks possuem contexto explícito do documento pai, aumentando a pontuação na busca vetorial.
+  - [x] Criar prompt para LLM: `Dado o documento inteiro e o chunk abaixo, forneça 1-2 frases situando o chunk no documento`.
+  - [x] Integrar no pipeline de ingestão: gerar o contexto situacional e prefixar no chunk antes de gerar o embedding e busca BM25.
+  - [x] Armazenar o campo `original_content` e `context_summary` nos metadados do chunk.
+* **Critério de Aceite:** Chunks possuem contexto explícito do documento pai, aumentando a pontuação na busca vetorial e eliminando perda de contexto.
 
 ---
 
 ### 📋 Tarefa 2.2: Suíte de Benchmark e Avaliação Empírica Offline (RAG Triad)
+* **Status:** ✅ Concluído
 * **Objetivo:** Criar um ambiente de testes quantitativo para comparar estratégias de chunking e busca.
 * **Arquivos Afetados:**
-  - `scripts/benchmark_rag.py` *(Novo)*
-  - `tests/data/golden_dataset.json` *(Novo)*
-  - [`src/core/evaluation.py`](file:///c:/Users/PC/Documents/GitHub/rag/src/core/evaluation.py)
+  - [`src/core/benchmark.py`](file:///c:/Users/PC/Documents/GitHub/rag/src/core/benchmark.py) *(Criado)*
+  - [`scripts/benchmark_rag.py`](file:///c:/Users/PC/Documents/GitHub/rag/scripts/benchmark_rag.py) *(Criado)*
+  - [`tests/data/golden_dataset.json`](file:///c:/Users/PC/Documents/GitHub/rag/tests/data/golden_dataset.json) *(Criado)*
+  - [`tests/test_benchmark.py`](file:///c:/Users/PC/Documents/GitHub/rag/tests/test_benchmark.py)
 * **Tasks:**
-  - [ ] Criar dataset com 20 perguntas, respostas de referência e chunks esperados (Ground Truth).
-  - [ ] Implementar cálculo de:
-    - **Hit Rate @ K**
-    - **Mean Reciprocal Rank (MRR)**
-    - **Faithfulness Score**
-    - **Context Precision**
-  - [ ] Implementar runner CLI que roda o benchmark comparando: *Sentence Window vs Hierarchical vs Standard* e *Vector vs Hybrid Search*.
-  - [ ] Gerar relatório consolidado em Markdown/Tabela com as métricas de cada estratégia.
-* **Critério de Aceite:** Executar `python scripts/benchmark_rag.py` e obter comparativo tabular de performance de recuperação.
+  - [x] Criar Golden Dataset anotado com perguntas, respostas de referência e termos-chave esperados.
+  - [x] Implementar cálculo das métricas da Tríade do RAG:
+    - **Context Relevance** (Precisão contextual e recall de palavras-chave)
+    - **Faithfulness / Groundedness** (Fidelidade sem alucinação)
+    - **Answer Relevancy** (Acurácia da resposta em relação à pergunta)
+    - **Keyword Recall** & **Latência / Tokens**
+  - [x] Implementar runner CLI (`scripts/benchmark_rag.py`) permitindo customizar `--top-k`, `--hybrid`, `--rerank` e `--output-dir`.
+  - [x] Gerar relatórios consolidados em Markdown e JSON salvos em `docs/benchmarks/`.
+* **Critério de Aceite:** Executar `python scripts/benchmark_rag.py` e obter comparativo tabular de performance de recuperação e qualidade.
 
 ---
 

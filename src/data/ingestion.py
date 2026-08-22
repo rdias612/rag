@@ -15,7 +15,7 @@ import os
 import warnings
 from pathlib import Path
 from datetime import datetime
-from typing import Generator, Callable, Optional, Literal
+from typing import Generator, Callable, Optional, Literal, List, Dict, Any
 
 from markitdown import MarkItDown
 
@@ -35,11 +35,13 @@ from src.config import (
     ENABLE_ADVANCED_BATCH_PROCESSING,
     PARENT_CHUNK_SIZE,
     CHILD_CHUNK_SIZE,
-    CHILD_CHUNK_OVERLAP
+    CHILD_CHUNK_OVERLAP,
+    ENABLE_CONTEXTUAL_RETRIEVAL
 )
 from src.data.chunking import chunk_text_semantic, analyze_chunk_quality
 from src.data.hierarchical_chunking import create_parent_child_chunks
 from src.data.sentence_window import create_sentence_index
+from src.data.contextual_retrieval import contextualize_document_chunks
 
 # =============================================================================
 # Formatos suportados e Proibidos (MarkItDown requer API key para estes)
@@ -59,8 +61,7 @@ md_converter = MarkItDown()
 
 def extract_text_with_markitdown(file_path: Path) -> list[dict]:
     """
-    Extrai texto de qualquer formato suportado usando MarkItDown da Microsoft.
-    Converte o arquivo para Markdown antes de retornar o texto.
+    Converte qualquer documento suportado para Markdown usando a biblioteca MarkItDown da Microsoft.
     
     Args:
         file_path: Caminho para o arquivo
@@ -99,54 +100,26 @@ def extract_text_with_markitdown(file_path: Path) -> list[dict]:
 def get_extractor_for_file(file_path: Path) -> Callable[[Path], list[dict]]:
     """
     Retorna a função extratora MarkItDown.
-    
-    Args:
-        file_path: Caminho do arquivo
-        
-    Returns:
-        Função extratora de texto
     """
     return extract_text_with_markitdown
 
 
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+def extract_text_from_pdf(file_path: Path) -> list[dict]:
     """
-    Divide um texto em chunks.
-    
-    Se USE_SEMANTIC_CHUNKING estiver ativo, usa chunking por sentenças.
-    Caso contrário, usa o método legado baseado em caracteres.
-    
-    Args:
-        text: Texto a ser dividido
-        chunk_size: Tamanho máximo de cada chunk em caracteres
-        overlap: Sobreposição entre chunks (ignorado no modo semântico)
-        
-    Returns:
-        Lista de chunks de texto
+    Extrai texto de um arquivo PDF.
+    DEPRECATED: Use extract_text_with_markitdown() ou get_extractor_for_file().
     """
-    if USE_SEMANTIC_CHUNKING:
-        return chunk_text_semantic(
-            text=text,
-            max_chunk_size=chunk_size,
-            min_chunk_size=MIN_CHUNK_SIZE,
-            overlap_sentences=CHUNK_OVERLAP_SENTENCES
-        )
-    
-    # Modo legado (fallback)
-    return chunk_text_legacy(text, chunk_size, overlap)
+    return extract_text_with_markitdown(file_path)
 
 
-def chunk_text_legacy(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+def chunk_text(
+    text: str,
+    chunk_size: int = CHUNK_SIZE,
+    chunk_overlap: int = CHUNK_OVERLAP
+) -> list[str]:
     """
-    Divide um texto em chunks com overlap (método legado).
-    
-    Args:
-        text: Texto a ser dividido
-        chunk_size: Tamanho máximo de cada chunk em caracteres
-        overlap: Sobreposição entre chunks
-        
-    Returns:
-        Lista de chunks de texto
+    Divide o texto em chunks menores com sobreposição (overlapping).
+    DEPRECATED: Use chunk_text_semantic() para chunking inteligente.
     """
     if len(text) <= chunk_size:
         return [text]
@@ -156,23 +129,17 @@ def chunk_text_legacy(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CH
     
     while start < len(text):
         end = start + chunk_size
-        
-        # Tentar quebrar em um espaço para não cortar palavras
         if end < len(text):
-            # Procurar o último espaço dentro do chunk
             last_space = text.rfind(" ", start, end)
-            if last_space > start:
+            if last_space != -1 and last_space > start + (chunk_size // 2):
                 end = last_space
         
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
         
-        # Próximo chunk começa com overlap
-        start = end - overlap
-        
-        # Evitar loop infinito
-        if start >= len(text) - overlap:
+        start = end - chunk_overlap
+        if start >= len(text) - chunk_overlap:
             break
     
     return chunks
@@ -180,28 +147,15 @@ def chunk_text_legacy(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CH
 
 def process_pdf(file_path: Path) -> list[dict]:
     """
-    Processa um PDF completo: extrai texto e divide em chunks.
-    
+    Processa um arquivo PDF: extrai texto e cria chunks com metadados.
     DEPRECATED: Use process_document() para suporte a múltiplos formatos.
-    
-    Args:
-        file_path: Caminho para o arquivo PDF
-        
-    Returns:
-        Lista de chunks com content e metadata
     """
     return process_document(file_path)
 
 
 def process_document(file_path: Path) -> list[dict]:
     """
-    Processa um documento usando estratégia de Parent-Child Chunking.
-    
-    Args:
-        file_path: Caminho para o arquivo
-        
-    Returns:
-        Lista de chunks (filhos e pais) com metadados estruturados
+    Processa um documento suportado: extrai texto e cria chunks com metadados.
     """
     return process_document_with_chunking_type(file_path, "hierarchical")
 
@@ -209,21 +163,10 @@ def process_document(file_path: Path) -> list[dict]:
 def process_document_sentence_window(file_path: Path) -> list[dict]:
     """
     Processa um documento usando Sentence Window Retrieval.
-    
-    Divide o documento em sentenças individuais, cada sentença
-    torna-se um chunk com metadados de posição.
-    
-    Args:
-        file_path: Caminho para o arquivo
-        
-    Returns:
-        Lista de chunks de sentenças com metadados estruturados
     """
-    # Obter extrator apropriado
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)
     
-    # Unificar texto
     full_text = "\n\n".join([p["text"] for p in pages])
     
     base_metadata = {
@@ -234,13 +177,11 @@ def process_document_sentence_window(file_path: Path) -> list[dict]:
         "page": 1
     }
     
-    # Gerar chunks de sentenças
     sentence_chunks = create_sentence_index(
         full_text,
         base_metadata
     )
     
-    # Adicionar chunk_type aos metadados
     for chunk in sentence_chunks:
         chunk["metadata"]["chunk_type"] = "sentence"
         chunk["metadata"]["chunk_index"] = chunk["metadata"]["sentence_index"]
@@ -268,7 +209,7 @@ def process_document_with_chunking_type(
 
 def _process_document_hierarchical(file_path: Path) -> list[dict]:
     """
-    Implementação interna de hierarchical chunking.
+    Implementação interna de hierarchical chunking com Contextual Retrieval opcional.
     """
     extractor = get_extractor_for_file(file_path)
     pages = extractor(file_path)
@@ -306,56 +247,38 @@ def _process_document_hierarchical(file_path: Path) -> list[dict]:
         c["metadata"]["page"] = 1
         c["metadata"]["chunk_type"] = "child"
         
-        # Enriquecer filhos com possíveis títulos de seção se encontrados no pai
-        parent_idx = c["metadata"]["parent_index"]
+        parent_idx = c["metadata"].get("parent_index", -1)
         if 0 <= parent_idx < len(parent_chunks):
             parent_text = parent_chunks[parent_idx]["content"]
             lines = parent_text.split('\n')
             if lines:
                 first_line = lines[0].strip()
-                if len(first_line) < 100 and len(first_line) > 3:
-                    if first_line.isupper() or first_line.endswith(':'):
-                        c["metadata"]["possible_section"] = first_line
+                if 3 < len(first_line) < 100 and (first_line.isupper() or first_line.endswith(':')):
+                    c["metadata"]["possible_section"] = first_line
+    
+    # 3. Contextual Retrieval (Padrão Anthropic - opcional)
+    if ENABLE_CONTEXTUAL_RETRIEVAL:
+        child_chunks = contextualize_document_chunks(full_text, child_chunks, enabled=True)
     
     # Retornar ambos para inserção no banco
     return parent_chunks + child_chunks
 
 
 def get_all_pdfs(directory: Path = DOCUMENTS_DIR) -> list[Path]:
-    """
-    Lista todos os arquivos PDF em um diretório (recursivo).
-    
-    DEPRECATED: Use get_all_documents() para suporte a múltiplos formatos.
-    
-    Args:
-        directory: Diretório para buscar PDFs
-        
-    Returns:
-        Lista de caminhos para arquivos PDF
-    """
+    """Lista todos os arquivos PDF em um diretório (recursivo)."""
     return [f for f in get_all_documents(directory) if f.suffix.lower() == ".pdf"]
 
 
 def get_all_documents(directory: Path = DOCUMENTS_DIR) -> list[Path]:
     """
     Lista todos os arquivos suportados em um diretório (recursivo).
-    
-    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
-    
-    Args:
-        directory: Diretório para buscar documentos
-        
-    Returns:
-        Lista de caminhos para arquivos suportados
     """
     document_files = []
-    
     for root, dirs, files in os.walk(directory):
         for file in files:
             ext = Path(file).suffix.lower()
             if ext in SUPPORTED_EXTENSIONS:
                 document_files.append(Path(root) / file)
-    
     return document_files
 
 
@@ -365,24 +288,9 @@ def process_all_documents(
 ) -> Generator[dict, None, None]:
     """
     Processa todos os documentos suportados de um diretório, gerando chunks.
-    
-    Formatos suportados: .pdf, .docx, .txt, .md, .html, .htm
-    
-    Args:
-        directory: Diretório com os documentos
-        chunking_type: Tipo de chunking (hierarchical ou sentence), None usa default
-        
-    Yields:
-        Chunks com content, metadata e collection_id
     """
     document_files = get_all_documents(directory)
     chunking_mode = "SEMÂNTICO (spaCy)" if USE_SEMANTIC_CHUNKING else "LEGADO (caracteres)"
-    
-    # Contar por tipo
-    files_by_type = {}
-    for f in document_files:
-        ext = f.suffix.lower()
-        files_by_type[ext] = files_by_type.get(ext, 0) + 1
     
     logger.info("Encontrados %d documentos para processamento (Modo: %s)", len(document_files), chunking_mode)
     
@@ -416,15 +324,10 @@ def process_all_documents(
     
     logger.info("Processamento concluído: %d chunks gerados de %d arquivos", total_chunks, len(document_files))
 
+
 def get_document_stats(directory: Path = DOCUMENTS_DIR) -> dict:
     """
     Retorna estatísticas sobre os documentos no diretório.
-    
-    Args:
-        directory: Diretório com os documentos
-        
-    Returns:
-        Dict com estatísticas
     """
     document_files = get_all_documents(directory)
     total_size = 0
